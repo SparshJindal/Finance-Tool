@@ -265,3 +265,17 @@ export async function triggerSendDigest() {
     return { success: false, error: err.message }
   }
 }
+
+export async function submitFindingFeedback(findingId: string, feedback: 'up' | 'down' | null) {
+  try {
+    await prisma.finding.update({
+      where: { id: findingId },
+      data: { feedback }
+    })
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err) {
+    console.error(err)
+    return { error: 'Failed to update feedback' }
+  }
+}
