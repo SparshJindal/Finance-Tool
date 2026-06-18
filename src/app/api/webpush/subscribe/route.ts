@@ -1,10 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveSubscription, removeSubscription } from '@/lib/push';
+import { z } from 'zod';
+
+const subscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string(),
+    auth: z.string()
+  })
+});
+
+const rateLimitMap = new Map<string, { count: number, timestamp: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const limit = 5; // 5 requests per minute
+
+  const record = rateLimitMap.get(ip);
+  if (!record || (now - record.timestamp > windowMs)) {
+    rateLimitMap.set(ip, { count: 1, timestamp: now });
+    return false;
+  }
+  if (record.count >= limit) return true;
+  record.count += 1;
+  return false;
+}
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+  if (isRateLimited(ip)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
-    await saveSubscription(body);
+    const result = subscriptionSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    await saveSubscription(result.data);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     console.error('[API] Subscribe error:', e);
@@ -13,8 +49,16 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+  if (isRateLimited(ip)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
+    if (!body.endpoint) {
+      return NextResponse.json({ error: 'Endpoint missing' }, { status: 400 });
+    }
     await removeSubscription(body.endpoint);
     return NextResponse.json({ success: true });
   } catch (e: any) {
