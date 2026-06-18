@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Holding {
+  id              String        @id @default(uuid())
+  userId          String        @map("user_id")
+  ticker          String
+  company         String
+  sector          String?
+  thesis          String
+  directionLogic  String        @map("direction_logic")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  questions       Question[]
+  competitors     Competitor[]
+  findings        Finding[]
+
+  @@index([userId])
+  @@map("holdings")
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  holdingId String   @map("holding_id")
+  category  String
+  text      String
+
+  holding   Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  findings  Finding[]
+
+  @@map("questions")
+}
+
+model Competitor {
+  id        String   @id @default(uuid())
+  holdingId String   @map("holding_id")
+  name      String
+  ticker    String
+
+  holding   Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+
+  @@map("competitors")
+}
+
+model Article {
+  id          String    @id @default(uuid())
+  url         String    @unique
+  title       String
+  source      String
+  publishedAt DateTime  @map("published_at")
+  contentHash String    @map("content_hash")
+  clusterId   String?   @map("cluster_id")
+  firstSeen   DateTime  @default(now()) @map("first_seen")
+
+  findings    Finding[]
+
+  @@index([url])
+  @@map("articles")
+}
+
+model Finding {
+  id          String   @id @default(uuid())
+  articleId   String   @map("article_id")
+  holdingId   String   @map("holding_id")
+  questionId  String?  @map("question_id")
+  direction   String
+  severity    Int
+  summary     String
+  delivered   Boolean  @default(false)
+  feedback    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  holding     Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  question    Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@index([holdingId])
+  @@map("findings")
+}
+
+model DailyBrief {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("daily_briefs")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("push_subscriptions")
+}
