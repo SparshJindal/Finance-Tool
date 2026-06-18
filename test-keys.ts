@@ -15,7 +15,7 @@ async function testKeys() {
       const modelsResponse = await ai.models.list();
       const embeddingModels = [];
       for await (const model of modelsResponse) {
-        if (model.name.includes("embed") || model.name.includes("embedding")) {
+        if (model.name?.includes("embed") || model.name?.includes("embedding")) {
           embeddingModels.push(model.name);
         }
       }

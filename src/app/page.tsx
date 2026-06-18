@@ -1,102 +1,283 @@
 import { prisma } from '@/lib/db'
-import { addHolding, studyAllHoldings, triggerNewsIngestion, triggerSendDigest } from '@/app/actions'
+import {
+  addHolding,
+  studyAllHoldings,
+  triggerNewsIngestion,
+  triggerSendDigest,
+} from '@/app/actions'
 import { HoldingRow } from '@/components/HoldingRow'
 import { PushManager } from '@/components/PushManager'
 import ReactMarkdown from 'react-markdown'
 
+/* ─── small server-component helpers ─── */
+
+function TopBar() {
+  return (
+    <header style={{
+      borderBottom: '1px solid var(--border)',
+      padding: '0 var(--sp-8)',
+      height: '52px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      background: 'var(--base-0)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+        {/* wordmark */}
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 'var(--text-xs)',
+          fontWeight: 600,
+          letterSpacing: '0.10em',
+          textTransform: 'uppercase',
+          color: 'var(--accent)',
+        }}>
+          Radar
+        </span>
+        <span style={{
+          width: '1px',
+          height: '14px',
+          background: 'var(--border)',
+        }} />
+        <span style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-muted)',
+          fontWeight: 400,
+        }}>
+          Portfolio Intelligence
+        </span>
+      </div>
+
+      {/* timestamp */}
+      <time style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 'var(--text-2xs)',
+        color: 'var(--text-muted)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        {new Date().toLocaleDateString('en-IN', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'Asia/Kolkata',
+        })}
+      </time>
+    </header>
+  )
+}
+
+function SectionHeader({ label, count }: { label: string; count?: number }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: 'var(--sp-3)',
+      marginBottom: 'var(--sp-5)',
+    }}>
+      <h2 style={{
+        fontFamily: 'var(--font-ui)',
+        fontSize: 'var(--text-md)',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        margin: 0,
+      }}>
+        {label}
+      </h2>
+      {count !== undefined && (
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-muted)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {count}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div style={{
+      background: 'var(--base-1)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      padding: 'var(--sp-12) var(--sp-8)',
+      textAlign: 'center',
+    }}>
+      <p style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 'var(--text-xs)',
+        color: 'var(--text-muted)',
+        letterSpacing: '0.04em',
+      }}>
+        {message}
+      </p>
+    </div>
+  )
+}
+
+/* ─── Add Holding collapsible form (client) ─── */
+import { AddHoldingPanel } from '@/components/AddHoldingPanel'
+
+/* ─── Page ─── */
 export default async function Page() {
   const holdings = await prisma.holding.findMany({
     where: { userId: 'me' },
     orderBy: { createdAt: 'desc' },
-    include: {
-      competitors: true,
-      questions: true
-    }
+    include: { competitors: true, questions: true },
   })
 
   const latestBrief = await prisma.dailyBrief.findFirst({
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
   })
 
   return (
-    <div className="max-w-4xl mx-auto p-6 md:p-12 space-y-12 font-sans">
-      <header className="border-b border-neutral-300 dark:border-neutral-700 pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Portfolio Holdings</h1>
-      </header>
+    <div style={{ minHeight: '100vh', background: 'var(--base-0)' }}>
+      <TopBar />
 
-      <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
-      
-      <section className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 p-6 sm:p-8">
-        <h2 className="text-xl font-semibold mb-6 text-neutral-900 dark:text-neutral-100">Add New Holding</h2>
-        <form action={addHolding} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <main style={{
+        maxWidth: '880px',
+        margin: '0 auto',
+        padding: 'var(--sp-10) var(--sp-6)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--sp-12)',
+      }}>
+
+        {/* ── Controls row ── */}
+        <section>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--sp-4)',
+            flexWrap: 'wrap',
+            marginBottom: 'var(--sp-5)',
+          }}>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ticker</label>
-              <input name="ticker" required className="w-full border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 bg-white dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-neutral-500 placeholder-neutral-400" placeholder="e.g. AAPL" />
+              <h1 style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 'var(--text-xl)',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                margin: 0,
+                letterSpacing: '-0.02em',
+              }}>
+                Portfolio Holdings
+              </h1>
+              <p style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-muted)',
+                marginTop: 'var(--sp-1)',
+              }}>
+                {holdings.length} position{holdings.length !== 1 ? 's' : ''} monitored
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Company</label>
-              <input name="company" required className="w-full border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 bg-white dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-neutral-500 placeholder-neutral-400" placeholder="e.g. Apple Inc." />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Thesis</label>
-            <textarea name="thesis" required rows={2} className="w-full border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 bg-white dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-neutral-500 placeholder-neutral-400" placeholder="Investment rationale..."></textarea>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Direction Logic</label>
-            <select name="directionLogic" className="w-full border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 bg-white dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-neutral-500">
-              <option value="LONG">LONG</option>
-              <option value="SHORT">SHORT</option>
-            </select>
-          </div>
-          <div className="pt-2">
-            <button type="submit" className="bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity rounded-none">Add Holding</button>
-          </div>
-        </form>
-      </section>
 
-      <section className="space-y-6">
-        <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Daily Intelligence Brief</h2>
-        {latestBrief ? (
-          <div className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 p-6 sm:p-8 prose prose-neutral dark:prose-invert max-w-none font-sans">
-            <ReactMarkdown>{latestBrief.content}</ReactMarkdown>
+            {holdings.length > 0 && (
+              <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
+                <form action={triggerNewsIngestion as unknown as (fd: FormData) => void}>
+                  <button type="submit" className="btn btn-secondary">
+                    Run Ingest
+                  </button>
+                </form>
+                <form action={studyAllHoldings as unknown as (fd: FormData) => void}>
+                  <button type="submit" className="btn btn-secondary">
+                    Study All
+                  </button>
+                </form>
+                <form action={triggerSendDigest as unknown as (fd: FormData) => void}>
+                  <button type="submit" className="btn btn-primary">
+                    Send Digest
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 p-6 sm:p-8 text-neutral-500 text-sm">
-            No intelligence brief generated yet. Run the Ingest News Pipeline to generate your first brief.
-          </div>
-        )}
-      </section>
 
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Current Portfolio</h2>
-          {holdings.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              <form action={triggerNewsIngestion}>
-                <button type="submit" className="text-sm border border-neutral-300 dark:border-neutral-700 px-5 py-2 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 hover:opacity-90 transition-opacity font-medium rounded-none">Ingest News Pipeline</button>
-              </form>
-              <form action={studyAllHoldings}>
-                <button type="submit" className="text-sm border border-neutral-300 dark:border-neutral-700 px-5 py-2 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:opacity-90 transition-opacity font-medium rounded-none">Study Entire Portfolio</button>
-              </form>
-              <form action={triggerSendDigest}>
-                <button type="submit" className="text-sm border border-transparent px-5 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium rounded-none shadow-sm">Send test digest now</button>
-              </form>
+          {/* Push alerts + add holding — in a row */}
+          <div style={{ display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '280px' }}>
+              <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
             </div>
-          )}
-        </div>
-        <div className="space-y-4">
-          {holdings.map(h => (
-            <HoldingRow key={h.id} holding={h} />
-          ))}
-          {holdings.length === 0 && (
-            <div className="border border-neutral-300 dark:border-neutral-700 p-8 text-center bg-white dark:bg-neutral-950">
-              <p className="text-neutral-500 dark:text-neutral-400">No holdings found. Add your first holding above.</p>
+          </div>
+        </section>
+
+        {/* ── Holdings list ── */}
+        <section>
+          <SectionHeader label="Positions" count={holdings.length} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+            {holdings.map(h => (
+              <HoldingRow key={h.id} holding={h} />
+            ))}
+            {holdings.length === 0 && (
+              <EmptyState message="No positions. Add your first holding below." />
+            )}
+          </div>
+        </section>
+
+        {/* ── Add Holding (collapsible) ── */}
+        <section>
+          <AddHoldingPanel action={addHolding as unknown as (fd: FormData) => void | Promise<void>} />
+        </section>
+
+        {/* ── Daily Brief ── */}
+        <section>
+          <SectionHeader label="Daily Intelligence Brief" />
+
+          {latestBrief ? (
+            <div style={{
+              background: 'var(--base-1)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--sp-8)',
+            }}>
+              {/* Brief meta */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingBottom: 'var(--sp-5)',
+                marginBottom: 'var(--sp-5)',
+                borderBottom: '1px solid var(--border)',
+              }}>
+                <span className="section-label">Intelligence Brief</span>
+                <time style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-2xs)',
+                  color: 'var(--text-muted)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {new Date(latestBrief.createdAt).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Asia/Kolkata',
+                  })} IST
+                </time>
+              </div>
+
+              <div className="brief-prose">
+                <ReactMarkdown>{latestBrief.content}</ReactMarkdown>
+              </div>
             </div>
+          ) : (
+            <EmptyState message="No brief yet — run the ingest pipeline to generate your first report." />
           )}
-        </div>
-      </section>
+        </section>
+
+      </main>
     </div>
   )
 }

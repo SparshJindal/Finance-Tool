@@ -24,7 +24,7 @@ export async function addHolding(formData: FormData) {
   })
 
   if (!result.success) {
-    return { error: result.error.errors[0].message }
+    return { error: result.error.issues[0].message }
   }
 
   try {
@@ -55,7 +55,7 @@ export async function updateHolding(formData: FormData) {
   })
 
   if (!result.success) {
-    return { error: result.error.errors[0].message }
+    return { error: result.error.issues[0].message }
   }
   
   if (!result.data.id) {
@@ -241,10 +241,11 @@ export async function studyAllHoldings() {
 
 export async function triggerNewsIngestion() {
   try {
-    const { report, candidates } = await ingestNews()
-    console.log("Found Candidates:", candidates.length)
+    const result = await ingestNews()
+    const candidates = (result as any)?.candidates
+    console.log("Found Candidates:", candidates?.length ?? 0)
     revalidatePath('/')
-    return { success: true, report, candidatesFound: candidates.length }
+    return { success: true, report: (result as any)?.report, candidatesFound: candidates?.length ?? 0 }
   } catch (err) {
     console.error(err)
     return { error: 'Pipeline failed' }
