@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PolygonMesh } from '@/components/PolygonMesh';
 
 export const metadata = {
   title: 'Portfolio Disruption Radar | Financial Intelligence Without the Noise',
@@ -9,34 +10,46 @@ export default function LandingPage() {
     <div style={{
       minHeight: '100vh',
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
       padding: '0 var(--sp-6)',
-      textAlign: 'center',
+      textAlign: 'center' as const,
+      position: 'relative' as const,
+      overflow: 'hidden',
     }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      {/* Interactive polygon mesh background */}
+      <PolygonMesh />
+
+      {/* Content layer */}
+      <div style={{
+        maxWidth: '800px',
+        margin: '0 auto',
+        position: 'relative',
+        zIndex: 1,
+      }}>
         <h1 style={{
-          fontFamily: 'var(--font-ui)',
-          fontSize: 'var(--text-2xl)',
-          fontWeight: 600,
-          color: 'var(--text-primary)',
-          letterSpacing: '-0.03em',
+          fontFamily: "'Cormorant Garamond', Georgia, serif",
+          fontSize: 'clamp(2.5rem, 5vw, 3.5rem)',
+          fontWeight: 700,
+          fontStyle: 'italic',
+          color: '#1F2937',
+          letterSpacing: '-0.02em',
           lineHeight: 1.1,
           marginBottom: 'var(--sp-4)',
         }}>
-          Financial intelligence without the noise.
+          Financial intelligence<br />without the noise.
         </h1>
         <p style={{
           fontFamily: 'var(--font-ui)',
-          fontSize: 'var(--text-lg)',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.6,
+          fontSize: 'var(--text-md)',
+          color: '#6B7280',
+          lineHeight: 1.7,
           marginBottom: 'var(--sp-10)',
-          maxWidth: '600px',
+          maxWidth: '520px',
           marginInline: 'auto',
         }}>
-          Autonomous AI agents that actively monitor your portfolio, read the news, and distill market noise into actionable, thesis-driven findings.
+          Autonomous AI agents that monitor your portfolio, read the news, and distill market noise into thesis&#8209;driven findings.
         </p>
         <Link 
           href="/dashboard"
@@ -46,41 +59,22 @@ export default function LandingPage() {
             justifyContent: 'center',
             height: '48px',
             padding: '0 var(--sp-8)',
-            background: 'var(--text-primary)',
-            color: 'var(--base-0)',
-            fontFamily: 'var(--font-ui)',
-            fontSize: 'var(--text-sm)',
-            fontWeight: 500,
+            background: 'transparent',
+            color: '#4B5563',
+            border: '2px solid #4E342E',
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 'var(--text-md)',
+            fontWeight: 700,
             borderRadius: 'var(--radius-sm)',
             textDecoration: 'none',
-            letterSpacing: '0.01em',
-            transition: 'transform 0.15s ease, opacity 0.15s ease',
+            letterSpacing: '0.02em',
+            transition: 'all 0.25s ease',
           }}
-          className="hover:-translate-y-0.5 hover:opacity-90"
+          className="hover:-translate-y-0.5 hover:opacity-80"
         >
-          Get Started
+          Get Started →
         </Link>
       </div>
-
-      {/* Decorative subtle lines */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: '10%',
-        width: '1px',
-        background: 'var(--border)',
-        zIndex: -1,
-      }} />
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        right: '10%',
-        width: '1px',
-        background: 'var(--border)',
-        zIndex: -1,
-      }} />
     </div>
   );
 }

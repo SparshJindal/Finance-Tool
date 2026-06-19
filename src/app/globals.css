@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -21,10 +21,10 @@
   --text-secondary: #4B5563;
   --text-muted:     #9CA3AF;
 
-  /* Accent — signal amber */
-  --accent:         #D97706; /* Darker amber for contrast */
-  --accent-dim:     rgba(217, 119, 6, 0.08);
-  --accent-border:  rgba(217, 119, 6, 0.20);
+  /* Accent — dark brown */
+  --accent:         #4E342E; 
+  --accent-dim:     rgba(78, 52, 46, 0.08);
+  --accent-border:  rgba(78, 52, 46, 0.20);
 
   /* Semantic */
   --threat:         #DC2626;
@@ -193,11 +193,10 @@ select.input option {
   cursor: not-allowed;
 }
 
-/* Primary: accent fill */
 .btn-primary {
-  background: var(--accent);
-  color: #FFFFFF;
-  border-color: var(--accent);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px solid var(--accent);
 }
 .btn-primary:hover:not(:disabled) {
   opacity: 0.88;
