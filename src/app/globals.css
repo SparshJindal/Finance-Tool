@@ -7,36 +7,36 @@
    ───────────────────────────────────────────────────────────── */
 :root {
   /* Base surface stack */
-  --base-0:    #0B0C0E;
-  --base-1:    #15171A;
-  --base-2:    #1C1E22;
-  --base-3:    #25282D;
+  --base-0:    #FFFFFF;
+  --base-1:    #FAFAFA;
+  --base-2:    #F3F4F6;
+  --base-3:    #E5E7EB;
 
   /* Border */
-  --border:    #2A2D32;
-  --border-hi: #3A3E45;
+  --border:    #E5E7EB;
+  --border-hi: #D1D5DB;
 
   /* Text */
-  --text-primary:   #E8EAED;
-  --text-secondary: #8B9099;
-  --text-muted:     #545A63;
+  --text-primary:   #111827;
+  --text-secondary: #4B5563;
+  --text-muted:     #9CA3AF;
 
   /* Accent — signal amber */
-  --accent:         #E8A020;
-  --accent-dim:     rgba(232, 160, 32, 0.12);
-  --accent-border:  rgba(232, 160, 32, 0.30);
+  --accent:         #D97706; /* Darker amber for contrast */
+  --accent-dim:     rgba(217, 119, 6, 0.08);
+  --accent-border:  rgba(217, 119, 6, 0.20);
 
   /* Semantic */
-  --threat:         #E84040;
-  --threat-dim:     rgba(232, 64, 64, 0.10);
-  --tailwind-green: #3ECF8E;
-  --tailwind-dim:   rgba(62, 207, 142, 0.10);
+  --threat:         #DC2626;
+  --threat-dim:     rgba(220, 38, 38, 0.08);
+  --tailwind-green: #10B981;
+  --tailwind-dim:   rgba(16, 185, 129, 0.08);
 
   /* Severity scale (1→5) */
-  --sev-1: #545A63;
-  --sev-2: #7C8290;
+  --sev-1: #9CA3AF;
+  --sev-2: #6B7280;
   --sev-3: var(--accent);
-  --sev-4: #E86820;
+  --sev-4: #EA580C;
   --sev-5: var(--threat);
 
   /* Typography */
@@ -69,8 +69,8 @@
   --radius-md: 5px;
 
   /* Shadow */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.6);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -196,7 +196,7 @@ select.input option {
 /* Primary: accent fill */
 .btn-primary {
   background: var(--accent);
-  color: #0B0C0E;
+  color: #FFFFFF;
   border-color: var(--accent);
 }
 .btn-primary:hover:not(:disabled) {

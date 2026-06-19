@@ -37,7 +37,7 @@ export async function addHolding(formData: FormData) {
         directionLogic: result.data.directionLogic
       }
     })
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -78,7 +78,7 @@ export async function updateHolding(formData: FormData) {
         directionLogic: result.data.directionLogic
       }
     })
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -99,7 +99,7 @@ export async function deleteHolding(formData: FormData) {
     await prisma.holding.delete({
       where: { id }
     })
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -157,7 +157,7 @@ export async function studyHolding(formData: FormData) {
       })
     }
 
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -231,7 +231,7 @@ export async function studyAllHoldings() {
       await prisma.question.createMany({ data: allQuestionsToInsert })
     }
 
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -244,7 +244,7 @@ export async function triggerNewsIngestion() {
     const result = await ingestNews()
     const candidates = (result as any)?.candidates
     console.log("Found Candidates:", candidates?.length ?? 0)
-    revalidatePath('/')
+    revalidatePath('/dashboard')
     return { success: true, report: (result as any)?.report, candidatesFound: candidates?.length ?? 0 }
   } catch (err) {
     console.error(err)

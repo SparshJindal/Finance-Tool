@@ -1,97 +1,86 @@
-import { prisma } from '@/lib/db'
-import {
-  addHolding,
-  studyAllHoldings,
-  triggerNewsIngestion,
-  triggerSendDigest,
-} from '@/app/actions'
-import { PushManager } from '@/components/PushManager'
-import { DashboardShell } from '@/components/DashboardShell'
+import Link from 'next/link';
 
-export const dynamic = 'force-dynamic'
+export const metadata = {
+  title: 'Portfolio Disruption Radar | Financial Intelligence Without the Noise',
+};
 
-export default async function Page() {
-  const holdings = await prisma.holding.findMany({
-    where: { userId: 'me' },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  const findingsRaw = await prisma.finding.findMany({
-    include: {
-      article: true,
-      holding: true,
-      question: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  // Format findings for the client
-  const findings = findingsRaw.map(f => ({
-    id: f.id,
-    holdingId: f.holdingId,
-    ticker: f.holding.ticker,
-    company: f.holding.company,
-    severity: f.severity,
-    direction: f.direction,
-    summary: f.summary,
-    sourceLink: f.article.url,
-    sourceTitle: f.article.title,
-    questionText: f.question?.text || null,
-    feedback: f.feedback as 'up' | 'down' | null,
-  }))
-
-  const tickerItems = findings
-    .filter(f => f.severity >= 3)
-    .slice(0, 10)
-    .map(f => ({
-      id: f.id,
-      ticker: f.ticker,
-      title: f.sourceTitle || f.summary.substring(0, 50) + '...',
-      direction: f.direction,
-    }))
-
-  const totalThreats = findings.filter(f => f.severity >= 4).length
-  const maxPortfolioSeverity = findings.length > 0 ? Math.max(...findings.map(f => f.severity)) : 1
-
-  const lastScanAt = findingsRaw.length > 0 
-    ? findingsRaw[0].article.publishedAt?.toISOString() || findingsRaw[0].createdAt.toISOString() 
-    : null
-
-  // Build the pipeline controls
-  const controls = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
-      <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-        <form action={triggerNewsIngestion as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-            Run Ingest
-          </button>
-        </form>
-        <form action={studyAllHoldings as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-            Study All
-          </button>
-        </form>
-        <form action={triggerSendDigest as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-            Send Digest
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-
+export default function LandingPage() {
   return (
-    <DashboardShell
-      holdings={holdings}
-      findings={findings}
-      tickerItems={tickerItems}
-      lastScanAt={lastScanAt}
-      totalThreats={totalThreats}
-      maxPortfolioSeverity={maxPortfolioSeverity}
-      addHoldingAction={addHolding as unknown as (fd: FormData) => void | Promise<void>}
-      controls={controls}
-    />
-  )
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '0 var(--sp-6)',
+      textAlign: 'center',
+    }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <h1 style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 'var(--text-2xl)',
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+          letterSpacing: '-0.03em',
+          lineHeight: 1.1,
+          marginBottom: 'var(--sp-4)',
+        }}>
+          Financial intelligence without the noise.
+        </h1>
+        <p style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 'var(--text-lg)',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.6,
+          marginBottom: 'var(--sp-10)',
+          maxWidth: '600px',
+          marginInline: 'auto',
+        }}>
+          Autonomous AI agents that actively monitor your portfolio, read the news, and distill market noise into actionable, thesis-driven findings.
+        </p>
+        <Link 
+          href="/dashboard"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '48px',
+            padding: '0 var(--sp-8)',
+            background: 'var(--text-primary)',
+            color: 'var(--base-0)',
+            fontFamily: 'var(--font-ui)',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 500,
+            borderRadius: 'var(--radius-sm)',
+            textDecoration: 'none',
+            letterSpacing: '0.01em',
+            transition: 'transform 0.15s ease, opacity 0.15s ease',
+          }}
+          className="hover:-translate-y-0.5 hover:opacity-90"
+        >
+          Get Started
+        </Link>
+      </div>
+
+      {/* Decorative subtle lines */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: '10%',
+        width: '1px',
+        background: 'var(--border)',
+        zIndex: -1,
+      }} />
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: '10%',
+        width: '1px',
+        background: 'var(--border)',
+        zIndex: -1,
+      }} />
+    </div>
+  );
 }
