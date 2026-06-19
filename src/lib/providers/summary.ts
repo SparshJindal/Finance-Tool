@@ -129,11 +129,14 @@ const briefSchema = {
   required: ["brief"]
 };
 
-export async function generateDailyBrief() {
-  console.log("[generateDailyBrief] Fetching undelivered findings...");
+export async function generateDailyBrief(userId?: string) {
+  console.log(`[generateDailyBrief] Fetching undelivered findings... ${userId ? `(User: ${userId})` : '(Global)'}`);
   
   const findings = await prisma.finding.findMany({
-    where: { delivered: false },
+    where: { 
+      delivered: false,
+      holding: userId ? { userId } : undefined 
+    },
     include: {
       holding: true,
       article: true
@@ -188,7 +191,10 @@ ${contextStr}
 
   if (parsed.brief) {
     const brief = await prisma.dailyBrief.create({
-      data: { content: parsed.brief }
+      data: { 
+        content: parsed.brief,
+        userId: userId || 'me'
+      }
     });
     console.log(`[generateDailyBrief] Saved daily brief.`);
     return brief;

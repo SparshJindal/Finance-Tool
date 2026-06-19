@@ -71,7 +71,7 @@ export async function askAI({
   
   // Groq requires an explicit instruction for JSON object mode
   const fallbackPrompt = schema 
-    ? `${prompt}\n\nIMPORTANT: You must return the output as a valid JSON object exactly matching the requested structure. Do not return a naked JSON array. It must be a JSON object.`
+    ? `${prompt}\n\nIMPORTANT: You must return the output as a valid JSON object exactly matching this JSON Schema structure:\n${JSON.stringify(schema, null, 2)}\n\nDo not return a naked JSON array. It must be a JSON object containing the specified keys.`
     : prompt;
 
   const chatCompletion = await groq.chat.completions.create({

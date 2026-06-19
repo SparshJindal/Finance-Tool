@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { redirect } from 'next/navigation'
 import {
   addHolding,
   studyAllHoldings,
   triggerNewsIngestion,
   triggerSendDigest,
+  logOut,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
 import { DashboardShell } from '@/components/DashboardShell'
@@ -11,12 +14,17 @@ import { DashboardShell } from '@/components/DashboardShell'
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
+  const session = await auth()
+  if (!session?.user?.id) redirect('/login')
+  const userId = session.user.id
+
   const holdings = await prisma.holding.findMany({
-    where: { userId: 'me' },
+    where: { userId },
     orderBy: { createdAt: 'desc' },
   })
 
   const findingsRaw = await prisma.finding.findMany({
+    where: { holding: { userId } },
     include: {
       article: true,
       holding: true,
@@ -76,6 +84,11 @@ export default async function Page() {
         <form action={triggerSendDigest as unknown as (fd: FormData) => void}>
           <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
             Send Digest
+          </button>
+        </form>
+        <form action={logOut as unknown as (fd: FormData) => void}>
+          <button type="submit" className="btn" style={{ width: '100%', justifyContent: 'center', color: 'var(--text-secondary)', marginTop: 'var(--sp-4)' }}>
+            Log Out
           </button>
         </form>
       </div>

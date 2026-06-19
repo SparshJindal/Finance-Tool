@@ -15,8 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Disruption Radar — Portfolio Intelligence",
-  description: "Real-time portfolio disruption monitoring powered by AI.",
+  title: "coranto | Market Intelligence Dispatch",
+  description: "AI-driven insights and market signals.",
 };
 
 export default function RootLayout({

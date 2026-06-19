@@ -10,7 +10,7 @@ async function run() {
     
     if (brief) {
       console.log("=== Sending Email Digest ===");
-      await sendDigest();
+      await sendDigest(process.env.TEST_EMAIL || 'test@example.com', brief);
       
       console.log("=== Marking Findings as Delivered ===");
       await prisma.finding.updateMany({

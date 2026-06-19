@@ -2,22 +2,19 @@ import { Resend } from 'resend';
 import { prisma } from './db';
 import { marked } from 'marked';
 
-export async function sendDigest() {
-  console.log('[sendDigest] Starting email delivery process...');
+export async function sendDigest(userId: string, email: string) {
+  console.log(`[sendDigest] Starting email delivery process for ${email}...`);
   const resendKey = process.env.RESEND_API_KEY;
-  const digestEmail = process.env.DIGEST_EMAIL;
 
   if (!resendKey) {
     throw new Error('RESEND_API_KEY is not configured.');
   }
-  if (!digestEmail) {
-    throw new Error('DIGEST_EMAIL is not configured.');
-  }
 
   const resend = new Resend(resendKey);
 
-  // 1. Fetch latest brief
+  // 1. Fetch latest brief for the user
   const latestBrief = await prisma.dailyBrief.findFirst({
+    where: { userId },
     orderBy: { createdAt: 'desc' }
   });
 
@@ -28,7 +25,7 @@ export async function sendDigest() {
 
   // 2. Fetch pending findings to mark as delivered
   const pendingFindings = await prisma.finding.findMany({
-    where: { delivered: false },
+    where: { delivered: false, holding: { userId } },
     select: { id: true }
   });
 
@@ -39,26 +36,26 @@ export async function sendDigest() {
   const styledHtml = `
     <html>
       <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h1 style="color: #111; border-bottom: 1px solid #eee; padding-bottom: 10px;">Daily Portfolio Disruption Brief</h1>
+        <h1 style="color: #111; border-bottom: 1px solid #eee; padding-bottom: 10px;">Market Intelligence Dispatch</h1>
         <div style="margin-top: 20px;">
           ${htmlContent}
         </div>
         <p style="margin-top: 40px; font-size: 12px; color: #888;">
-          Generated automatically by your Disruption Radar
+          Generated automatically by coranto
         </p>
       </body>
     </html>
   `;
 
   const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const subject = `Daily Portfolio Disruption Brief - ${dateStr}`;
+  const subject = `coranto Dispatch - ${dateStr}`;
 
-  console.log(`[sendDigest] Dispatching email to ${digestEmail}...`);
+  console.log(`[sendDigest] Dispatching email to ${email}...`);
 
   // 4. Send via Resend
   const { data, error } = await resend.emails.send({
-    from: 'Disruption Radar <onboarding@resend.dev>',
-    to: digestEmail,
+    from: 'coranto <onboarding@resend.dev>',
+    to: email,
     subject: subject,
     html: styledHtml,
   });

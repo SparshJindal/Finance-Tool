@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/db'
+import { auth, signOut } from '@/auth'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
@@ -16,6 +17,10 @@ const holdingSchema = z.object({
 })
 
 export async function addHolding(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   const result = holdingSchema.safeParse({
     ticker: formData.get('ticker'),
     company: formData.get('company'),
@@ -30,7 +35,7 @@ export async function addHolding(formData: FormData) {
   try {
     await prisma.holding.create({
       data: {
-        userId: 'me',
+        userId,
         ticker: result.data.ticker,
         company: result.data.company,
         thesis: result.data.thesis,
@@ -46,6 +51,10 @@ export async function addHolding(formData: FormData) {
 }
 
 export async function updateHolding(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   const result = holdingSchema.safeParse({
     id: formData.get('id'),
     ticker: formData.get('ticker'),
@@ -65,7 +74,7 @@ export async function updateHolding(formData: FormData) {
   try {
     // Only update if userId is 'me'
     const existing = await prisma.holding.findFirst({
-      where: { id: result.data.id, userId: 'me' }
+      where: { id: result.data.id, userId }
     })
     if (!existing) return { error: 'Not found' }
 
@@ -92,7 +101,7 @@ export async function deleteHolding(formData: FormData) {
 
   try {
     const existing = await prisma.holding.findFirst({
-      where: { id, userId: 'me' }
+      where: { id, userId }
     })
     if (!existing) return { error: 'Not found' }
 
@@ -113,7 +122,7 @@ export async function studyHolding(formData: FormData) {
 
   try {
     const holding = await prisma.holding.findFirst({
-      where: { id, userId: 'me' }
+      where: { id, userId }
     })
     if (!holding) return { error: 'Holding not found' }
 
@@ -166,8 +175,12 @@ export async function studyHolding(formData: FormData) {
 }
 
 export async function studyAllHoldings() {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   try {
-    const holdings = await prisma.holding.findMany({ where: { userId: 'me' } })
+    const holdings = await prisma.holding.findMany({ where: { userId } })
     if (holdings.length === 0) return { error: 'No holdings to study' }
 
     const holdingsData = []
@@ -214,7 +227,8 @@ export async function studyAllHoldings() {
     const batchResults = await batchGenerateWatchQuestions(holdingsData)
     const allQuestionsToInsert: any[] = []
     
-    for (const result of batchResults) {
+    if (batchResults && Array.isArray(batchResults)) {
+      for (const result of batchResults) {
       const holdingId = holdingsData.find(h => h.ticker === result.ticker)?.id
       if (holdingId && result.questions) {
         result.questions.forEach((q: any) => {
@@ -224,6 +238,7 @@ export async function studyAllHoldings() {
             text: q.text
           })
         })
+      }
       }
     }
 
@@ -240,8 +255,12 @@ export async function studyAllHoldings() {
 }
 
 export async function triggerNewsIngestion() {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   try {
-    const result = await ingestNews()
+    const result = await ingestNews(userId)
     const candidates = (result as any)?.candidates
     console.log("Found Candidates:", candidates?.length ?? 0)
     revalidatePath('/dashboard')
@@ -256,14 +275,23 @@ import { sendDigest } from '@/lib/email'
 import { generateDailyBrief } from '@/lib/providers/summary'
 
 export async function triggerSendDigest() {
+  const session = await auth()
+  if (!session?.user?.id || !session?.user?.email) throw new Error("Unauthorized or missing email")
+  const userId = session.user.id
+  const email = session.user.email
+
   try {
-    await generateDailyBrief()
-    const res = await sendDigest()
+    await generateDailyBrief(userId)
+    const res = await sendDigest(userId, email)
     return res
   } catch (err: any) {
     console.error(err)
     return { success: false, error: err.message }
   }
+}
+
+export async function logOut() {
+  await signOut()
 }
 
 export async function submitFindingFeedback(findingId: string, feedback: 'up' | 'down' | null) {

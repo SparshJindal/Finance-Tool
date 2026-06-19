@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Severity } from '@/components/Severity'
+import { CorantoLogo } from '@/components/CorantoLogo'
 
 type HoldingNav = {
   id: string
@@ -156,7 +157,7 @@ function RailContent({
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
           }}>
-            RADAR
+            CORANTO
           </span>
         </div>
 
@@ -332,7 +333,7 @@ function MobileRail({
             color: 'var(--accent)',
             letterSpacing: '0.08em',
           }}>
-            RADAR
+            CORANTO
           </span>
         </div>
         <div style={{

@@ -18,8 +18,8 @@ export function PolygonMesh() {
   const rafRef = useRef<number>(0)
   const sizeRef = useRef({ w: 0, h: 0 })
 
-  const COLS = 18
-  const ROWS = 12
+  const COLS = 24
+  const ROWS = 16
   const MOUSE_RADIUS = 140
   const SPRING = 0.03
   const DAMPING = 0.85
@@ -96,6 +96,8 @@ export function PolygonMesh() {
       const cy = h / 2
       const maxDist = Math.sqrt(cx * cx + cy * cy)
 
+      const time = performance.now() * 0.0015
+
       // Physics update
       for (const p of points) {
         // Mouse repulsion
@@ -108,9 +110,15 @@ export function PolygonMesh() {
           p.vy += (dy / dist) * force
         }
 
-        // Spring back to origin
-        p.vx += (p.originX - p.x) * SPRING
-        p.vy += (p.originY - p.y) * SPRING
+        // Passive ripple effect based on distance from center
+        const distFromCenter = Math.sqrt((p.originX - cx) ** 2 + (p.originY - cy) ** 2)
+        const ripplePhase = time - distFromCenter * 0.012
+        const targetX = p.originX + Math.sin(ripplePhase) * 6
+        const targetY = p.originY + Math.cos(ripplePhase * 1.1) * 6
+
+        // Spring back to rippled origin
+        p.vx += (targetX - p.x) * SPRING
+        p.vy += (targetY - p.y) * SPRING
 
         // Damping
         p.vx *= DAMPING
@@ -124,7 +132,8 @@ export function PolygonMesh() {
       // Draw
       ctx.clearRect(0, 0, w, h)
 
-      for (const [a, b, c] of triangles) {
+      for (let ti = 0; ti < triangles.length; ti++) {
+        const [a, b, c] = triangles[ti]
         const pa = points[a]
         const pb = points[b]
         const pc = points[c]
@@ -136,18 +145,24 @@ export function PolygonMesh() {
         const distFromCenter = Math.sqrt((centX - cx) ** 2 + (centY - cy) ** 2)
         const opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
 
+        // Alternate fill color: every 5th triangle gets a warm amber tint
+        const isAmber = ti % 5 === 0
+        const fillR = isAmber ? 139 : 78
+        const fillG = isAmber ? 105 : 52
+        const fillB = isAmber ? 20 : 46
+
         // Fill triangle
         ctx.beginPath()
         ctx.moveTo(pa.x, pa.y)
         ctx.lineTo(pb.x, pb.y)
         ctx.lineTo(pc.x, pc.y)
         ctx.closePath()
-        ctx.fillStyle = `rgba(78, 52, 46, ${opacity * 0.04})`
+        ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${opacity * 0.05})`
         ctx.fill()
 
         // Stroke edges (the "strings")
-        ctx.strokeStyle = `rgba(78, 52, 46, ${opacity * 0.15})`
-        ctx.lineWidth = 0.5
+        ctx.strokeStyle = `rgba(78, 52, 46, ${opacity * 0.18})`
+        ctx.lineWidth = 0.7
         ctx.stroke()
       }
 
@@ -158,7 +173,7 @@ export function PolygonMesh() {
         if (opacity <= 0) continue
 
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2)
+        ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(78, 52, 46, ${opacity * 0.3})`
         ctx.fill()
       }
@@ -177,14 +192,14 @@ export function PolygonMesh() {
       mouseRef.current = { x: -9999, y: -9999 }
     }
 
-    canvas.addEventListener('mousemove', handleMove)
-    canvas.addEventListener('mouseleave', handleLeave)
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseleave', handleLeave)
 
     return () => {
       cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
-      canvas.removeEventListener('mousemove', handleMove)
-      canvas.removeEventListener('mouseleave', handleLeave)
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseleave', handleLeave)
     }
   }, [buildGrid, getTriangles])
 

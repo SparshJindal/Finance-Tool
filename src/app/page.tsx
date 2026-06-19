@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { PolygonMesh } from '@/components/PolygonMesh';
+import { CorantoLogo } from '@/components/CorantoLogo';
 
 export const metadata = {
-  title: 'Portfolio Disruption Radar | Financial Intelligence Without the Noise',
+  title: 'coranto | Market Intelligence Dispatch',
 };
 
 export default function LandingPage() {
@@ -27,7 +28,11 @@ export default function LandingPage() {
         margin: '0 auto',
         position: 'relative',
         zIndex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}>
+        <CorantoLogo width={80} height={80} className="mb-6" />
         <h1 style={{
           fontFamily: "'Cormorant Garamond', Georgia, serif",
           fontSize: 'clamp(2.5rem, 5vw, 3.5rem)',
@@ -40,6 +45,14 @@ export default function LandingPage() {
         }}>
           Financial intelligence<br />without the noise.
         </h1>
+        {/* Decorative warm accent divider */}
+        <div style={{
+          width: '40px',
+          height: '2px',
+          background: '#A0845C',
+          margin: 'var(--sp-4) auto var(--sp-2)',
+          borderRadius: '1px',
+        }} />
         <p style={{
           fontFamily: 'var(--font-ui)',
           fontSize: 'var(--text-md)',
@@ -59,9 +72,9 @@ export default function LandingPage() {
             justifyContent: 'center',
             height: '48px',
             padding: '0 var(--sp-8)',
-            background: 'transparent',
-            color: '#4B5563',
-            border: '2px solid #4E342E',
+            background: 'linear-gradient(135deg, #5D4037, #4E342E)',
+            color: '#FFFFFF',
+            border: 'none',
             fontFamily: "'Cormorant Garamond', Georgia, serif",
             fontSize: 'var(--text-md)',
             fontWeight: 700,
@@ -70,7 +83,7 @@ export default function LandingPage() {
             letterSpacing: '0.02em',
             transition: 'all 0.25s ease',
           }}
-          className="hover:-translate-y-0.5 hover:opacity-80"
+          className="hover:-translate-y-0.5 hover:brightness-110"
         >
           Get Started →
         </Link>

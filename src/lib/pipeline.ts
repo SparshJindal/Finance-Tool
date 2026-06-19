@@ -5,12 +5,21 @@ import stringSimilarity from "string-similarity";
 import { filterRelevance } from "@/lib/gate";
 import { evaluateCandidates } from "@/lib/providers/summary";
 
-export async function ingestNews() {
-  console.log("[ingestNews] Starting pipeline...");
+export async function ingestNews(userId?: string) {
+  console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
   
   // 1. Gather all unique targets
-  const holdings = await prisma.holding.findMany({ select: { ticker: true } });
-  const competitors = await prisma.competitor.findMany({ select: { ticker: true } });
+  const holdings = await prisma.holding.findMany({ 
+    where: userId ? { userId } : undefined,
+    select: { id: true, ticker: true } 
+  });
+  
+  const holdingIds = holdings.map(h => h.id);
+  
+  const competitors = await prisma.competitor.findMany({ 
+    where: holdingIds.length > 0 ? { holdingId: { in: holdingIds } } : undefined,
+    select: { ticker: true } 
+  });
   
   const targetTickers = new Set([
     ...holdings.map(h => h.ticker),
@@ -102,6 +111,7 @@ export async function ingestNews() {
   // 5. Semantic Relevance Gate
   console.log("[ingestNews] Starting semantic relevance gating...");
   const holdingsWithQs = await prisma.holding.findMany({
+    where: userId ? { userId } : undefined,
     include: { questions: true }
   });
 

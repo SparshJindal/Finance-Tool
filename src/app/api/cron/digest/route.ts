@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDigest } from '@/lib/email';
 import { generateDailyBrief } from '@/lib/providers/summary';
+import { prisma } from '@/lib/db';
 
 export const maxDuration = 300; // Allow Vercel up to 5 minutes
 
@@ -12,9 +13,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await generateDailyBrief();
-    const result = await sendDigest();
-    return NextResponse.json(result);
+    const users = await prisma.user.findMany({
+      where: { email: { not: null } },
+    });
+    
+    const results = [];
+    for (const user of users) {
+      if (!user.email) continue;
+      await generateDailyBrief(user.id);
+      const result = await sendDigest(user.id, user.email);
+      results.push({ email: user.email, result });
+    }
+
+    return NextResponse.json({ success: true, results });
   } catch (error: any) {
     console.error('[API] Digest cron error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -74,8 +74,40 @@ export function DashboardShell({
               <AddHoldingPanel action={addHoldingAction} />
             </div>
 
-            {/* Findings Feed */}
-            {filteredFindings.length === 0 ? (
+            {/* Findings Feed / Empty State */}
+            {holdings.length === 0 ? (
+              <div style={{
+                padding: 'var(--sp-10)',
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px dashed var(--border)',
+                borderRadius: 'var(--radius-lg)',
+                textAlign: 'center',
+                maxWidth: '600px',
+                margin: '0 auto',
+                marginTop: 'var(--sp-8)',
+              }}>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-3)' }}>
+                  Welcome to coranto.
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-md)', lineHeight: 1.6, marginBottom: 'var(--sp-6)' }}>
+                  Your portfolio is currently empty. To unleash the power of autonomous AI market monitoring, click the <b>&quot;Add New Position&quot;</b> button above.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-6)', textAlign: 'left', marginTop: 'var(--sp-6)', paddingTop: 'var(--sp-6)', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                      <span style={{ color: 'var(--accent)', opacity: 0.7 }}>01.</span> Search Stocks
+                    </h3>
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', lineHeight: 1.5 }}>Type the ticker or company name. We have over 2,000 Indian stocks (NSE) loaded and ready.</p>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                      <span style={{ color: 'var(--accent)', opacity: 0.7 }}>02.</span> Add Thesis
+                    </h3>
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', lineHeight: 1.5 }}>Provide your core investment thesis. Our AI uses this context to filter out noise and find true threats.</p>
+                  </div>
+                </div>
+              </div>
+            ) : filteredFindings.length === 0 ? (
               <div className="card" style={{ padding: 'var(--sp-12) var(--sp-8)', textAlign: 'center' }}>
                 <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
                   NO THREATS DETECTED — MARKETS QUIET

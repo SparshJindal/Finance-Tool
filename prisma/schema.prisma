@@ -6,6 +6,66 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts          Account[]
+  sessions          Session[]
+  holdings          Holding[]
+  pushSubscriptions PushSubscription[]
+  dailyBriefs       DailyBrief[]
+
+  @@map("users")
+}
+
+model Account {
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
 model Holding {
   id              String        @id @default(uuid())
   userId          String        @map("user_id")
@@ -16,6 +76,7 @@ model Holding {
   directionLogic  String        @map("direction_logic")
   createdAt       DateTime      @default(now()) @map("created_at")
 
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
   competitors     Competitor[]
   findings        Finding[]
@@ -85,18 +146,37 @@ model Finding {
 
 model DailyBrief {
   id        String   @id @default(uuid())
+  userId    String   @map("user_id")
   content   String
   createdAt DateTime @default(now()) @map("created_at")
 
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("daily_briefs")
 }
 
 model PushSubscription {
   id        String   @id @default(uuid())
+  userId    String   @map("user_id")
   endpoint  String   @unique
   p256dh    String
   auth      String
   createdAt DateTime @default(now()) @map("created_at")
 
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("push_subscriptions")
+}
+
+model MarketTicker {
+  id        String   @id @default(uuid())
+  symbol    String   @unique
+  company   String
+  exchange  String
+  sector    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("market_tickers")
 }

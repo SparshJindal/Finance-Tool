@@ -27,10 +27,17 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+import { auth } from '@/auth';
+
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') || 'unknown';
   if (isRateLimited(ip)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -40,7 +47,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    await saveSubscription(result.data);
+    await saveSubscription(session.user.id, result.data);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     console.error('[API] Subscribe error:', e);
@@ -52,6 +59,11 @@ export async function DELETE(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') || 'unknown';
   if (isRateLimited(ip)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await sendPushAlert({
-      title: '🔴 Disruption Radar Test',
+      title: '🔴 coranto Test',
       body: 'This is a test push notification. Your alerts are working!',
     });
     return NextResponse.json({ success: true });

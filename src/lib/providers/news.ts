@@ -17,7 +17,10 @@ async function fetchGDELT(ticker: string): Promise<NormalizedArticle[]> {
     const query = encodeURIComponent(`"${ticker}" (stock OR market OR disruption OR competitor) sourcelang:eng`);
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=20&format=json`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`GDELT error: ${res.statusText}`);
+    if (!res.ok) {
+      console.warn(`[GDELT Warning for ${ticker}]: ${res.statusText}`);
+      return [];
+    }
     
     const text = await res.text();
     let data;
@@ -66,7 +69,10 @@ async function fetchFinnhubNews(ticker: string): Promise<NormalizedArticle[]> {
     const to = getDaysAgoString(0);   // Today
     const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Finnhub error: ${res.statusText}`);
+    if (!res.ok) {
+      console.warn(`[Finnhub Warning for ${ticker}]: ${res.statusText}`);
+      return [];
+    }
     
     const data = await res.json();
     if (!Array.isArray(data)) return [];
@@ -90,7 +96,10 @@ async function fetchMarketaux(ticker: string): Promise<NormalizedArticle[]> {
   try {
     const url = `https://api.marketaux.com/v1/news/all?symbols=${ticker}&filter_entities=true&language=en&api_token=${apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Marketaux error: ${res.statusText}`);
+    if (!res.ok) {
+      console.warn(`[Marketaux Warning for ${ticker}]: ${res.statusText}`);
+      return [];
+    }
     
     const data = await res.json();
     if (!data.data || !Array.isArray(data.data)) return [];

@@ -6,7 +6,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// In Next.js, we don't want to exhaust database connections during hot reloads
 const createPrismaClient = () => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
   const adapter = new PrismaPg(pool)

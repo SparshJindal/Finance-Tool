@@ -7,24 +7,27 @@
    ───────────────────────────────────────────────────────────── */
 :root {
   /* Base surface stack */
-  --base-0:    #FFFFFF;
-  --base-1:    #FAFAFA;
-  --base-2:    #F3F4F6;
-  --base-3:    #E5E7EB;
+  --base-0:    #FDFBF7; /* Very slight beige undertone */
+  --base-1:    #F7F5F0;
+  --base-2:    #F0EBE1;
+  --base-3:    #E6DFD3;
 
   /* Border */
   --border:    #E5E7EB;
   --border-hi: #D1D5DB;
 
-  /* Text */
-  --text-primary:   #111827;
-  --text-secondary: #4B5563;
-  --text-muted:     #9CA3AF;
+  /* Text - coranto brand */
+  --text-primary:   #0A1128; /* Dark Ink Navy */
+  --text-secondary: #475569; /* Muted Graphite */
+  --text-muted:     #94A3B8;
 
   /* Accent — dark brown */
   --accent:         #4E342E; 
   --accent-dim:     rgba(78, 52, 46, 0.08);
   --accent-border:  rgba(78, 52, 46, 0.20);
+
+  /* coranto Electric Blue Accent */
+  --accent-blue:    #0066FF;
 
   /* Semantic */
   --threat:         #DC2626;
