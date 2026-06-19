@@ -14,7 +14,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       apiKey: process.env.RESEND_API_KEY,
       from: process.env.EMAIL_FROM || "onboarding@resend.dev",
       async sendVerificationRequest({ identifier, url, provider }) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
         const urlObj = new URL(url)
         const token = urlObj.searchParams.get('token')
         const email = urlObj.searchParams.get('email')
