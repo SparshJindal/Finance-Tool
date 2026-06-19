@@ -94,26 +94,35 @@ export async function embedText(text: string): Promise<number[]> {
 
   const ai = new GoogleGenAI({ apiKey: geminiKey });
 
-  const attemptEmbed = async () => {
+  const primaryModel = process.env.EMBEDDING_MODEL || "gemini-embedding-001";
+
+  const attemptEmbed = async (modelName: string) => {
     const response = await ai.models.embedContent({
-      model: "gemini-embedding-2",
+      model: modelName,
       contents: text,
     });
     if (!response.embeddings || !response.embeddings[0]?.values) {
-      throw new Error("Gemini returned empty embeddings");
+      throw new Error(`Gemini returned empty embeddings for ${modelName}`);
     }
     return response.embeddings[0].values;
   };
 
   try {
-    return await attemptEmbed();
+    return await attemptEmbed(primaryModel);
   } catch (error: any) {
     const errString = String(error.message || error);
     if (error.status === 429 || error.status === 503 || errString.includes("429") || errString.includes("503") || errString.includes("RESOURCE_EXHAUSTED") || errString.includes("UNAVAILABLE")) {
       console.warn(`[embedText] Gemini rate limit or 503 hit. Waiting 60s...`);
       await new Promise(resolve => setTimeout(resolve, 60000));
-      return await attemptEmbed();
+      return await attemptEmbed(primaryModel);
     }
-    throw error;
+    
+    // Fallback to text-embedding-004 if the primary model fails
+    console.warn(`[embedText] Error with ${primaryModel}. Falling back to text-embedding-004...`);
+    try {
+      return await attemptEmbed("text-embedding-004");
+    } catch (fallbackError) {
+      throw error; // Throw the original error if fallback also fails
+    }
   }
 }

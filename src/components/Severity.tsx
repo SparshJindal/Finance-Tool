@@ -3,13 +3,11 @@
  *
  * A 5-segment bar chip rendered in JetBrains Mono.
  * Each segment lights up to the level, dimming remaining ones.
- * No emoji. No dots. Pure signal.
- *
- * Props:
- *   value  — integer 1–5
- *   size   — 'sm' | 'md' (default 'md')
- *   label  — show the numeric label alongside (default true)
+ * Dark terminal style with subtle glow on active segments.
  */
+import { motion } from 'framer-motion'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+
 export function Severity({
   value,
   size = 'md',
@@ -30,12 +28,15 @@ export function Severity({
     'var(--sev-5)',
   ][clamped - 1]
 
-  const segW = size === 'sm' ? 4 : 5
+  const segW = size === 'sm' ? 3 : 4
   const segH = size === 'sm' ? 10 : 14
   const gap  = 2
+  const reduced = useReducedMotion()
 
   return (
-    <span
+    <motion.span
+      animate={!reduced && clamped >= 4 ? { opacity: [1, 0.6, 1] } : undefined}
+      transition={!reduced && clamped >= 4 ? { repeat: Infinity, duration: 2.2, ease: "easeInOut" } : undefined}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -59,8 +60,9 @@ export function Severity({
                 // Progressive height: each segment slightly taller
                 height: `${segH - (4 - i) * 1.5}px`,
                 borderRadius: '1px',
-                background: active ? activeColor : 'var(--base-3)',
-                transition: 'background 0.2s ease',
+                background: active ? activeColor : 'var(--surface-subtle)',
+                boxShadow: active && clamped >= 4 ? `0 0 4px ${activeColor}` : 'none',
+                transition: 'background 0.2s ease, box-shadow 0.2s ease',
               }}
             />
           )
@@ -80,6 +82,6 @@ export function Severity({
           {clamped}
         </span>
       )}
-    </span>
+    </motion.span>
   )
 }

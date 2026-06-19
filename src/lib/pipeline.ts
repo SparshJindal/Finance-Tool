@@ -118,11 +118,26 @@ export async function ingestNews(userId?: string) {
   const fetchedUrls = articles.map(a => a.url);
   const evalArticles = await prisma.article.findMany({
     where: { url: { in: fetchedUrls } },
+    orderBy: { publishedAt: 'desc' },
     take: 100
   });
 
+  const collapsedArticles: typeof evalArticles = [];
+  const seenClusters = new Set<string>();
+
+  for (const a of evalArticles) {
+    if (a.clusterId) {
+      if (!seenClusters.has(a.clusterId)) {
+        seenClusters.add(a.clusterId);
+        collapsedArticles.push(a);
+      }
+    } else {
+      collapsedArticles.push(a);
+    }
+  }
+
   const candidates = await filterRelevance(
-    evalArticles.map(a => ({ id: a.id, title: a.title, source: a.source })),
+    collapsedArticles.map(a => ({ id: a.id, title: a.title, source: a.source })),
     holdingsWithQs.map(h => ({ id: h.id, questions: h.questions }))
   );
 

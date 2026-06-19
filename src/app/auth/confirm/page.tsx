@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PolygonMesh } from '@/components/PolygonMesh'
 
-export default function ConfirmSignInPage() {
+function ConfirmSignInContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
@@ -44,12 +44,12 @@ export default function ConfirmSignInPage() {
         maxWidth: '420px',
         padding: 'var(--sp-10)',
         borderRadius: 'var(--radius-md)',
-        background: 'rgba(255, 255, 255, 0.85)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
         border: '1px solid var(--border)',
-        borderTop: '2px solid #A0845C',
-        boxShadow: '0 8px 32px rgba(93, 64, 37, 0.10), 0 1.5px 6px rgba(0,0,0,0.04)',
+        borderTop: '2px solid var(--accent)',
+        boxShadow: 'var(--shadow-lg)',
         position: 'relative',
         zIndex: 1,
         textAlign: 'center',
@@ -85,18 +85,26 @@ export default function ConfirmSignInPage() {
             fontSize: 'var(--text-md)',
             fontWeight: 600,
             letterSpacing: '0.04em',
-            background: 'linear-gradient(135deg, #5D4037, #4E342E)',
-            color: '#fff',
+            background: 'linear-gradient(135deg, var(--accent), #8A6D46)',
+            color: '#FFFFFF',
             border: 'none',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
-            transition: 'opacity 0.2s ease, box-shadow 0.2s ease',
-            boxShadow: '0 2px 8px rgba(93, 64, 37, 0.18)',
+            transition: 'opacity 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+            boxShadow: '0 4px 14px rgba(160, 132, 92, 0.4)',
           }}
         >
           Complete Sign In
         </button>
       </div>
     </div>
+  )
+}
+
+export default function ConfirmSignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConfirmSignInContent />
+    </Suspense>
   )
 }

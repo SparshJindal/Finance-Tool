@@ -3,11 +3,14 @@
 import { useState } from 'react'
 import { deleteHolding, updateHolding, studyHolding } from '@/app/actions'
 import type { Holding, Competitor, Question } from '@prisma/client'
+import { motion } from 'framer-motion'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 type HoldingWithDetails = Holding & { competitors: Competitor[], questions: Question[] }
 
 export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
   const [isEditing, setIsEditing] = useState(false)
+  const reducedMotion = useReducedMotion()
 
   if (isEditing) {
     return (
@@ -16,11 +19,10 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
           await updateHolding(fd)
           setIsEditing(false)
         }}
+        className="card"
         style={{
-          background: 'var(--base-1)',
-          border: '1px solid var(--accent-border)',
-          borderRadius: 'var(--radius-md)',
           padding: 'var(--sp-6)',
+          border: '1px solid var(--accent-border)',
         }}
       >
         <input type="hidden" name="id" value={holding.id} />
@@ -54,17 +56,18 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--sp-3)' }}>
-          <button type="submit" className="btn btn-primary">Save Changes</button>
-          <button type="button" onClick={() => setIsEditing(false)} className="btn btn-secondary">Cancel</button>
+          <motion.button whileHover={reducedMotion ? undefined : { scale: 1.02 }} whileTap={reducedMotion ? undefined : { scale: 0.98 }} type="submit" className="btn btn-primary">Save Changes</motion.button>
+          <motion.button whileHover={reducedMotion ? undefined : { scale: 1.02 }} whileTap={reducedMotion ? undefined : { scale: 0.98 }} type="button" onClick={() => setIsEditing(false)} className="btn btn-secondary">Cancel</motion.button>
         </div>
       </form>
     )
   }
 
   return (
-    <div
-      className="card"
-      style={{ padding: 'var(--sp-5)', transition: 'border-color 0.15s ease' }}
+    <motion.div
+      whileHover={reducedMotion ? undefined : { scale: 1.01 }}
+      className="card card-lift"
+      style={{ padding: 'var(--sp-5)' }}
     >
       {/* Top row: ticker + meta + actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--sp-4)' }}>
@@ -76,7 +79,7 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
             <span style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--text-lg)',
-              fontWeight: 600,
+              fontWeight: 700,
               color: 'var(--text-primary)',
               letterSpacing: '-0.01em',
               fontVariantNumeric: 'tabular-nums',
@@ -88,9 +91,9 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
             <span
               className="label"
               style={{
-                background: holding.directionLogic === 'LONG' ? 'var(--tailwind-dim)' : 'var(--threat-dim)',
-                color: holding.directionLogic === 'LONG' ? 'var(--tailwind-green)' : 'var(--threat)',
-                border: `1px solid ${holding.directionLogic === 'LONG' ? 'rgba(62,207,142,0.20)' : 'rgba(232,64,64,0.20)'}`,
+                background: holding.directionLogic === 'LONG' ? 'var(--bullish-dim)' : 'var(--bearish-dim)',
+                color: holding.directionLogic === 'LONG' ? 'var(--bullish)' : 'var(--bearish)',
+                border: `1px solid ${holding.directionLogic === 'LONG' ? 'var(--bullish-border)' : 'var(--bearish-border)'}`,
               }}
             >
               {holding.directionLogic}
@@ -99,7 +102,7 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
             {/* Sector chip */}
             {holding.sector && (
               <span className="label" style={{
-                background: 'var(--base-2)',
+                background: 'var(--surface-overlay)',
                 color: 'var(--text-muted)',
                 border: '1px solid var(--border)',
               }}>
@@ -111,7 +114,7 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
           {/* Company */}
           <p style={{
             fontSize: 'var(--text-xs)',
-            color: 'var(--text-secondary)',
+            color: 'var(--text-muted)',
             marginBottom: 'var(--sp-3)',
             fontWeight: 500,
           }}>
@@ -132,18 +135,18 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', alignItems: 'flex-end', flexShrink: 0 }}>
           <form action={studyHolding as unknown as (fd: FormData) => void}>
             <input type="hidden" name="id" value={holding.id} />
-            <button type="submit" className="btn btn-secondary" style={{ fontSize: 'var(--text-xs)' }}>
+            <motion.button whileHover={reducedMotion ? undefined : { scale: 1.05 }} whileTap={reducedMotion ? undefined : { scale: 0.95 }} type="submit" className="btn btn-secondary" style={{ fontSize: 'var(--text-xs)' }}>
               Study
-            </button>
+            </motion.button>
           </form>
-          <button onClick={() => setIsEditing(true)} className="btn btn-ghost" style={{ fontSize: 'var(--text-xs)' }}>
+          <motion.button whileHover={reducedMotion ? undefined : { scale: 1.05 }} whileTap={reducedMotion ? undefined : { scale: 0.95 }} onClick={() => setIsEditing(true)} className="btn btn-ghost" style={{ fontSize: 'var(--text-xs)' }}>
             Edit
-          </button>
+          </motion.button>
           <form action={deleteHolding as unknown as (fd: FormData) => void}>
             <input type="hidden" name="id" value={holding.id} />
-            <button type="submit" className="btn btn-danger" style={{ fontSize: 'var(--text-xs)' }}>
+            <motion.button whileHover={reducedMotion ? undefined : { scale: 1.05 }} whileTap={reducedMotion ? undefined : { scale: 0.95 }} type="submit" className="btn btn-danger" style={{ fontSize: 'var(--text-xs)' }}>
               Remove
-            </button>
+            </motion.button>
           </form>
         </div>
       </div>
@@ -165,7 +168,7 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
               <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
                 {holding.competitors.map(c => (
                   <span key={c.id} className="label" style={{
-                    background: 'var(--base-2)',
+                    background: 'var(--surface-overlay)',
                     color: 'var(--text-secondary)',
                     border: '1px solid var(--border)',
                     fontFamily: 'var(--font-mono)',
@@ -210,6 +213,6 @@ export function HoldingRow({ holding }: { holding: HoldingWithDetails }) {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

@@ -44,26 +44,43 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
     where: { id: { in: articleIds } }
   });
 
-  let contextStr = "Here are the highly relevant articles mapped to specific holdings:\\n\\n";
-  
-  candidates.forEach(c => {
-    const art = articles.find(a => a.id === c.articleId);
-    const hol = holdings.find(h => h.id === c.holdingId);
-    if (!art || !hol) return;
+  const CHUNK_SIZE = 10;
+  const chunks: GateCandidate[][] = [];
+  for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
+    chunks.push(candidates.slice(i, i + CHUNK_SIZE));
+  }
 
-    contextStr += `[Candidate Match]\\n`;
-    contextStr += `Holding: ${hol.ticker} (${hol.company})\\n`;
-    contextStr += `Thesis: ${hol.thesis}\\n`;
-    contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\\n`;
-    contextStr += `Article ID: ${art.id}\\n`;
-    contextStr += `Holding ID: ${hol.id}\\n`;
-    contextStr += `Article Title: ${art.title}\\n`;
-    contextStr += `Article URL: ${art.url}\\n`;
-    contextStr += `Article Source: ${art.source}\\n`;
-    contextStr += `Relevance Score: ${c.similarity.toFixed(3)}\\n\\n`;
-  });
+  const allFindings: any[] = [];
 
-  const prompt = `
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    let contextStr = "Here are the highly relevant articles mapped to specific holdings:\\n\\n";
+    
+    chunk.forEach(c => {
+      const art = articles.find(a => a.id === c.articleId);
+      const hol = holdings.find(h => h.id === c.holdingId);
+      if (!art || !hol) return;
+
+      contextStr += `[Candidate Match]\\n`;
+      contextStr += `Holding: ${hol.ticker} (${hol.company})\\n`;
+      contextStr += `Thesis: ${hol.thesis}\\n`;
+      contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\\n`;
+      contextStr += `Article ID: ${art.id}\\n`;
+      contextStr += `Holding ID: ${hol.id}\\n`;
+      contextStr += `Article Title: ${art.title}\\n`;
+      contextStr += `Article URL: ${art.url}\\n`;
+      contextStr += `Article Source: ${art.source}\\n`;
+      if (c.questionId) {
+        const matchedQ = hol.questions.find(q => q.id === c.questionId);
+        if (matchedQ) {
+          contextStr += `Matched Question ID: ${c.questionId}\\n`;
+          contextStr += `Matched Question Text: ${matchedQ.text}\\n`;
+        }
+      }
+      contextStr += `Relevance Score: ${c.similarity.toFixed(3)}\\n\\n`;
+    });
+
+    const prompt = `
 You are an expert portfolio manager. Review the provided candidate articles mapped to portfolio holdings.
 
 Your task is to output a JSON object containing a "findings" array.
@@ -71,32 +88,71 @@ For EACH candidate match, assign a severity (1-5), direction, and short summary.
 
 Data Context:
 ${contextStr}
-  `;
+    `;
 
-  console.log(`[evaluateCandidates] Asking AI to evaluate severity...`);
+    console.log(`[evaluateCandidates] Asking AI to evaluate severity for chunk ${i + 1}/${chunks.length}...`);
 
-  const responseText = await askAI({
-    prompt,
-    schema: evalSchema,
-    preferredModel: "gemini-2.5-pro",
-  });
+    let attempt = 0;
+    const maxTries = 3;
+    let success = false;
 
-  const parsed = JSON.parse(responseText);
-  console.log(`[evaluateCandidates] Processing AI output... Saving ${parsed.findings?.length || 0} findings.`);
+    while (attempt < maxTries && !success) {
+      try {
+        const responseText = await askAI({
+          prompt,
+          schema: evalSchema,
+          preferredModel: "gemini-2.5-flash",
+        });
 
-  if (parsed.findings && parsed.findings.length > 0) {
-    const validFindings = parsed.findings.filter((f: any) => 
+        const parsed = JSON.parse(responseText);
+        if (parsed.findings && Array.isArray(parsed.findings)) {
+          allFindings.push(...parsed.findings);
+        }
+        success = true;
+      } catch (err: any) {
+        attempt++;
+        if (err.status === 429 || (err.message && err.message.includes('429'))) {
+          if (attempt >= maxTries) {
+            console.warn(`[evaluateCandidates] Max 429 retries reached for chunk ${i + 1}. Skipping.`);
+            break;
+          }
+          // Exponential backoff: 8s, 16s + jitter
+          const baseDelay = 4000 * Math.pow(2, attempt); 
+          const jitter = Math.floor(Math.random() * 1000);
+          console.warn(`[evaluateCandidates] 429 Rate Limit hit. Retrying chunk ${i + 1} in ${baseDelay + jitter}ms (Attempt ${attempt}/${maxTries})`);
+          await new Promise(r => setTimeout(r, baseDelay + jitter));
+        } else {
+          console.error(`[evaluateCandidates] Error on chunk ${i + 1}:`, err);
+          break;
+        }
+      }
+    }
+
+    // Small baseline delay between sequential chunks to ease rate limit
+    if (i < chunks.length - 1) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  console.log(`[evaluateCandidates] Processing AI output... Saving ${allFindings.length} total findings.`);
+
+  if (allFindings.length > 0) {
+    const validFindings = allFindings.filter((f: any) => 
       holdings.some(h => h.id === f.holdingId) && articles.some(a => a.id === f.articleId)
     );
     if (validFindings.length > 0) {
       await prisma.finding.createMany({
-        data: validFindings.map((f: any) => ({
-          articleId: f.articleId,
-          holdingId: f.holdingId,
-          severity: f.severity,
-          direction: f.direction,
-          summary: f.summary
-        }))
+        data: validFindings.map((f: any) => {
+          const candidate = candidates.find(c => c.articleId === f.articleId && c.holdingId === f.holdingId);
+          return {
+            articleId: f.articleId,
+            holdingId: f.holdingId,
+            severity: f.severity,
+            direction: f.direction,
+            summary: f.summary,
+            questionId: candidate?.questionId || null
+          };
+        })
       });
 
       // Fire push notification for high-severity findings
@@ -129,13 +185,13 @@ const briefSchema = {
   required: ["brief"]
 };
 
-export async function generateDailyBrief(userId?: string) {
-  console.log(`[generateDailyBrief] Fetching undelivered findings... ${userId ? `(User: ${userId})` : '(Global)'}`);
+export async function generateDailyBrief(userId: string) {
+  console.log(`[generateDailyBrief] Fetching undelivered findings... (User: ${userId})`);
   
   const findings = await prisma.finding.findMany({
     where: { 
       delivered: false,
-      holding: userId ? { userId } : undefined 
+      holding: { userId } 
     },
     include: {
       holding: true,
@@ -193,7 +249,7 @@ ${contextStr}
     const brief = await prisma.dailyBrief.create({
       data: { 
         content: parsed.brief,
-        userId: userId || 'me'
+        userId
       }
     });
     console.log(`[generateDailyBrief] Saved daily brief.`);

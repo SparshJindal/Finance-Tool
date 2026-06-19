@@ -6,6 +6,31 @@ import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
 import { FindingCard, FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
+import { ImportHoldingsPanel } from './ImportHoldingsPanel'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring' as const,
+      stiffness: 300,
+      damping: 26,
+    },
+  },
+  exit: { opacity: 0, scale: 0.97 },
+}
 
 type DashboardShellProps = {
   holdings: any[] // full holdings for the add-holding panel + nav
@@ -30,6 +55,7 @@ export function DashboardShell({
   controls,
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
+  const reduced = useReducedMotion()
   
   // Format holding nav data for IntelRail
   const navHoldings = holdings.map(h => {
@@ -70,16 +96,19 @@ export function DashboardShell({
           <div style={{ maxWidth: '840px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
             
             {/* Top controls area for the dashboard */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--sp-2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--sp-2)', gap: 'var(--sp-2)' }}>
               <AddHoldingPanel action={addHoldingAction} />
+              <ImportHoldingsPanel />
             </div>
 
             {/* Findings Feed / Empty State */}
             {holdings.length === 0 ? (
               <div style={{
                 padding: 'var(--sp-10)',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px dashed var(--border)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(var(--glass-blur))',
+                WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                border: '1px dashed var(--border-hi)',
                 borderRadius: 'var(--radius-lg)',
                 textAlign: 'center',
                 maxWidth: '600px',
@@ -92,7 +121,7 @@ export function DashboardShell({
                 <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-md)', lineHeight: 1.6, marginBottom: 'var(--sp-6)' }}>
                   Your portfolio is currently empty. To unleash the power of autonomous AI market monitoring, click the <b>&quot;Add New Position&quot;</b> button above.
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-6)', textAlign: 'left', marginTop: 'var(--sp-6)', paddingTop: 'var(--sp-6)', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-6)', textAlign: 'left', marginTop: 'var(--sp-6)', paddingTop: 'var(--sp-6)', borderTop: '1px solid var(--border)' }}>
                   <div>
                     <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
                       <span style={{ color: 'var(--accent)', opacity: 0.7 }}>01.</span> Search Stocks
@@ -114,10 +143,17 @@ export function DashboardShell({
                 </p>
               </div>
             ) : (
-              <motion.div layout className="findings-feed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+              <motion.div
+                layout
+                className="findings-feed"
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}
+                variants={reduced ? undefined : containerVariants}
+                initial={reduced ? undefined : 'hidden'}
+                animate={reduced ? undefined : 'visible'}
+              >
                 <AnimatePresence mode="popLayout">
                   {filteredFindings.map((f, i) => (
-                    <FindingCard key={f.id} finding={f} index={i} />
+                    <FindingCard key={f.id} finding={f} index={i} reducedMotion={reduced} itemVariants={reduced ? undefined : itemVariants} />
                   ))}
                 </AnimatePresence>
               </motion.div>

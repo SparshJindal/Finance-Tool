@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { auth, signOut } from '@/auth'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
 import { generateWatchQuestions, batchGenerateWatchQuestions } from '@/lib/providers/gemini'
 import { ingestNews } from '@/lib/pipeline'
@@ -96,6 +97,10 @@ export async function updateHolding(formData: FormData) {
 }
 
 export async function deleteHolding(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   const id = formData.get('id') as string
   if (!id) return { error: 'Invalid ID' }
 
@@ -117,6 +122,10 @@ export async function deleteHolding(formData: FormData) {
 }
 
 export async function studyHolding(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
   const id = formData.get('id') as string
   if (!id) return { error: 'Invalid ID' }
 
@@ -290,6 +299,43 @@ export async function triggerSendDigest() {
   }
 }
 
+const signUpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters long'),
+})
+
+export async function signUp(formData: FormData) {
+  const result = signUpSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  })
+
+  if (!result.success) {
+    return { error: result.error.issues[0]?.message || 'Validation failed' }
+  }
+
+  const { email, password } = result.data
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  })
+
+  if (existingUser) {
+    return { error: 'A user with this email already exists' }
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+    },
+  })
+
+  return { success: true }
+}
+
 export async function logOut() {
   await signOut()
 }
@@ -306,4 +352,40 @@ export async function submitFindingFeedback(findingId: string, feedback: 'up' | 
     console.error(err)
     return { error: 'Failed to update feedback' }
   }
+}
+
+export async function importHoldings(holdings: { ticker: string, company: string }[]) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
+  let imported = 0
+  let skipped = 0
+
+  for (const h of holdings) {
+    if (!h.ticker) continue
+
+    const existing = await prisma.holding.findFirst({
+      where: { userId, ticker: h.ticker }
+    })
+    
+    if (existing) {
+      skipped++
+      continue
+    }
+    
+    await prisma.holding.create({
+      data: {
+        userId,
+        ticker: h.ticker,
+        company: h.company || h.ticker,
+        thesis: '',
+        directionLogic: 'LONG'
+      }
+    })
+    imported++
+  }
+  
+  revalidatePath('/dashboard')
+  return { imported, skipped }
 }

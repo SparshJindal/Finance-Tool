@@ -6,19 +6,29 @@ import { prisma } from '../src/lib/db';
 async function run() {
   console.log("=== Running Digest Generator ===");
   try {
-    const brief = await generateDailyBrief();
-    
-    if (brief) {
-      console.log("=== Sending Email Digest ===");
-      await sendDigest(process.env.TEST_EMAIL || 'test@example.com', brief);
+    const users = await prisma.user.findMany();
+    for (const user of users) {
+      console.log(`=== Processing user ${user.email} ===`);
+      const brief = await generateDailyBrief(user.id);
       
-      console.log("=== Marking Findings as Delivered ===");
-      await prisma.finding.updateMany({
-        where: { delivered: false },
-        data: { delivered: true }
-      });
-    } else {
-      console.log("=== No brief generated (no findings). ===");
+      if (brief) {
+        const targetEmail = process.env.TEST_EMAIL || user.email;
+        if (!targetEmail) {
+          console.log(`=== No email for user ${user.id}, skipping email delivery. ===`);
+          continue;
+        }
+
+        console.log("=== Sending Email Digest ===");
+        await sendDigest(brief.userId, targetEmail);
+        
+        console.log("=== Marking Findings as Delivered ===");
+        await prisma.finding.updateMany({
+          where: { delivered: false, holding: { userId: user.id } },
+          data: { delivered: true }
+        });
+      } else {
+        console.log(`=== No brief generated for ${user.email} (no findings). ===`);
+      }
     }
     
     console.log("=== Digest Job Finished ===");

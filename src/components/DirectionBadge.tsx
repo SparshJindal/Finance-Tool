@@ -2,11 +2,7 @@
  * <DirectionBadge />
  *
  * Renders BULLISH / BEARISH / NEUTRAL with semantic color and a directional
- * arrow. Uses only design tokens — no magic hex values.
- *
- * Props:
- *   direction — 'BULLISH' | 'BEARISH' | 'NEUTRAL'
- *   size      — 'sm' | 'md' (default 'md')
+ * arrow. Uses only design tokens.
  */
 export function DirectionBadge({
   direction,
@@ -19,21 +15,21 @@ export function DirectionBadge({
 
   const config: Record<string, { color: string; bg: string; border: string; arrow: string }> = {
     BULLISH: {
-      color:  'var(--tailwind-green)',
-      bg:     'var(--tailwind-dim)',
-      border: 'rgba(62,207,142,0.20)',
+      color:  'var(--bullish)',
+      bg:     'var(--bullish-dim)',
+      border: 'var(--bullish-border)',
       arrow:  '↑',
     },
     BEARISH: {
-      color:  'var(--threat)',
-      bg:     'var(--threat-dim)',
-      border: 'rgba(232,64,64,0.20)',
+      color:  'var(--bearish)',
+      bg:     'var(--bearish-dim)',
+      border: 'var(--bearish-border)',
       arrow:  '↓',
     },
     NEUTRAL: {
       color:  'var(--text-muted)',
-      bg:     'var(--base-2)',
-      border: 'var(--border)',
+      bg:     'var(--neutral-dir-dim)',
+      border: 'var(--neutral-dir-border)',
       arrow:  '→',
     },
   }

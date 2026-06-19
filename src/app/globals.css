@@ -3,59 +3,75 @@
 @plugin "@tailwindcss/typography";
 
 /* ─────────────────────────────────────────────────────────────
-   DESIGN TOKENS — single source of truth
+   DESIGN TOKENS — Dark Financial Terminal
    ───────────────────────────────────────────────────────────── */
 :root {
-  /* Base surface stack */
-  --base-0:    #FDFBF7; /* Very slight beige undertone */
-  --base-1:    #F7F5F0;
-  --base-2:    #F0EBE1;
-  --base-3:    #E6DFD3;
+  /* Surface stack — light & clean */
+  --surface:          #FAFAFA;
+  --surface-elevated: #FFFFFF;
+  --surface-overlay:  rgba(255, 255, 255, 0.90);
+  --surface-subtle:   #F3F4F6;
 
-  /* Border */
-  --border:    #E5E7EB;
-  --border-hi: #D1D5DB;
+  /* Legacy aliases for pages that still use base-* */
+  --base-0: var(--surface);
+  --base-1: var(--surface-elevated);
+  --base-2: var(--surface-overlay);
+  --base-3: var(--surface-subtle);
 
-  /* Text - coranto brand */
-  --text-primary:   #0A1128; /* Dark Ink Navy */
-  --text-secondary: #475569; /* Muted Graphite */
-  --text-muted:     #94A3B8;
+  /* Border — ultra-subtle light fringe */
+  --border:    rgba(0, 0, 0, 0.06);
+  --border-hi: rgba(0, 0, 0, 0.12);
 
-  /* Accent — dark brown */
-  --accent:         #4E342E; 
-  --accent-dim:     rgba(78, 52, 46, 0.08);
-  --accent-border:  rgba(78, 52, 46, 0.20);
+  /* Text */
+  --text-primary:   #111827;
+  --text-secondary: #4B5563;
+  --text-muted:     #9CA3AF;
 
-  /* coranto Electric Blue Accent */
-  --accent-blue:    #0066FF;
+  /* Accent — rich amber */
+  --accent:         #A0845C;
+  --accent-dim:     rgba(160, 132, 92, 0.08);
+  --accent-border:  rgba(160, 132, 92, 0.25);
 
-  /* Semantic */
-  --threat:         #DC2626;
-  --threat-dim:     rgba(220, 38, 38, 0.08);
-  --tailwind-green: #10B981;
-  --tailwind-dim:   rgba(16, 185, 129, 0.08);
+  /* Semantic — direction */
+  --bullish:        #059669;
+  --bullish-dim:    rgba(5, 150, 105, 0.08);
+  --bullish-border: rgba(5, 150, 105, 0.20);
+
+  --bearish:        #DC2626;
+  --bearish-dim:    rgba(220, 38, 38, 0.08);
+  --bearish-border: rgba(220, 38, 38, 0.20);
+
+  --neutral-dir:        #6B7280;
+  --neutral-dir-dim:    rgba(107, 114, 128, 0.08);
+  --neutral-dir-border: rgba(107, 114, 128, 0.20);
+
+  /* Legacy aliases */
+  --tailwind-green: var(--bullish);
+  --tailwind-dim:   var(--bullish-dim);
+  --threat:         var(--bearish);
+  --threat-dim:     var(--bearish-dim);
 
   /* Severity scale (1→5) */
   --sev-1: #9CA3AF;
   --sev-2: #6B7280;
   --sev-3: var(--accent);
-  --sev-4: #EA580C;
-  --sev-5: var(--threat);
+  --sev-4: #D97706;
+  --sev-5: #DC2626;
 
   /* Typography */
   --font-ui:   'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Geist Mono', monospace;
 
-  /* Type scale */
+  /* Type scale — tightened */
   --text-2xs: 0.6875rem;  /* 11px */
   --text-xs:  0.75rem;    /* 12px */
-  --text-sm:  0.875rem;   /* 14px */
-  --text-md:  1rem;       /* 16px */
-  --text-lg:  1.25rem;    /* 20px */
-  --text-xl:  1.75rem;    /* 28px */
-  --text-2xl: 2.5rem;     /* 40px */
+  --text-sm:  0.8125rem;  /* 13px */
+  --text-md:  0.875rem;   /* 14px */
+  --text-lg:  1.125rem;   /* 18px */
+  --text-xl:  1.5rem;     /* 24px */
+  --text-2xl: 2rem;       /* 32px */
 
-  /* Spacing (8px grid) */
+  /* Spacing (4px base) */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -68,12 +84,19 @@
   --sp-16: 64px;
 
   /* Radius */
-  --radius-sm: 3px;
-  --radius-md: 5px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
-  /* Shadow */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  /* Shadow — soft deep shadow for light mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+
+  /* Glass panel */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-blur: 24px;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -88,11 +111,11 @@ html {
 }
 
 body {
-  background: var(--base-0);
+  background: var(--surface);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -119,7 +142,8 @@ body {
 .text-accent    { color: var(--accent); }
 
 /* Tabular numerals on every mono element */
-.font-mono, [data-mono] {
+.font-mono, [data-mono],
+.label, .section-label {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
@@ -127,10 +151,10 @@ body {
 /* ─────────────────────────────────────────────────────────────
    LAYOUT UTILITIES
    ───────────────────────────────────────────────────────────── */
-.surface-0 { background: var(--base-0); }
-.surface-1 { background: var(--base-1); }
-.surface-2 { background: var(--base-2); }
-.surface-3 { background: var(--base-3); }
+.surface-0 { background: var(--surface); }
+.surface-1 { background: var(--surface-elevated); }
+.surface-2 { background: var(--surface-overlay); }
+.surface-3 { background: var(--surface-subtle); }
 
 .border-subtle { border: 1px solid var(--border); }
 .border-hi     { border: 1px solid var(--border-hi); }
@@ -142,14 +166,14 @@ body {
    ───────────────────────────────────────────────────────────── */
 .input {
   width: 100%;
-  background: var(--base-0);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   padding: 8px 12px;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .input::placeholder {
@@ -157,7 +181,7 @@ body {
 }
 
 .input:hover {
-  border-color: var(--border-hi);
+  border-color: rgba(0, 0, 0, 0.18);
 }
 
 .input:focus {
@@ -167,7 +191,7 @@ body {
 }
 
 select.input option {
-  background: var(--base-1);
+  background: var(--surface-elevated);
   color: var(--text-primary);
 }
 
@@ -192,28 +216,30 @@ select.input option {
 }
 
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
 .btn-primary {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  border: 1px solid var(--accent);
+  font-weight: 600;
 }
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.88;
+  background: #D4B080;
 }
 
 /* Secondary: outlined */
 .btn-secondary {
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   border-color: var(--border-hi);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--base-2);
-  border-color: var(--border-hi);
+  background: var(--surface-overlay);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: var(--text-primary);
 }
 
 /* Ghost: text only */
@@ -225,18 +251,18 @@ select.input option {
 }
 .btn-ghost:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--base-2);
+  background: var(--surface-overlay);
 }
 
 /* Danger ghost */
 .btn-danger {
   background: transparent;
-  color: var(--threat);
+  color: var(--bearish);
   border-color: transparent;
   padding-inline: var(--sp-2);
 }
 .btn-danger:hover:not(:disabled) {
-  background: var(--threat-dim);
+  background: var(--bearish-dim);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -253,16 +279,21 @@ select.input option {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   CARD / SECTION SURFACE
+   CARD / SECTION SURFACE — glass panel
    ───────────────────────────────────────────────────────────── */
 .card {
-  background: var(--base-1);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card:hover {
   border-color: var(--border-hi);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -308,7 +339,7 @@ select.input option {
 .brief-prose code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  background: var(--base-2);
+  background: var(--surface-overlay);
   padding: 1px 5px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -335,7 +366,7 @@ select.input option {
 }
 
 .toggle[aria-checked="true"]  { background: var(--accent); }
-.toggle[aria-checked="false"] { background: var(--base-3); }
+.toggle[aria-checked="false"] { background: var(--surface-subtle); }
 .toggle:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .toggle-thumb {
@@ -368,8 +399,8 @@ select.input option {
    ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--base-3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+::-webkit-scrollbar-thumb { background: var(--surface-subtle); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.15); }
 
 /* ─────────────────────────────────────────────────────────────
    DASHBOARD — FILM GRAIN TEXTURE
@@ -380,7 +411,7 @@ select.input option {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.03;
+  opacity: 0.025;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
@@ -409,7 +440,7 @@ select.input option {
    ───────────────────────────────────────────────────────────── */
 @keyframes severity-pulse {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.5; }
+  50%      { opacity: 0.6; }
 }
 
 .severity-pulse {
@@ -420,9 +451,9 @@ select.input option {
    ATTENTION PING (one-time, for severity >=4)
    ───────────────────────────────────────────────────────────── */
 @keyframes attention-ping {
-  0%   { box-shadow: 0 0 0 0 rgba(232,64,64,0.40); }
-  70%  { box-shadow: 0 0 0 8px rgba(232,64,64,0); }
-  100% { box-shadow: 0 0 0 8px rgba(232,64,64,0); }
+  0%   { box-shadow: var(--shadow-card), 0 0 0 0 rgba(239, 68, 68, 0.35); }
+  70%  { box-shadow: var(--shadow-card), 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { box-shadow: var(--shadow-card), 0 0 0 8px rgba(239, 68, 68, 0); }
 }
 
 .attention-ping {
@@ -440,13 +471,38 @@ select.input option {
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--base-2) 0%,
-    var(--base-3) 40%,
-    var(--base-2) 80%
+    var(--surface-overlay) 0%,
+    var(--surface-subtle) 40%,
+    var(--surface-overlay) 80%
   );
   background-size: 600px 100%;
   animation: shimmer 1.8s ease-in-out infinite;
   border-radius: var(--radius-sm);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CARD HOVER LIFT — no layout shift
+   ───────────────────────────────────────────────────────────── */
+.card-lift {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  will-change: transform;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hi);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SEVERITY LEFT ACCENT BAR
+   ───────────────────────────────────────────────────────────── */
+.sev-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -457,4 +513,5 @@ select.input option {
   .severity-pulse    { animation: none; }
   .attention-ping    { animation: none; }
   .skeleton          { animation: none; }
+  .card-lift:hover   { transform: none; }
 }

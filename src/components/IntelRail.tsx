@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Severity } from '@/components/Severity'
 import { CorantoLogo } from '@/components/CorantoLogo'
+import { motion } from 'framer-motion'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 type HoldingNav = {
   id: string
@@ -73,7 +75,9 @@ export function IntelRail({
           left: 0,
           top: 0,
           bottom: 0,
-          background: 'var(--base-1)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(var(--glass-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur))',
           borderRight: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
@@ -97,7 +101,9 @@ export function IntelRail({
       {/* Mobile top sheet */}
       <div
         style={{
-          background: 'var(--base-1)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(var(--glass-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur))',
           borderBottom: '1px solid var(--border)',
           padding: 'var(--sp-3) var(--sp-4)',
         }}
@@ -136,6 +142,22 @@ function RailContent({
   onHoldingClick: (id: string | null) => void
   controls?: React.ReactNode
 }) {
+  const reduced = useReducedMotion()
+
+  const containerVariants = {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  }
+
+  const itemVariants = {
+    hidden: { x: 20, opacity: 0 },
+    visible: { x: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
+  }
+
   return (
     <>
       {/* Status block */}
@@ -145,8 +167,8 @@ function RailContent({
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            background: 'var(--tailwind-green)',
-            boxShadow: '0 0 6px var(--tailwind-green)',
+            background: 'var(--bullish)',
+            boxShadow: '0 0 8px var(--bullish)',
             flexShrink: 0,
           }} />
           <span style={{
@@ -205,12 +227,13 @@ function RailContent({
       <div style={{ height: '1px', background: 'var(--border)', margin: '0 var(--sp-4)' }} />
 
       {/* Holdings nav */}
-      <div style={{ padding: 'var(--sp-3) 0', flex: 1 }}>
+      <motion.div style={{ padding: 'var(--sp-3) 0', flex: 1 }} variants={reduced ? undefined : containerVariants} initial={reduced ? undefined : "hidden"} animate={reduced ? undefined : "visible"}>
         <p className="section-label" style={{ padding: '0 var(--sp-4)', marginBottom: 'var(--sp-2)' }}>
           Holdings
         </p>
 
-        <button
+        <motion.button
+          variants={reduced ? undefined : itemVariants}
           onClick={() => onHoldingClick(null)}
           style={{
             width: '100%',
@@ -218,7 +241,7 @@ function RailContent({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: 'var(--sp-2) var(--sp-4)',
-            background: activeHolding === null ? 'var(--base-2)' : 'transparent',
+            background: activeHolding === null ? 'var(--surface-overlay)' : 'transparent',
             border: 'none',
             borderLeft: activeHolding === null ? '2px solid var(--accent)' : '2px solid transparent',
             cursor: 'pointer',
@@ -241,11 +264,12 @@ function RailContent({
           }}>
             {holdings.reduce((s, h) => s + h.findingCount, 0)}
           </span>
-        </button>
+        </motion.button>
 
         {holdings.map(h => (
-          <button
+          <motion.button
             key={h.id}
+            variants={reduced ? undefined : itemVariants}
             onClick={() => onHoldingClick(h.id)}
             style={{
               width: '100%',
@@ -254,7 +278,7 @@ function RailContent({
               justifyContent: 'space-between',
               gap: 'var(--sp-2)',
               padding: 'var(--sp-2) var(--sp-4)',
-              background: activeHolding === h.id ? 'var(--base-2)' : 'transparent',
+              background: activeHolding === h.id ? 'var(--surface-overlay)' : 'transparent',
               border: 'none',
               borderLeft: activeHolding === h.id ? '2px solid var(--accent)' : '2px solid transparent',
               cursor: 'pointer',
@@ -282,9 +306,9 @@ function RailContent({
             }}>
               {h.findingCount}
             </span>
-          </button>
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
 
       {controls && (
         <div style={{ padding: 'var(--sp-4)', borderTop: '1px solid var(--border)' }}>
@@ -323,8 +347,8 @@ function MobileRail({
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
           <span style={{
             width: '5px', height: '5px', borderRadius: '50%',
-            background: 'var(--tailwind-green)',
-            boxShadow: '0 0 6px var(--tailwind-green)',
+            background: 'var(--bullish)',
+            boxShadow: '0 0 6px var(--bullish)',
           }} />
           <span style={{
             fontFamily: 'var(--font-mono)',
