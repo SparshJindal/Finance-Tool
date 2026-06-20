@@ -316,24 +316,29 @@ export async function signUp(formData: FormData) {
 
   const { email, password } = result.data
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-  })
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    })
 
-  if (existingUser) {
-    return { error: 'A user with this email already exists' }
+    if (existingUser) {
+      return { error: 'A user with this email already exists' }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+      },
+    })
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("[signUp] Database error:", err)
+    return { error: `Database Error: ${err.message || 'Failed to connect'}` }
   }
-
-  const passwordHash = await bcrypt.hash(password, 10)
-
-  await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-    },
-  })
-
-  return { success: true }
 }
 
 export async function logOut() {

@@ -29,23 +29,29 @@ export default function LoginPage() {
     }
 
     if (mode === 'signUp') {
-      const res = await signUp(formData)
-      if (res?.error) {
-        setErrorMsg(res.error)
+      try {
+        const res = await signUp(formData)
+        if (res?.error) {
+          setErrorMsg(res.error)
+          setIsLoading(false)
+          return
+        }
+        
+        // Auto login after sign up
+        const signInRes = await signIn("credentials", { email, password, redirect: false })
+        if (signInRes?.error) {
+          setErrorMsg("Account created, but failed to log in automatically.")
+          setIsLoading(false)
+          return
+        }
+        
+        router.push('/dashboard')
+        return
+      } catch (err: any) {
+        setErrorMsg("Server crashed while trying to sign up. Check logs.")
         setIsLoading(false)
         return
       }
-      
-      // Auto login after sign up
-      const signInRes = await signIn("credentials", { email, password, redirect: false })
-      if (signInRes?.error) {
-        setErrorMsg("Account created, but failed to log in automatically.")
-        setIsLoading(false)
-        return
-      }
-      
-      router.push('/dashboard')
-      return
     }
 
     // Sign In logic
