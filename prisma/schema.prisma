@@ -130,7 +130,6 @@ model Finding {
   articleId   String   @map("article_id")
   holdingId   String   @map("holding_id")
   questionId  String?  @map("question_id")
-  direction   String
   severity    Int
   summary     String
   delivered   Boolean  @default(false)

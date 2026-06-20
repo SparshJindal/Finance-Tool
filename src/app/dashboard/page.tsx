@@ -40,7 +40,6 @@ export default async function Page() {
     ticker: f.holding.ticker,
     company: f.holding.company,
     severity: f.severity,
-    direction: f.direction,
     summary: f.summary,
     sourceLink: f.article.url,
     sourceTitle: f.article.title,
@@ -55,7 +54,7 @@ export default async function Page() {
       id: f.id,
       ticker: f.ticker,
       title: f.sourceTitle || f.summary.substring(0, 50) + '...',
-      direction: f.direction,
+      severity: f.severity,
     }))
 
   const totalThreats = findings.filter(f => f.severity >= 4).length

@@ -14,10 +14,9 @@ const evalSchema = {
           articleId: { type: Type.STRING },
           holdingId: { type: Type.STRING },
           severity: { type: Type.INTEGER, description: "1 to 5" },
-          direction: { type: Type.STRING, description: "OPPORTUNITY, RISK, or NEUTRAL" },
           summary: { type: Type.STRING, description: "Short 1 sentence summary" }
         },
-        required: ["articleId", "holdingId", "severity", "direction", "summary"]
+        required: ["articleId", "holdingId", "severity", "summary"]
       }
     }
   },
@@ -84,7 +83,7 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
 You are an expert portfolio manager. Review the provided candidate articles mapped to portfolio holdings.
 
 Your task is to output a JSON object containing a "findings" array.
-For EACH candidate match, assign a severity (1-5), direction, and short summary.
+For EACH candidate match, assign a severity/relevance score (1-5), and short summary.
 
 Data Context:
 ${contextStr}
@@ -148,7 +147,6 @@ ${contextStr}
             articleId: f.articleId,
             holdingId: f.holdingId,
             severity: f.severity,
-            direction: f.direction,
             summary: f.summary,
             questionId: candidate?.questionId || null
           };
@@ -211,7 +209,6 @@ export async function generateDailyBrief(userId: string) {
     contextStr += `Holding: ${f.holding.ticker} (${f.holding.company})\\n`;
     contextStr += `Thesis: ${f.holding.thesis}\\n`;
     contextStr += `Severity: ${f.severity}/5\\n`;
-    contextStr += `Direction: ${f.direction}\\n`;
     contextStr += `Article Title: ${f.article.title}\\n`;
     contextStr += `Article URL: ${f.article.url}\\n`;
     contextStr += `Article Source: ${f.article.source}\\n`;

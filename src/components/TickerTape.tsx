@@ -1,12 +1,12 @@
 'use client'
 
-import { DirectionBadge } from './DirectionBadge'
+import { RelevanceBadge } from './RelevanceBadge'
 
 type TickerItem = {
   id: string
   ticker: string
   title: string
-  direction: string
+  severity: number
 }
 
 export function TickerTape({ items }: { items: TickerItem[] }) {
@@ -37,7 +37,7 @@ export function TickerTape({ items }: { items: TickerItem[] }) {
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
               {item.ticker}
             </span>
-            <DirectionBadge direction={item.direction} size="sm" />
+            <RelevanceBadge severity={item.severity} size="sm" />
             <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
               {item.title}
             </span>

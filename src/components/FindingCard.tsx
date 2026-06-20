@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { motion } from 'framer-motion'
 import { Severity } from './Severity'
-import { DirectionBadge } from './DirectionBadge'
+import { RelevanceBadge } from './RelevanceBadge'
 import { submitFindingFeedback } from '@/app/actions'
 
 export type FindingData = {
@@ -12,7 +12,7 @@ export type FindingData = {
   ticker: string
   company: string
   severity: number
-  direction: string
+
   summary: string
   sourceLink: string
   sourceTitle: string
@@ -118,7 +118,7 @@ export function FindingCard({
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
-          <DirectionBadge direction={finding.direction} size="sm" />
+          <RelevanceBadge severity={finding.severity} size="sm" />
           <Severity value={finding.severity} size="sm" />
         </div>
       </div>
