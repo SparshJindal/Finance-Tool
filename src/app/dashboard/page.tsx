@@ -6,7 +6,9 @@ import {
   updateHolding,
   deleteHolding,
   studyAllHoldings,
-  triggerNewsIngestion,
+  studyHolding,
+  triggerNewsIngestionPhase1,
+  triggerNewsIngestionPhase2,
   triggerSendDigest,
   logOut,
 } from '@/app/actions'
@@ -73,8 +75,10 @@ export default async function Page() {
       <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
       
       <PipelineControls 
-        runIngestAction={triggerNewsIngestion as unknown as (fd: FormData) => void}
-        studyAllAction={studyAllHoldings as unknown as (fd: FormData) => void}
+        holdings={holdings}
+        runIngestPhase1={triggerNewsIngestionPhase1 as unknown as () => Promise<any>}
+        runIngestPhase2={triggerNewsIngestionPhase2 as unknown as (fd: FormData) => Promise<any>}
+        studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
         sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
         logOutAction={logOut as unknown as (fd: FormData) => void}
       />

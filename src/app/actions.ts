@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs'
 import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
 import { generateWatchQuestions, batchGenerateWatchQuestions } from '@/lib/providers/gemini'
 import { ingestNews } from '@/lib/pipeline'
+import { evaluateCandidates } from '@/lib/providers/summary'
 
 const holdingSchema = z.object({
   id: z.string().optional(),
@@ -263,20 +264,37 @@ export async function studyAllHoldings() {
   }
 }
 
-export async function triggerNewsIngestion() {
+export async function triggerNewsIngestionPhase1() {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
   const userId = session.user.id
 
   try {
-    const result = await ingestNews(userId)
-    const candidates = (result as any)?.candidates
-    console.log("Found Candidates:", candidates?.length ?? 0)
-    revalidatePath('/dashboard')
-    return { success: true, report: (result as any)?.report, candidatesFound: candidates?.length ?? 0 }
+    const result = await ingestNews(userId, false) // Skip evaluation
+    const candidates = (result as any)?.candidates || []
+    console.log("Found Candidates:", candidates.length)
+    return { success: true, candidates }
   } catch (err) {
     console.error(err)
-    return { error: 'Pipeline failed' }
+    return { error: 'Phase 1 failed' }
+  }
+}
+
+export async function triggerNewsIngestionPhase2(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const candidateJson = formData.get('candidate') as string
+  if (!candidateJson) return { error: 'No candidate provided' }
+  
+  try {
+    const candidate = JSON.parse(candidateJson)
+    await evaluateCandidates([candidate])
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err) {
+    console.error(err)
+    return { error: 'Phase 2 failed' }
   }
 }
 

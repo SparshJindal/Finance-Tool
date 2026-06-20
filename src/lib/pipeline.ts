@@ -5,7 +5,7 @@ import stringSimilarity from "string-similarity";
 import { filterRelevance } from "@/lib/gate";
 import { evaluateCandidates } from "@/lib/providers/summary";
 
-export async function ingestNews(userId?: string) {
+export async function ingestNews(userId?: string, runEvaluation: boolean = true) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
   
   // 1. Gather all unique targets
@@ -37,14 +37,10 @@ export async function ingestNews(userId?: string) {
   let upsertedCount = 0;
   for (const art of articles) {
     const contentHash = crypto.createHash('md5').update(art.url + art.title).digest('hex');
-    
-    // We use url as the unique identifier.
-    // If it exists, we just update the contentHash and title in case they slightly shifted,
-    // though usually they don't.
     try {
       await prisma.article.upsert({
         where: { url: art.url },
-        update: {}, // Idempotent: don't overwrite firstSeen or existing clusterId if it exists
+        update: {},
         create: {
           url: art.url,
           title: art.title,
@@ -59,8 +55,7 @@ export async function ingestNews(userId?: string) {
     }
   }
 
-  // 4. Local Clustering (No AI Tokens)
-  // Fetch articles from the last 48 hours that don't have a clusterId yet
+  // 4. Local Clustering
   const recentArticles = await prisma.article.findMany({
     where: {
       firstSeen: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
@@ -70,35 +65,24 @@ export async function ingestNews(userId?: string) {
   });
 
   let clustersFormed = 0;
-
   if (recentArticles.length > 1) {
-    // Basic grouping algorithm:
-    // Iterate through recent articles. Compare title against others.
-    // If similarity > 0.80, mark them with the same clusterId.
     const groupedIds = new Set<string>();
-
     for (let i = 0; i < recentArticles.length; i++) {
       const a = recentArticles[i];
       if (groupedIds.has(a.id)) continue;
-
       let hasMatch = false;
       const matchIds = [a.id];
-
       for (let j = i + 1; j < recentArticles.length; j++) {
         const b = recentArticles[j];
         if (groupedIds.has(b.id)) continue;
-
         const similarity = stringSimilarity.compareTwoStrings(a.title.toLowerCase(), b.title.toLowerCase());
-        
         if (similarity > 0.80) {
           hasMatch = true;
           matchIds.push(b.id);
           groupedIds.add(b.id);
         }
       }
-
       if (hasMatch) {
-        // Set the clusterId of all matches to the ID of the first (most recent) article
         await prisma.article.updateMany({
           where: { id: { in: matchIds } },
           data: { clusterId: a.id }
@@ -124,7 +108,6 @@ export async function ingestNews(userId?: string) {
 
   const collapsedArticles: typeof evalArticles = [];
   const seenClusters = new Set<string>();
-
   for (const a of evalArticles) {
     if (a.clusterId) {
       if (!seenClusters.has(a.clusterId)) {
@@ -148,14 +131,15 @@ export async function ingestNews(userId?: string) {
     candidatesFound: candidates.length
   };
 
-  console.log("[ingestNews] Gating complete:", report);
-
+  let topCandidates: any[] = [];
   if (candidates.length > 0) {
-    console.log(`[ingestNews] Starting AI evaluation for top 20 candidates...`);
-    const topCandidates = candidates.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
-    await evaluateCandidates(topCandidates);
-  };
+    topCandidates = candidates.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
+    if (runEvaluation) {
+      console.log(`[ingestNews] Starting AI evaluation for top 20 candidates...`);
+      await evaluateCandidates(topCandidates);
+    }
+  }
 
   console.log("[ingestNews] Pipeline Fully Complete.");
-  return { report, candidates };
+  return { report, candidates: topCandidates };
 }
