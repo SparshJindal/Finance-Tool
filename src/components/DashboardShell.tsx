@@ -6,6 +6,7 @@ import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
 import { FindingCard, FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
+import { ManagePortfolioPanel } from './ManagePortfolioPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
 import { PolygonMesh } from './PolygonMesh'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -42,6 +43,8 @@ type DashboardShellProps = {
   maxPortfolioSeverity: number
   // server action
   addHoldingAction: (fd: FormData) => void | Promise<void>
+  updateHoldingAction: (fd: FormData) => void | Promise<void>
+  deleteHoldingAction: (fd: FormData) => void | Promise<void>
   controls?: React.ReactNode
 }
 
@@ -53,6 +56,8 @@ export function DashboardShell({
   totalThreats,
   maxPortfolioSeverity,
   addHoldingAction,
+  updateHoldingAction,
+  deleteHoldingAction,
   controls,
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
@@ -107,6 +112,11 @@ export function DashboardShell({
             
             {/* Top controls area for the dashboard */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--sp-2)', gap: 'var(--sp-2)' }}>
+              <ManagePortfolioPanel 
+                holdings={holdings}
+                updateAction={updateHoldingAction}
+                deleteAction={deleteHoldingAction}
+              />
               <AddHoldingPanel action={addHoldingAction} />
               <ImportHoldingsPanel />
             </div>

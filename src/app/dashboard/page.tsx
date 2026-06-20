@@ -3,6 +3,8 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import {
   addHolding,
+  updateHolding,
+  deleteHolding,
   studyAllHoldings,
   triggerNewsIngestion,
   triggerSendDigest,
@@ -103,6 +105,8 @@ export default async function Page() {
       totalThreats={totalThreats}
       maxPortfolioSeverity={maxPortfolioSeverity}
       addHoldingAction={addHolding as unknown as (fd: FormData) => void | Promise<void>}
+      updateHoldingAction={updateHolding as unknown as (fd: FormData) => void | Promise<void>}
+      deleteHoldingAction={deleteHolding as unknown as (fd: FormData) => void | Promise<void>}
       controls={controls}
     />
   )
