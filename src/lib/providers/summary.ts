@@ -139,6 +139,7 @@ ${contextStr}
 
   if (allFindings.length > 0) {
     const validFindings = allFindings.filter((f: any) => 
+      f.articleId && f.holdingId && f.severity != null && f.summary &&
       holdings.some(h => h.id === f.holdingId) && articles.some(a => a.id === f.articleId)
     );
     if (validFindings.length > 0) {
