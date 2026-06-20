@@ -18,7 +18,7 @@ export function PolygonMesh({
 }: {
   density?: number
   distortion?: number
-  fadeMode?: 'radial' | 'right-to-left'
+  fadeMode?: 'radial' | 'right-to-left' | 'full'
 } = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointsRef = useRef<Point[]>([])
@@ -157,6 +157,8 @@ export function PolygonMesh({
           const fadeStart = w
           const fadeEnd = w * 0.45
           opacity = Math.max(0, Math.min(1, (centroidX - fadeEnd) / (fadeStart - fadeEnd)))
+        } else if (fadeMode === 'full') {
+          opacity = 1
         }
 
         if (opacity <= 0) continue

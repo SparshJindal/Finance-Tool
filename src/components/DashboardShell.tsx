@@ -83,7 +83,7 @@ export function DashboardShell({
       {/* Background Mesh */}
       {!reduced && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.8, pointerEvents: 'none' }}>
-          <PolygonMesh density={1.5} distortion={0.3} fadeMode="right-to-left" />
+          <PolygonMesh density={1.5} distortion={0.1} fadeMode="full" />
         </div>
       )}
 
