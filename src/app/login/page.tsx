@@ -45,7 +45,8 @@ export default function LoginPage() {
           return
         }
         
-        router.push('/dashboard')
+        // Use hard redirect to ensure cookies are sent and router cache is cleared
+        window.location.href = '/dashboard'
         return
       } catch (err: any) {
         setErrorMsg("Server crashed while trying to sign up. Check logs.")
@@ -62,7 +63,8 @@ export default function LoginPage() {
       return
     }
     
-    router.push('/dashboard')
+    // Use hard redirect to ensure cookies are sent and router cache is cleared
+    window.location.href = '/dashboard'
   }
 
   const handleMagicLink = async () => {
