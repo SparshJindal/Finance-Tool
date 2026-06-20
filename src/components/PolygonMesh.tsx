@@ -155,7 +155,7 @@ export function PolygonMesh({
           opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
         } else if (fadeMode === 'right-to-left') {
           const fadeStart = w
-          const fadeEnd = w * 0.45
+          const fadeEnd = 0
           opacity = Math.max(0, Math.min(1, (centroidX - fadeEnd) / (fadeStart - fadeEnd)))
         } else if (fadeMode === 'full') {
           opacity = 1
@@ -165,6 +165,7 @@ export function PolygonMesh({
 
         // Alternate fill color: every 5th triangle gets a warm amber tint
         const isAmber = ti % 5 === 0
+
         const fillR = isAmber ? 160 : 255
         const fillG = isAmber ? 132 : 255
         const fillB = isAmber ? 92 : 255
@@ -175,11 +176,11 @@ export function PolygonMesh({
         ctx.lineTo(pb.x, pb.y)
         ctx.lineTo(pc.x, pc.y)
         ctx.closePath()
-        ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${opacity * (isAmber ? 0.08 : 0.02)})`
+        ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${opacity * (isAmber ? 0.04 : 0.01)})`
         ctx.fill()
 
         // Stroke edges (the "strings")
-        ctx.strokeStyle = `rgba(160, 132, 92, ${opacity * 0.15})`
+        ctx.strokeStyle = `rgba(160, 132, 92, ${opacity * 0.07})`
         ctx.lineWidth = 0.5
         ctx.stroke()
       }
@@ -187,12 +188,18 @@ export function PolygonMesh({
       // Draw vertices as subtle dots
       for (const p of points) {
         const distFromCenter = Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)
-        const opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
+        let opacity = 1
+        if (fadeMode === 'radial') {
+           opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
+        } else if (fadeMode === 'right-to-left') {
+           opacity = Math.max(0, Math.min(1, (p.x - 0) / (w - 0)))
+        }
+        
         if (opacity <= 0) continue
 
         ctx.beginPath()
         ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(160, 132, 92, ${opacity * 0.3})`
+        ctx.fillStyle = `rgba(160, 132, 92, ${opacity * 0.15})`
         ctx.fill()
       }
 
