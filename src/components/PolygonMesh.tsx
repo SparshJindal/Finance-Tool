@@ -11,19 +11,27 @@ interface Point {
   vy: number
 }
 
-export function PolygonMesh() {
+export function PolygonMesh({
+  density = 1,
+  distortion = 1,
+  fadeMode = 'radial'
+}: {
+  density?: number
+  distortion?: number
+  fadeMode?: 'radial' | 'right-to-left'
+} = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointsRef = useRef<Point[]>([])
   const mouseRef = useRef({ x: -9999, y: -9999 })
   const rafRef = useRef<number>(0)
   const sizeRef = useRef({ w: 0, h: 0 })
 
-  const COLS = 24
-  const ROWS = 16
+  const COLS = Math.floor(24 * density)
+  const ROWS = Math.floor(16 * density)
   const MOUSE_RADIUS = 140
   const SPRING = 0.03
   const DAMPING = 0.85
-  const MOUSE_FORCE = 18
+  const MOUSE_FORCE = 18 * distortion
 
   const buildGrid = useCallback((w: number, h: number) => {
     const points: Point[] = []
@@ -140,10 +148,20 @@ export function PolygonMesh() {
         if (!pa || !pb || !pc) continue
 
         // Triangle centroid for opacity calculation
-        const centX = (pa.x + pb.x + pc.x) / 3
-        const centY = (pa.y + pb.y + pc.y) / 3
-        const distFromCenter = Math.sqrt((centX - cx) ** 2 + (centY - cy) ** 2)
-        const opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
+        const centroidX = (pa.x + pb.x + pc.x) / 3
+        const centroidY = (pa.y + pb.y + pc.y) / 3
+
+        let opacity = 1
+        if (fadeMode === 'radial') {
+          const distFromCenter = Math.sqrt((cx - centroidX) ** 2 + (cy - centroidY) ** 2)
+          opacity = Math.max(0, 1 - (distFromCenter / maxDist) * 1.3)
+        } else if (fadeMode === 'right-to-left') {
+          const fadeStart = w
+          const fadeEnd = w * 0.45
+          opacity = Math.max(0, Math.min(1, (centroidX - fadeEnd) / (fadeStart - fadeEnd)))
+        }
+
+        if (opacity <= 0) continue
 
         // Alternate fill color: every 5th triangle gets a warm amber tint
         const isAmber = ti % 5 === 0

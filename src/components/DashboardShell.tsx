@@ -7,6 +7,7 @@ import { TickerTape } from './TickerTape'
 import { FindingCard, FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
+import { PolygonMesh } from './PolygonMesh'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 const containerVariants = {
@@ -78,10 +79,19 @@ export function DashboardShell({
   filteredFindings.sort((a, b) => b.severity - a.severity)
 
   return (
-    <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <TickerTape items={tickerItems} />
+    <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+      {/* Background Mesh */}
+      {!reduced && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.8, pointerEvents: 'none' }}>
+          <PolygonMesh density={1.5} distortion={0.6} fadeMode="right-to-left" />
+        </div>
+      )}
+
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <TickerTape items={tickerItems} />
+      </div>
       
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div style={{ display: 'flex', flex: 1, position: 'relative', zIndex: 10 }}>
         <IntelRail
           holdings={navHoldings}
           lastScanAt={lastScanAt}
