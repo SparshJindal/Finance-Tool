@@ -353,13 +353,16 @@ export async function studyAllHoldings() {
   }
 }
 
-export async function triggerNewsIngestionPhase1() {
+export async function triggerNewsIngestionPhase1(formData?: FormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
   const userId = session.user.id
 
+  const idsJson = formData?.get('ids') as string | undefined
+  const targetHoldingIds = idsJson ? JSON.parse(idsJson) as string[] : undefined
+
   try {
-    const result = await ingestNews(userId, false) // Skip evaluation
+    const result = await ingestNews(userId, false, targetHoldingIds) // Skip evaluation
     const candidates = (result as any)?.candidates || []
     console.log("Found Candidates:", candidates.length)
     return { success: true, candidates }
@@ -373,12 +376,12 @@ export async function triggerNewsIngestionPhase2(formData: FormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
 
-  const candidateJson = formData.get('candidate') as string
-  if (!candidateJson) return { error: 'No candidate provided' }
+  const candidatesJson = formData.get('candidates') as string
+  if (!candidatesJson) return { error: 'No candidates provided' }
   
   try {
-    const candidate = JSON.parse(candidateJson)
-    await evaluateCandidates([candidate])
+    const candidates = JSON.parse(candidatesJson)
+    await evaluateCandidates(candidates)
     revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {

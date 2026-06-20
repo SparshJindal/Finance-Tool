@@ -5,12 +5,15 @@ import stringSimilarity from "string-similarity";
 import { filterRelevance } from "@/lib/gate";
 import { evaluateCandidates } from "@/lib/providers/summary";
 
-export async function ingestNews(userId?: string, runEvaluation: boolean = true) {
+export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[]) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
   
   // 1. Gather all unique targets
   const holdings = await prisma.holding.findMany({ 
-    where: userId ? { userId } : undefined,
+    where: { 
+      userId,
+      ...(targetHoldingIds ? { id: { in: targetHoldingIds } } : {})
+    },
     select: { id: true, ticker: true } 
   });
   
