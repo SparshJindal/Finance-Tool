@@ -12,7 +12,7 @@ export async function filterRelevance(
   articles: { id: string; title: string; source: string }[],
   holdings: { id: string; questions: { id: string; text: string }[] }[]
 ): Promise<GateCandidate[]> {
-  const threshold = parseFloat(process.env.RELEVANCE_THRESHOLD || "0.2");
+  const threshold = parseFloat(process.env.RELEVANCE_THRESHOLD || "0.4");
   const candidates: GateCandidate[] = [];
 
   console.log(`[Gate] Embedding ${holdings.length} holding question-sets individually...`);
