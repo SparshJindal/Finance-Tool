@@ -14,11 +14,13 @@ interface Point {
 export function PolygonMesh({
   density = 1,
   distortion = 1,
-  fadeMode = 'radial'
+  fadeMode = 'radial',
+  intensity = 1
 }: {
   density?: number
   distortion?: number
   fadeMode?: 'radial' | 'right-to-left' | 'full' | 'edges'
+  intensity?: number
 } = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointsRef = useRef<Point[]>([])
@@ -179,11 +181,11 @@ export function PolygonMesh({
         ctx.lineTo(pb.x, pb.y)
         ctx.lineTo(pc.x, pc.y)
         ctx.closePath()
-        ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${opacity * (isAmber ? 0.04 : 0.01)})`
+        ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${opacity * (isAmber ? 0.08 : 0.03) * intensity})`
         ctx.fill()
 
         // Stroke edges (the "strings")
-        ctx.strokeStyle = `rgba(160, 132, 92, ${opacity * 0.07})`
+        ctx.strokeStyle = `rgba(160, 132, 92, ${opacity * 0.15 * intensity})`
         ctx.lineWidth = 0.5
         ctx.stroke()
       }
@@ -206,7 +208,7 @@ export function PolygonMesh({
 
         ctx.beginPath()
         ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(160, 132, 92, ${opacity * 0.15})`
+        ctx.fillStyle = `rgba(160, 132, 92, ${opacity * 0.4 * intensity})`
         ctx.fill()
       }
 
