@@ -14,7 +14,7 @@ const evalSchema = {
           articleId: { type: Type.STRING },
           holdingId: { type: Type.STRING },
           severity: { type: Type.INTEGER, description: "1 to 5" },
-          direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
+          direction: { type: Type.STRING, description: "OPPORTUNITY, RISK, or NEUTRAL" },
           summary: { type: Type.STRING, description: "Short 1 sentence summary" }
         },
         required: ["articleId", "holdingId", "severity", "direction", "summary"]

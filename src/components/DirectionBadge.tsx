@@ -1,26 +1,26 @@
 /**
  * <DirectionBadge />
  *
- * Renders BULLISH / BEARISH / NEUTRAL with semantic color and a directional
+ * Renders OPPORTUNITY / RISK / NEUTRAL with semantic color and a directional
  * arrow. Uses only design tokens.
  */
 export function DirectionBadge({
   direction,
   size = 'md',
 }: {
-  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string
+  direction: 'OPPORTUNITY' | 'RISK' | 'NEUTRAL' | string
   size?: 'sm' | 'md'
 }) {
   const upper = direction?.toUpperCase() || 'NEUTRAL'
 
   const config: Record<string, { color: string; bg: string; border: string; arrow: string }> = {
-    BULLISH: {
+    OPPORTUNITY: {
       color:  'var(--bullish)',
       bg:     'var(--bullish-dim)',
       border: 'var(--bullish-border)',
       arrow:  '↑',
     },
-    BEARISH: {
+    RISK: {
       color:  'var(--bearish)',
       bg:     'var(--bearish-dim)',
       border: 'var(--bearish-border)',
