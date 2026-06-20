@@ -249,7 +249,6 @@ ${contextStr}
     const brief = await prisma.dailyBrief.create({
       data: {
         userId,
-        date: new Date(),
         content: JSON.stringify(sections)
       }
     });
