@@ -11,6 +11,7 @@ import {
   logOut,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
+import { PipelineControls } from '@/components/PipelineControls'
 import { DashboardShell } from '@/components/DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -71,28 +72,12 @@ export default async function Page() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
       <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-        <form action={triggerNewsIngestion as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-            Run Ingest
-          </button>
-        </form>
-        <form action={studyAllHoldings as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-            Study All
-          </button>
-        </form>
-        <form action={triggerSendDigest as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-            Send Digest
-          </button>
-        </form>
-        <form action={logOut as unknown as (fd: FormData) => void}>
-          <button type="submit" className="btn" style={{ width: '100%', justifyContent: 'center', color: 'var(--text-secondary)', marginTop: 'var(--sp-4)' }}>
-            Log Out
-          </button>
-        </form>
-      </div>
+      <PipelineControls 
+        runIngestAction={triggerNewsIngestion as unknown as (fd: FormData) => void}
+        studyAllAction={studyAllHoldings as unknown as (fd: FormData) => void}
+        sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
+        logOutAction={logOut as unknown as (fd: FormData) => void}
+      />
     </div>
   )
 
