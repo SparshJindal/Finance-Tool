@@ -8,6 +8,7 @@ export function PipelineControls({
   runIngestPhase1,
   runIngestPhase2,
   studyHoldingAction,
+  studyBatchHoldingsAction,
   sendDigestAction,
   logOutAction
 }: {
