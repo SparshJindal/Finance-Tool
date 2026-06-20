@@ -104,8 +104,10 @@ ${contextStr}
         });
 
         const parsed = JSON.parse(responseText);
-        if (parsed.findings && Array.isArray(parsed.findings)) {
+        if (parsed && parsed.findings && Array.isArray(parsed.findings)) {
           allFindings.push(...parsed.findings);
+        } else if (parsed && Array.isArray(parsed)) {
+          allFindings.push(...parsed); // Fallback if groq returns the naked array
         }
         success = true;
       } catch (err: any) {
@@ -241,12 +243,14 @@ ${contextStr}
   });
 
   const parsed = JSON.parse(responseText);
+  const sections = parsed?.sections || parsed || [];
 
-  if (parsed.brief) {
+  if (sections.length > 0) {
     const brief = await prisma.dailyBrief.create({
-      data: { 
-        content: parsed.brief,
-        userId
+      data: {
+        userId,
+        date: new Date(),
+        content: JSON.stringify(sections)
       }
     });
     console.log(`[generateDailyBrief] Saved daily brief.`);

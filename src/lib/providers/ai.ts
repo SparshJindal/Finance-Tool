@@ -81,8 +81,13 @@ export async function askAI({
     response_format: schema ? { type: "json_object" } : undefined,
   });
 
-  const content = chatCompletion.choices[0]?.message?.content;
+  let content = chatCompletion.choices[0]?.message?.content;
   if (!content) throw new Error("Groq returned empty text");
+
+  // Clean markdown block if present
+  if (schema) {
+    content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+  }
 
   console.log(`[askAI] Successfully served by Groq fallback.`);
   return content;

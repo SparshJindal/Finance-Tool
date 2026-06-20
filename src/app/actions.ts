@@ -164,9 +164,9 @@ export async function studyHolding(formData: FormData) {
       holding.thesis,
       sector,
       competitors
-    )
+    ).catch(() => [])
 
-    if (questions.length > 0) {
+    if (questions && questions.length > 0) {
       await prisma.question.createMany({
         data: questions.map(q => ({
           holdingId: id,

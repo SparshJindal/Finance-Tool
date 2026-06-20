@@ -77,7 +77,7 @@ export async function generateWatchQuestions(
   });
 
   const parsed = JSON.parse(responseText);
-  return parsed.questions as { category: string; text: string }[];
+  return (parsed.questions || []) as { category: string; text: string }[];
 }
 
 export async function batchGenerateWatchQuestions(
