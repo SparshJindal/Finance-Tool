@@ -15,6 +15,7 @@ export function PipelineControls({
   runIngestPhase1: () => Promise<{ success?: boolean, candidates?: any[], error?: string }>
   runIngestPhase2: (fd: FormData) => Promise<any>
   studyHoldingAction: (fd: FormData) => Promise<any>
+  studyBatchHoldingsAction: (fd: FormData) => Promise<any>
   sendDigestAction: (fd: FormData) => void | Promise<void>
   logOutAction: (fd: FormData) => void | Promise<void>
 }) {
@@ -28,16 +29,29 @@ export function PipelineControls({
     if (holdings.length === 0) return
     setPipelineState({ active: true, text: 'Preparing to study...', percent: 0 })
     
+    // Chunk holdings into batches of 5 for safety against Vercel 10s timeouts
+    const CHUNK_SIZE = 5
+    const chunks = []
+    for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
+      chunks.push(holdings.slice(i, i + CHUNK_SIZE))
+    }
+
     let completed = 0
-    for (const h of holdings) {
-      setPipelineState({ active: true, text: `Studying ${h.ticker} (${completed + 1}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      setPipelineState({ active: true, text: `Studying Batch ${i + 1}/${chunks.length} (${completed + chunk.length}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
       
       const fd = new FormData()
-      fd.append('id', h.id)
-      await studyHoldingAction(fd)
+      fd.append('ids', JSON.stringify(chunk.map(h => h.id)))
+      await studyBatchHoldingsAction(fd)
       
-      completed++
-      setPipelineState({ active: true, text: `Studying ${h.ticker} (${completed}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
+      completed += chunk.length
+      setPipelineState({ active: true, text: `Studying Batch ${i + 1}/${chunks.length} (${completed}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
+      
+      // Small pause between batches to ease rate limits
+      if (i < chunks.length - 1) {
+        await new Promise(r => setTimeout(r, 1000))
+      }
     }
     
     setPipelineState({ active: false, text: '', percent: 0 })

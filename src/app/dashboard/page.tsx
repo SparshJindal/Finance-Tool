@@ -7,6 +7,7 @@ import {
   deleteHolding,
   studyAllHoldings,
   studyHolding,
+  studyBatchHoldings,
   triggerNewsIngestionPhase1,
   triggerNewsIngestionPhase2,
   triggerSendDigest,
@@ -79,6 +80,7 @@ export default async function Page() {
         runIngestPhase1={triggerNewsIngestionPhase1 as unknown as () => Promise<any>}
         runIngestPhase2={triggerNewsIngestionPhase2 as unknown as (fd: FormData) => Promise<any>}
         studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
+        studyBatchHoldingsAction={studyBatchHoldings as unknown as (fd: FormData) => Promise<any>}
         sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
         logOutAction={logOut as unknown as (fd: FormData) => void}
       />

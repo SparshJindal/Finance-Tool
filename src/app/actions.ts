@@ -184,6 +184,95 @@ export async function studyHolding(formData: FormData) {
   }
 }
 
+export async function studyBatchHoldings(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
+  const idsJson = formData.get('ids') as string
+  if (!idsJson) return { error: 'No IDs provided' }
+  
+  try {
+    const ids = JSON.parse(idsJson) as string[]
+    if (ids.length === 0) return { success: true }
+
+    const holdings = await prisma.holding.findMany({ 
+      where: { userId, id: { in: ids } } 
+    })
+    
+    if (holdings.length === 0) return { error: 'Holdings not found' }
+
+    const holdingsData = []
+    const allCompetitorsToInsert: any[] = []
+
+    for (const h of holdings) {
+      const profile = await getCompanyProfile(h.ticker)
+      const sector = profile.finnhubIndustry || 'Unknown'
+      
+      await new Promise(resolve => setTimeout(resolve, 200)) // Rate limit buffer
+      
+      const peers = await getPeers(h.ticker)
+      const competitors = peers.filter((p: string) => p !== h.ticker).slice(0, 5)
+
+      await prisma.holding.update({
+        where: { id: h.id },
+        data: { sector }
+      })
+
+      holdingsData.push({
+        id: h.id,
+        ticker: h.ticker,
+        company: h.company,
+        thesis: h.thesis || '',
+        sector,
+        competitors
+      })
+
+      competitors.forEach((c: string) => {
+        allCompetitorsToInsert.push({ holdingId: h.id, name: c, ticker: c })
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 200)) // Rate limit buffer
+    }
+
+    const holdingIds = holdings.map(h => h.id)
+    await prisma.competitor.deleteMany({ where: { holdingId: { in: holdingIds } } })
+    await prisma.question.deleteMany({ where: { holdingId: { in: holdingIds } } })
+
+    if (allCompetitorsToInsert.length > 0) {
+      await prisma.competitor.createMany({ data: allCompetitorsToInsert })
+    }
+
+    const batchResults = await batchGenerateWatchQuestions(holdingsData).catch(() => [])
+    const allQuestionsToInsert: any[] = []
+    
+    if (batchResults && Array.isArray(batchResults)) {
+      for (const result of batchResults) {
+        const holdingId = holdingsData.find(h => h.ticker === result.ticker)?.id
+        if (holdingId && result.questions && Array.isArray(result.questions)) {
+          result.questions.forEach((q: any) => {
+            allQuestionsToInsert.push({
+              holdingId,
+              category: q.category,
+              text: q.text
+            })
+          })
+        }
+      }
+    }
+
+    if (allQuestionsToInsert.length > 0) {
+      await prisma.question.createMany({ data: allQuestionsToInsert })
+    }
+
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err) {
+    console.error(err)
+    return { error: 'Batch study failed' }
+  }
+}
+
 export async function studyAllHoldings() {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
