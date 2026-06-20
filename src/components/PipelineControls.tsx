@@ -96,6 +96,7 @@ export function PipelineControls({
 
     if (allCandidates.length === 0) {
       setPipelineState({ active: false, text: '', percent: 0 })
+      alert("Ingest Complete: No new threats detected for your portfolio today.")
       return
     }
 
@@ -132,6 +133,7 @@ export function PipelineControls({
     }
 
     setPipelineState({ active: false, text: '', percent: 0 })
+    alert(`Ingest Complete: Evaluated ${uniqueCandidates.length} potential threats! Check your dashboard.`)
   }
 
   return (
