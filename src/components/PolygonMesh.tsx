@@ -22,56 +22,53 @@ export function PolygonMesh({
 } = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointsRef = useRef<Point[]>([])
+  const trisRef = useRef<[number, number, number][]>([])
   const mouseRef = useRef({ x: -9999, y: -9999 })
   const rafRef = useRef<number>(0)
   const sizeRef = useRef({ w: 0, h: 0 })
 
-  const COLS = Math.floor(24 * density)
-  const ROWS = Math.floor(16 * density)
   const MOUSE_RADIUS = 140
   const SPRING = 0.03
   const DAMPING = 0.85
   const MOUSE_FORCE = 18 * distortion
 
   const buildGrid = useCallback((w: number, h: number) => {
-    const points: Point[] = []
-    const spacingX = w / (COLS - 1)
-    const spacingY = h / (ROWS - 1)
+    const spacingX = 80 / density
+    const spacingY = spacingX * (Math.sqrt(3) / 2)
+    const cols = Math.ceil(w / spacingX) + 2
+    const rows = Math.ceil(h / spacingY) + 2
 
-    for (let row = 0; row < ROWS; row++) {
-      for (let col = 0; col < COLS; col++) {
-        // Offset every other row for triangular tiling
+    const points: Point[] = []
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
         const offsetX = row % 2 === 1 ? spacingX * 0.5 : 0
-        const x = col * spacingX + offsetX
-        const y = row * spacingY
+        const x = col * spacingX + offsetX - spacingX // Pad left to hide edges
+        const y = row * spacingY - spacingY // Pad top to hide edges
         points.push({ x, y, originX: x, originY: y, vx: 0, vy: 0 })
       }
     }
-    return points
-  }, [])
 
-  const getTriangles = useCallback((): [number, number, number][] => {
     const tris: [number, number, number][] = []
-    for (let row = 0; row < ROWS - 1; row++) {
-      for (let col = 0; col < COLS - 1; col++) {
-        const i = row * COLS + col
+    for (let row = 0; row < rows - 1; row++) {
+      for (let col = 0; col < cols - 1; col++) {
+        const i = row * cols + col
         const iRight = i + 1
-        const iBelow = (row + 1) * COLS + col
+        const iBelow = (row + 1) * cols + col
         const iBelowRight = iBelow + 1
 
         if (row % 2 === 0) {
-          // Even row: top-left triangle and bottom-right triangle
           tris.push([i, iRight, iBelow])
           tris.push([iRight, iBelowRight, iBelow])
         } else {
-          // Odd row: different diagonal
           tris.push([i, iRight, iBelowRight])
           tris.push([i, iBelowRight, iBelow])
         }
       }
     }
-    return tris
-  }, [])
+
+    pointsRef.current = points
+    trisRef.current = tris
+  }, [density])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -88,13 +85,13 @@ export function PolygonMesh({
       canvas.style.height = `${rect.height}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       sizeRef.current = { w: rect.width, h: rect.height }
-      pointsRef.current = buildGrid(rect.width, rect.height)
+      buildGrid(rect.width, rect.height)
     }
 
     resize()
     window.addEventListener('resize', resize)
 
-    const triangles = getTriangles()
+    window.addEventListener('resize', resize)
 
     const animate = () => {
       const { w, h } = sizeRef.current
@@ -140,6 +137,7 @@ export function PolygonMesh({
       // Draw
       ctx.clearRect(0, 0, w, h)
 
+      const triangles = trisRef.current
       for (let ti = 0; ti < triangles.length; ti++) {
         const [a, b, c] = triangles[ti]
         const pa = points[a]
@@ -219,7 +217,7 @@ export function PolygonMesh({
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseleave', handleLeave)
     }
-  }, [buildGrid, getTriangles])
+  }, [buildGrid])
 
   return (
     <canvas
