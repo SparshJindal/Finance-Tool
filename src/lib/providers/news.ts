@@ -110,6 +110,35 @@ async function fetchFinnhubNews(ticker: string): Promise<NormalizedArticle[]> {
   }
 }
 
+async function fetchMarketauxNews(ticker: string): Promise<NormalizedArticle[]> {
+  const apiKey = process.env.MARKETAUX_API_KEY;
+  if (!apiKey) return [];
+  
+  try {
+    const publishedAfter = getDaysAgoString(3) + "T00:00:00";
+    const url = `https://api.marketaux.com/v1/news/all?symbols=${ticker}&filter_entities=true&limit=10&published_after=${publishedAfter}&api_token=${apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[Marketaux] Error fetching ${ticker}: HTTP ${res.status} - ${res.statusText}`);
+      return [];
+    }
+    
+    const data = await res.json();
+    const articles = data.data;
+    console.log(`[Marketaux] Fetched ${Array.isArray(articles) ? articles.length : 0} raw articles for ${ticker}`);
+    
+    if (!Array.isArray(articles)) return [];
+
+    return articles.map((art: any) => ({
+      url: art.url,
+      title: art.title,
+      source: art.source || "Marketaux",
+      publishedAt: art.published_at ? new Date(art.published_at) : new Date()
+    }));
+  } catch (error) {
+    return [];
+  }
+}
 
 export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
   // Deduplicate tickers
@@ -160,10 +189,11 @@ export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
     console.warn(`[GDELT] rate-limited on ${rateLimitedTickersCount}/${uniqueTickers.length} tickers, served from Finnhub/Marketaux instead.`);
   }
 
-  // --- 2. Fetch Finnhub (Per Ticker) ---
+  // --- 2. Fetch Finnhub & Marketaux (Per Ticker) ---
   for (const ticker of uniqueTickers) {
     const results = await Promise.allSettled([
-      fetchFinnhubNews(ticker)
+      fetchFinnhubNews(ticker),
+      fetchMarketauxNews(ticker)
     ]);
 
     results.forEach(result => {
