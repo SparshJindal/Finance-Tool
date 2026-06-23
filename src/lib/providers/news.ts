@@ -172,5 +172,14 @@ export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
   }
 
   console.log(`[getNews] Fetched ${allArticles.length} unique articles across ${uniqueTickers.length} tickers.`);
+  
+  if (allArticles.length > 0) {
+    console.log(`[getNews] --- RAW ARTICLES PULLED ---`);
+    allArticles.forEach((art, idx) => {
+      console.log(`  ${idx + 1}. [${art.source}] ${art.title} (${art.url})`);
+    });
+    console.log(`[getNews] ---------------------------`);
+  }
+
   return allArticles;
 }
