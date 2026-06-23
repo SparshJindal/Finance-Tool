@@ -89,9 +89,14 @@ async function fetchFinnhubNews(ticker: string): Promise<NormalizedArticle[]> {
     const to = getDaysAgoString(0);   // Today
     const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[Finnhub] Error fetching ${ticker}: HTTP ${res.status} - ${res.statusText}`);
+      return [];
+    }
     
     const data = await res.json();
+    console.log(`[Finnhub] Fetched ${Array.isArray(data) ? data.length : 0} raw articles for ${ticker} from ${from} to ${to}`);
+    
     if (!Array.isArray(data)) return [];
 
     return data.map((art: any) => ({
