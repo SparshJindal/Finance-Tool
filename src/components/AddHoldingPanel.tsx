@@ -178,6 +178,17 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
 
           <div style={{ marginBottom: 'var(--sp-4)' }}>
             <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
+              Exchange
+            </label>
+            <select name="exchange" className="input" defaultValue="US" style={{ width: '160px' }}>
+              <option value="US">US (NYSE/NASDAQ)</option>
+              <option value="NSE">India (NSE)</option>
+              <option value="BSE">India (BSE)</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 'var(--sp-4)' }}>
+            <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
               Investment Thesis
             </label>
             <textarea
