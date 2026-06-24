@@ -14,6 +14,7 @@ const holdingSchema = z.object({
   id: z.string().optional(),
   ticker: z.string().min(1, 'Ticker is required').toUpperCase(),
   company: z.string().min(1, 'Company name is required'),
+  exchange: z.string().default('US'),
   thesis: z.string().min(1, 'Thesis is required'),
   directionLogic: z.string().default('LONG')
 })
@@ -26,6 +27,7 @@ export async function addHolding(formData: FormData) {
   const result = holdingSchema.safeParse({
     ticker: formData.get('ticker'),
     company: formData.get('company'),
+    exchange: formData.get('exchange') || 'US',
     thesis: formData.get('thesis'),
     directionLogic: formData.get('directionLogic')
   })
@@ -40,6 +42,7 @@ export async function addHolding(formData: FormData) {
         userId,
         ticker: result.data.ticker,
         company: result.data.company,
+        exchange: result.data.exchange,
         thesis: result.data.thesis,
         directionLogic: result.data.directionLogic
       }
@@ -469,7 +472,7 @@ export async function submitFindingFeedback(findingId: string, feedback: 'up' | 
   }
 }
 
-export async function importHoldings(holdings: { ticker: string, company: string }[]) {
+export async function importHoldings(holdings: { ticker: string, company: string, exchange?: string }[]) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
   const userId = session.user.id
@@ -494,6 +497,7 @@ export async function importHoldings(holdings: { ticker: string, company: string
         userId,
         ticker: h.ticker,
         company: h.company || h.ticker,
+        exchange: h.exchange || 'US',
         thesis: '',
         directionLogic: 'LONG'
       }

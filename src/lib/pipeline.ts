@@ -14,27 +14,46 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       userId,
       ...(targetHoldingIds ? { id: { in: targetHoldingIds } } : {})
     },
-    select: { id: true, ticker: true } 
+    select: { id: true, ticker: true, company: true, sector: true, exchange: true } 
   });
   
   const holdingIds = holdings.map(h => h.id);
   
   const competitors = await prisma.competitor.findMany({ 
     where: holdingIds.length > 0 ? { holdingId: { in: holdingIds } } : undefined,
-    select: { ticker: true } 
+    select: { ticker: true, name: true, holdingId: true } 
   });
   
-  const targetTickers = new Set([
-    ...holdings.map(h => h.ticker),
-    ...competitors.map(c => c.ticker)
-  ]);
+  const targetTickers = new Map<string, any>();
+  
+  holdings.forEach(h => {
+    targetTickers.set(h.ticker, {
+      symbol: h.ticker,
+      name: h.company,
+      exchange: h.exchange,
+      sector: h.sector || undefined
+    });
+  });
+
+  competitors.forEach(c => {
+    if (!targetTickers.has(c.ticker)) {
+      // Find parent holding to inherit exchange/sector, fallback to US
+      const parent = holdings.find(h => h.id === c.holdingId);
+      targetTickers.set(c.ticker, {
+        symbol: c.ticker,
+        name: c.name,
+        exchange: parent?.exchange || "US",
+        sector: parent?.sector || undefined
+      });
+    }
+  });
 
   if (targetTickers.size === 0) {
     return { error: "No targets to process" };
   }
 
   // 2. Fetch News
-  const articles = await getNews(Array.from(targetTickers));
+  const articles = await getNews(Array.from(targetTickers.values()));
   
   // 3. Hash & Upsert
   let upsertedCount = 0;

@@ -72,6 +72,7 @@ model Holding {
   userId          String        @map("user_id")
   ticker          String
   company         String
+  exchange        String        @default("US")
   sector          String?
   thesis          String
   directionLogic  String        @map("direction_logic")

@@ -5,6 +5,14 @@ export interface NormalizedArticle {
   publishedAt: Date;
 }
 
+export interface TickerInput {
+  symbol: string;
+  name: string;
+  exchange: string;
+  sector?: string;
+  themes?: string[];
+}
+
 // Helper to get date string for N days ago (YYYY-MM-DD)
 function getDaysAgoString(days: number): string {
   const d = new Date();
@@ -12,9 +20,19 @@ function getDaysAgoString(days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-async function fetchGDELTChunk(chunk: string[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
-  // OR query for the chunk of tickers
-  const query = encodeURIComponent(`(${chunk.map(t => `"${t}"`).join(' OR ')}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
+async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
+  // OR query for the chunk using name and sector if available
+  const queryTerms = chunk.map(t => {
+    let term = `"${t.name}"`;
+    if (t.sector) {
+      term += ` OR ("${t.symbol}" AND "${t.sector}")`;
+    } else {
+      term += ` OR "${t.symbol}"`;
+    }
+    return `(${term})`;
+  }).join(' OR ');
+
+  const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
   // Timespan 3 days to match Finnhub, maxrecords 100 since we're batching
   const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
 
@@ -80,10 +98,12 @@ async function fetchGDELTChunk(chunk: string[]): Promise<{ articles: NormalizedA
   return { articles: [], rateLimited: true };
 }
 
-async function fetchFinnhubNews(ticker: string): Promise<NormalizedArticle[]> {
+async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[]> {
+  if (target.exchange !== "US") return [];
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) return [];
   
+  const ticker = target.symbol;
   try {
     const from = getDaysAgoString(3); // Last 3 days
     const to = getDaysAgoString(0);   // Today
@@ -110,13 +130,16 @@ async function fetchFinnhubNews(ticker: string): Promise<NormalizedArticle[]> {
   }
 }
 
-async function fetchMarketauxNews(ticker: string): Promise<NormalizedArticle[]> {
+async function fetchMarketauxNews(target: TickerInput): Promise<NormalizedArticle[]> {
   const apiKey = process.env.MARKETAUX_API_KEY;
   if (!apiKey) return [];
   
+  const ticker = target.symbol; // E.g., TCS
+  const searchStr = target.exchange === "US" ? ticker : `${ticker}.${target.exchange === 'NSE' ? 'NS' : target.exchange === 'BSE' ? 'BO' : target.exchange}`;
+
   try {
     const publishedAfter = getDaysAgoString(3) + "T00:00:00";
-    const url = `https://api.marketaux.com/v1/news/all?symbols=${ticker}&filter_entities=true&limit=10&published_after=${publishedAfter}&api_token=${apiKey}`;
+    const url = `https://api.marketaux.com/v1/news/all?symbols=${searchStr}&filter_entities=true&limit=10&published_after=${publishedAfter}&api_token=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
       console.warn(`[Marketaux] Error fetching ${ticker}: HTTP ${res.status} - ${res.statusText}`);
@@ -140,9 +163,11 @@ async function fetchMarketauxNews(ticker: string): Promise<NormalizedArticle[]> 
   }
 }
 
-export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
-  // Deduplicate tickers
-  const uniqueTickers = Array.from(new Set(tickers));
+export async function getNews(targets: TickerInput[]): Promise<NormalizedArticle[]> {
+  // Deduplicate targets by symbol
+  const uniqueTargetsMap = new Map<string, TickerInput>();
+  targets.forEach(t => uniqueTargetsMap.set(t.symbol, t));
+  const uniqueTargets = Array.from(uniqueTargetsMap.values());
   
   const allArticles: NormalizedArticle[] = [];
   const seenUrls = new Set<string>();
@@ -156,13 +181,13 @@ export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
     });
   };
 
-  console.log(`[getNews] Fetching news for ${uniqueTickers.length} unique tickers...`);
+  console.log(`[getNews] Fetching news for ${uniqueTargets.length} unique tickers...`);
 
   // --- 1. Fetch GDELT (Batched) ---
   const chunkSize = 10;
   const chunks = [];
-  for (let i = 0; i < uniqueTickers.length; i += chunkSize) {
-    chunks.push(uniqueTickers.slice(i, i + chunkSize));
+  for (let i = 0; i < uniqueTargets.length; i += chunkSize) {
+    chunks.push(uniqueTargets.slice(i, i + chunkSize));
   }
 
   let rateLimitedTickersCount = 0;
@@ -186,14 +211,14 @@ export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
   }
 
   if (rateLimitedTickersCount > 0) {
-    console.warn(`[GDELT] rate-limited on ${rateLimitedTickersCount}/${uniqueTickers.length} tickers, served from Finnhub/Marketaux instead.`);
+    console.warn(`[GDELT] rate-limited on ${rateLimitedTickersCount}/${uniqueTargets.length} tickers, served from Finnhub/Marketaux instead.`);
   }
 
   // --- 2. Fetch Finnhub & Marketaux (Per Ticker) ---
-  for (const ticker of uniqueTickers) {
+  for (const target of uniqueTargets) {
     const results = await Promise.allSettled([
-      fetchFinnhubNews(ticker),
-      fetchMarketauxNews(ticker)
+      fetchFinnhubNews(target),
+      fetchMarketauxNews(target)
     ]);
 
     results.forEach(result => {
@@ -206,7 +231,7 @@ export async function getNews(tickers: string[]): Promise<NormalizedArticle[]> {
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
 
-  console.log(`[getNews] Fetched ${allArticles.length} unique articles across ${uniqueTickers.length} tickers.`);
+  console.log(`[getNews] Fetched ${allArticles.length} unique articles across ${uniqueTargets.length} tickers.`);
   
   if (allArticles.length > 0) {
     console.log(`[getNews] --- RAW ARTICLES PULLED ---`);
