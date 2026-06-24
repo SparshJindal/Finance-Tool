@@ -21,20 +21,19 @@ function getDaysAgoString(days: number): string {
 }
 
 async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
-  // OR query for the chunk using name and sector if available
+  // US gets symbol, non-US gets company name
   const queryTerms = chunk.map(t => {
-    let term = `"${t.name}"`;
-    if (t.sector) {
-      term += ` OR ("${t.symbol}" AND "${t.sector}")`;
-    } else {
-      term += ` OR "${t.symbol}"`;
-    }
-    return `(${term})`;
+    return t.exchange === "US" ? `"${t.symbol}"` : `"${t.name}"`;
   }).join(' OR ');
 
   const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
   // Timespan 3 days to match Finnhub, maxrecords 100 since we're batching
-  const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
+  let url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
+
+  // If any stock in chunk is Indian, optionally prioritize Indian sources
+  if (chunk.some(t => t.exchange === 'NSE' || t.exchange === 'BSE')) {
+    url += '&sourcecountry=IN';
+  }
 
   const maxTries = 3;
   let attempt = 0;
