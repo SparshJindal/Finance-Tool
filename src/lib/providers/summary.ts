@@ -2,6 +2,7 @@ import { Type } from "@google/genai";
 import { askAI } from "./ai";
 import { prisma } from "@/lib/db";
 import { GateCandidate } from "../gate";
+import { fetchQuote } from "./quote";
 
 const evalSchema = {
   type: Type.OBJECT,
@@ -53,33 +54,50 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    let contextStr = "Here are the highly relevant articles mapped to specific holdings:\\n\\n";
+    
+    // Fetch quotes for holdings in this chunk
+    const chunkHoldingIds = Array.from(new Set(chunk.map(c => c.holdingId)));
+    const chunkQuotes = new Map<string, { priceChangePct: number, volumeRatio: number } | null>();
+    for (const hid of chunkHoldingIds) {
+      const h = holdings.find(h => h.id === hid);
+      if (h) {
+        const quote = await fetchQuote(h.ticker, h.exchange);
+        chunkQuotes.set(hid, quote);
+      }
+    }
+
+    let contextStr = "Here are the highly relevant articles mapped to specific holdings:\n\n";
     
     chunk.forEach(c => {
       const art = articles.find(a => a.id === c.articleId);
       const hol = holdings.find(h => h.id === c.holdingId);
       if (!art || !hol) return;
 
-      contextStr += `[Candidate Match]\\n`;
-      contextStr += `Holding: ${hol.ticker} (${hol.company})\\n`;
-      contextStr += `Thesis: ${hol.thesis}\\n`;
-      contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\\n`;
-      contextStr += `Article ID: ${art.id}\\n`;
-      contextStr += `Holding ID: ${hol.id}\\n`;
-      contextStr += `Article Title: ${art.title}\\n`;
-      contextStr += `Article URL: ${art.url}\\n`;
-      contextStr += `Article Source: ${art.source}\\n`;
+      const quote = chunkQuotes.get(hol.id);
+
+      contextStr += `[Candidate Match]\n`;
+      contextStr += `Holding: ${hol.ticker} (${hol.company})\n`;
+      contextStr += `Thesis: ${hol.thesis}\n`;
+      if (quote) {
+        contextStr += `Market Reaction: ${quote.priceChangePct}% price change, ${quote.volumeRatio}x average volume\n`;
+      }
+      contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\n`;
+      contextStr += `Article ID: ${art.id}\n`;
+      contextStr += `Holding ID: ${hol.id}\n`;
+      contextStr += `Article Title: ${art.title}\n`;
+      contextStr += `Article URL: ${art.url}\n`;
+      contextStr += `Article Source: ${art.source}\n`;
       if (art.excerpt) {
-        contextStr += `Article Excerpt: ${art.excerpt}\\n`;
+        contextStr += `Article Excerpt: ${art.excerpt}\n`;
       }
       if (c.questionId) {
         const matchedQ = hol.questions.find(q => q.id === c.questionId);
         if (matchedQ) {
-          contextStr += `Matched Question ID: ${c.questionId}\\n`;
-          contextStr += `Matched Question Text: ${matchedQ.text}\\n`;
+          contextStr += `Matched Question ID: ${c.questionId}\n`;
+          contextStr += `Matched Question Text: ${matchedQ.text}\n`;
         }
       }
-      contextStr += `Relevance Score: ${c.similarity.toFixed(3)}\\n\\n`;
+      contextStr += `Relevance Score: ${c.similarity.toFixed(3)}\n\n`;
     });
 
     const prompt = `
@@ -146,17 +164,27 @@ ${contextStr}
       holdings.some(h => h.id === f.holdingId) && articles.some(a => a.id === f.articleId)
     );
     if (validFindings.length > 0) {
+      // Fetch quotes for the final findings before saving
+      const findingsToSave = await Promise.all(validFindings.map(async (f: any) => {
+        const candidate = candidates.find(c => c.articleId === f.articleId && c.holdingId === f.holdingId);
+        const holding = holdings.find(h => h.id === f.holdingId);
+        let quote = null;
+        if (holding) {
+          quote = await fetchQuote(holding.ticker, holding.exchange);
+        }
+        return {
+          articleId: f.articleId,
+          holdingId: f.holdingId,
+          severity: f.severity,
+          summary: f.summary,
+          priceChangePct: quote?.priceChangePct ?? null,
+          volumeRatio: quote?.volumeRatio ?? null,
+          questionId: candidate?.questionId || null,
+        };
+      }));
+
       await prisma.finding.createMany({
-        data: validFindings.map((f: any) => {
-          const candidate = candidates.find(c => c.articleId === f.articleId && c.holdingId === f.holdingId);
-          return {
-            articleId: f.articleId,
-            holdingId: f.holdingId,
-            severity: f.severity,
-            summary: f.summary,
-            questionId: candidate?.questionId || null
-          };
-        })
+        data: findingsToSave
       });
 
       // Fire push notification for high-severity findings
@@ -208,17 +236,20 @@ export async function generateDailyBrief(userId: string) {
     return null;
   }
 
-  let contextStr = "Here are the highly relevant findings detected over the last 24 hours:\\n\\n";
+  let contextStr = "Here are the highly relevant findings detected over the last 24 hours:\n\n";
   
   findings.forEach(f => {
-    contextStr += `[Finding]\\n`;
-    contextStr += `Holding: ${f.holding.ticker} (${f.holding.company})\\n`;
-    contextStr += `Thesis: ${f.holding.thesis}\\n`;
-    contextStr += `Severity: ${f.severity}/5\\n`;
-    contextStr += `Article Title: ${f.article.title}\\n`;
-    contextStr += `Article URL: ${f.article.url}\\n`;
-    contextStr += `Article Source: ${f.article.source}\\n`;
-    contextStr += `AI Summary: ${f.summary}\\n\\n`;
+    contextStr += `[Finding]\n`;
+    contextStr += `Holding: ${f.holding.ticker} (${f.holding.company})\n`;
+    contextStr += `Thesis: ${f.holding.thesis}\n`;
+    if (f.priceChangePct != null && f.volumeRatio != null) {
+      contextStr += `Market Reaction: ${f.priceChangePct}% price change, ${f.volumeRatio}x average volume\n`;
+    }
+    contextStr += `Severity: ${f.severity}/5\n`;
+    contextStr += `Article Title: ${f.article.title}\n`;
+    contextStr += `Article URL: ${f.article.url}\n`;
+    contextStr += `Article Source: ${f.article.source}\n`;
+    contextStr += `AI Summary: ${f.summary}\n\n`;
   });
 
   const prompt = `
@@ -230,7 +261,7 @@ The "brief" MUST be a beautifully formatted markdown report encompassing all the
 The markdown "brief" MUST contain:
 - A clear, engaging Title.
 - **Industry-Level Rollup**: Group related holdings/events and discuss the macro/sector implications.
-- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis. 
+- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis. If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
 - **Severity Visuals**: Attach the severity score visually next to the stock headers or key points using exactly 5 circles (e.g. 🔴🔴🔴⚪⚪ for severity 3, 🔴🔴🔴🔴🔴 for 5).
 - **Hyperlinks**: You MUST hyperlink all referenced articles back to their original URLs using markdown (e.g. [Article Title](URL)). Do NOT output raw URLs.
 

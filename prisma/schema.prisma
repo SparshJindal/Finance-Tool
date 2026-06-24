@@ -135,6 +135,8 @@ model Finding {
   questionId  String?  @map("question_id")
   severity    Int
   summary     String
+  priceChangePct Float?
+  volumeRatio    Float?
   delivered   Boolean  @default(false)
   feedback    String?
   createdAt   DateTime @default(now()) @map("created_at")
