@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "uuid": "mock-uuid-1",
+      "title": "Mock Marketaux: Massive Industry Disruption Looming",
+      "description": "Experts predict major changes in the market landscape...",
+      "keywords": "market, disruption",
+      "snippet": "Experts predict major changes in the market landscape...",
+      "url": "https://example.com/mock-article-1",
+      "image_url": "https://example.com/mock-image.jpg",
+      "language": "en",
+      "published_at": "2026-06-24T10:00:00.000000Z",
+      "source": "MockNews Daily"
+    },
+    {
+      "uuid": "mock-uuid-2",
+      "title": "Mock Marketaux: Competitor Launches New Product Line",
+      "description": "A top competitor has just unveiled a new product...",
+      "keywords": "competitor, launch",
+      "snippet": "A top competitor has just unveiled a new product...",
+      "url": "https://example.com/mock-article-2",
+      "image_url": "https://example.com/mock-image2.jpg",
+      "language": "en",
+      "published_at": "2026-06-23T15:30:00.000000Z",
+      "source": "Mock Finance"
+    }
+  ]
+}

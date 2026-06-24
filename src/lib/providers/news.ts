@@ -1,3 +1,7 @@
+import { prisma } from "@/lib/db";
+import fs from "fs";
+import path from "path";
+
 export interface NormalizedArticle {
   url: string;
   title: string;
@@ -18,6 +22,52 @@ function getDaysAgoString(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split('T')[0];
+}
+
+async function getMissingTickers(targets: TickerInput[], provider: string): Promise<TickerInput[]> {
+  const ttlHours = parseInt(process.env.NEWS_CACHE_TTL_HOURS || "12", 10);
+  const cutoff = new Date(Date.now() - ttlHours * 60 * 60 * 1000);
+  
+  const logs = await prisma.newsFetchLog.findMany({
+    where: {
+      provider,
+      ticker: { in: targets.map(t => t.symbol) },
+      fetchedAt: { gte: cutoff }
+    }
+  });
+  
+  const cachedTickers = new Set(logs.map(l => l.ticker));
+  return targets.filter(t => !cachedTickers.has(t.symbol));
+}
+
+async function markFetched(symbols: string[], provider: string) {
+  const now = new Date();
+  for (const symbol of symbols) {
+    await prisma.newsFetchLog.upsert({
+      where: { ticker_provider: { ticker: symbol, provider } },
+      update: { fetchedAt: now },
+      create: { ticker: symbol, provider, fetchedAt: now }
+    });
+  }
+}
+
+async function checkMarketauxQuota(incrementBy: number = 0): Promise<boolean> {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const cap = parseInt(process.env.MARKETAUX_DAILY_CAP || "90", 10);
+  
+  if (incrementBy > 0) {
+    const record = await prisma.dailyRequestCount.upsert({
+      where: { provider_date: { provider: "marketaux", date: dateStr } },
+      update: { count: { increment: incrementBy } },
+      create: { provider: "marketaux", date: dateStr, count: incrementBy }
+    });
+    return record.count <= cap;
+  } else {
+    const record = await prisma.dailyRequestCount.findUnique({
+      where: { provider_date: { provider: "marketaux", date: dateStr } }
+    });
+    return (record?.count || 0) < cap;
+  }
 }
 
 async function executeGDELTQuery(url: string): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
@@ -71,7 +121,6 @@ async function executeGDELTQuery(url: string): Promise<{ articles: NormalizedArt
 }
 
 async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
-  // US gets symbol, non-US gets company name
   const queryTerms = chunk.map(t => {
     return t.exchange === "US" ? `"${t.symbol}"` : `"${t.name}"`;
   }).join(' OR ');
@@ -79,7 +128,6 @@ async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: Normal
   const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
   let url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
 
-  // If any stock in chunk is Indian, optionally prioritize Indian sources
   if (chunk.some(t => t.exchange === 'NSE' || t.exchange === 'BSE')) {
     url += '&sourcecountry=IN';
   }
@@ -106,8 +154,6 @@ async function fetchGDELTThemeChunk(chunk: TickerInput[]): Promise<{ articles: N
   return executeGDELTQuery(url);
 }
 
-
-
 async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[]> {
   if (target.exchange !== "US") return [];
   const apiKey = process.env.FINNHUB_API_KEY;
@@ -115,8 +161,8 @@ async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[
   
   const ticker = target.symbol;
   try {
-    const from = getDaysAgoString(3); // Last 3 days
-    const to = getDaysAgoString(0);   // Today
+    const from = getDaysAgoString(3);
+    const to = getDaysAgoString(0);
     const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
@@ -125,7 +171,7 @@ async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[
     }
     
     const data = await res.json();
-    console.log(`[Finnhub] Fetched ${Array.isArray(data) ? data.length : 0} raw articles for ${ticker} from ${from} to ${to}`);
+    console.log(`[Finnhub] Fetched ${Array.isArray(data) ? data.length : 0} raw articles for ${ticker}`);
     
     if (!Array.isArray(data)) return [];
 
@@ -140,25 +186,53 @@ async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[
   }
 }
 
-async function fetchMarketauxNews(target: TickerInput): Promise<NormalizedArticle[]> {
+async function fetchMarketauxBatched(targets: TickerInput[]): Promise<NormalizedArticle[]> {
+  const isMock = process.env.NEWS_MOCK === 'true';
+  if (isMock) {
+    console.log(`[Marketaux] MOCK MODE enabled. Returning local fixture for ${targets.length} symbols.`);
+    try {
+      const fixturePath = path.join(process.cwd(), 'src', 'lib', '__fixtures__', 'marketaux-sample.json');
+      const data = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+      return data.data.map((art: any) => ({
+        url: art.url,
+        title: art.title,
+        source: art.source || "Marketaux",
+        publishedAt: art.published_at ? new Date(art.published_at) : new Date()
+      }));
+    } catch (e) {
+      console.error("Mock fixture error:", e);
+      return [];
+    }
+  }
+
   const apiKey = process.env.MARKETAUX_API_KEY;
   if (!apiKey) return [];
+
+  const searchStrs = targets.map(t => {
+    return t.exchange === "US" ? t.symbol : `${t.symbol}.${t.exchange === 'NSE' ? 'NS' : t.exchange === 'BSE' ? 'BO' : t.exchange}`;
+  });
   
-  const ticker = target.symbol; // E.g., TCS
-  const searchStr = target.exchange === "US" ? ticker : `${ticker}.${target.exchange === 'NSE' ? 'NS' : target.exchange === 'BSE' ? 'BO' : target.exchange}`;
+  const searchStr = searchStrs.join(',');
+  
+  // Check and increment quota
+  const withinQuota = await checkMarketauxQuota(1);
+  if (!withinQuota) {
+    console.warn(`[Marketaux] Daily quota exceeded (${process.env.MARKETAUX_DAILY_CAP}). Skipping fetch for batch.`);
+    return [];
+  }
 
   try {
     const publishedAfter = getDaysAgoString(3) + "T00:00:00";
     const url = `https://api.marketaux.com/v1/news/all?symbols=${searchStr}&filter_entities=true&limit=10&published_after=${publishedAfter}&api_token=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
-      console.warn(`[Marketaux] Error fetching ${ticker}: HTTP ${res.status} - ${res.statusText}`);
+      console.warn(`[Marketaux] Error fetching ${searchStr}: HTTP ${res.status} - ${res.statusText}`);
       return [];
     }
     
     const data = await res.json();
     const articles = data.data;
-    console.log(`[Marketaux] Fetched ${Array.isArray(articles) ? articles.length : 0} raw articles for ${ticker}`);
+    console.log(`[Marketaux] Fetched ${Array.isArray(articles) ? articles.length : 0} raw articles for batch: ${searchStr}`);
     
     if (!Array.isArray(articles)) return [];
 
@@ -191,66 +265,91 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     });
   };
 
+  const enabledProviders = (process.env.NEWS_PROVIDERS || "gdelt,finnhub,marketaux").toLowerCase().split(',');
+  console.log(`[getNews] Enabled providers: ${enabledProviders.join(', ')}`);
   console.log(`[getNews] Fetching news for ${uniqueTargets.length} unique tickers...`);
 
   // --- 1. Fetch GDELT (Batched) ---
-  const chunkSize = 10;
-  const chunks = [];
-  for (let i = 0; i < uniqueTargets.length; i += chunkSize) {
-    chunks.push(uniqueTargets.slice(i, i + chunkSize));
-  }
-
-  let rateLimitedTickersCount = 0;
-  const baseDelay = parseInt(process.env.GDELT_DELAY_MS || '5000', 10);
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const { articles: baseArticles, rateLimited: baseRL } = await fetchGDELTChunk(chunk);
-    const { articles: themeArticles, rateLimited: themeRL } = await fetchGDELTThemeChunk(chunk);
+  if (enabledProviders.includes('gdelt')) {
+    const gdeltTargets = await getMissingTickers(uniqueTargets, 'gdelt');
+    console.log(`[GDELT] Needs fetching for ${gdeltTargets.length}/${uniqueTargets.length} tickers.`);
     
-    if (baseRL || themeRL) {
-      rateLimitedTickersCount += chunk.length;
-    }
-    
-    addArticles(baseArticles);
-    addArticles(themeArticles);
-
-    // Throttle between GDELT chunks (>=5s + jitter)
-    if (i < chunks.length - 1) {
-      const jitter = Math.floor(Math.random() * 1000) - 500; // ±500ms
-      await new Promise(r => setTimeout(r, Math.max(0, baseDelay + jitter)));
-    }
-  }
-
-  if (rateLimitedTickersCount > 0) {
-    console.warn(`[GDELT] rate-limited on ${rateLimitedTickersCount}/${uniqueTargets.length} tickers, served from Finnhub/Marketaux instead.`);
-  }
-
-  // --- 2. Fetch Finnhub & Marketaux (Per Ticker) ---
-  if (!skipHeavyApis && uniqueTargets.length <= 10) {
-    for (const target of uniqueTargets) {
-      const promises = [];
-      if (target.exchange === "US") {
-        promises.push(fetchFinnhubNews(target));
+    if (gdeltTargets.length > 0) {
+      const chunkSize = 10;
+      const chunks = [];
+      for (let i = 0; i < gdeltTargets.length; i += chunkSize) {
+        chunks.push(gdeltTargets.slice(i, i + chunkSize));
       }
-      promises.push(fetchMarketauxNews(target));
 
-      const results = await Promise.allSettled(promises);
+      const baseDelay = parseInt(process.env.GDELT_DELAY_MS || '5000', 10);
 
-      results.forEach(result => {
-        if (result.status === "fulfilled") {
-          addArticles(result.value);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const { articles: baseArticles } = await fetchGDELTChunk(chunk);
+        const { articles: themeArticles } = await fetchGDELTThemeChunk(chunk);
+        
+        addArticles(baseArticles);
+        addArticles(themeArticles);
+        await markFetched(chunk.map(c => c.symbol), 'gdelt');
+
+        if (i < chunks.length - 1) {
+          const jitter = Math.floor(Math.random() * 1000) - 500;
+          await new Promise(r => setTimeout(r, Math.max(0, baseDelay + jitter)));
         }
-      });
-
-      // Spacing for strict free tier limits of Finnhub/Marketaux
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      }
     }
-  } else {
-    console.warn(`[getNews] Skipping Finnhub & Marketaux to preserve API limits (Batch size: ${uniqueTargets.length} > 10). Relying entirely on GDELT.`);
   }
 
-  console.log(`[getNews] Fetched ${allArticles.length} unique articles across ${uniqueTargets.length} tickers.`);
+  // --- 2. Determine Enrichment Targets ---
+  // Only call Marketaux/Finnhub for tickers where GDELT returned zero articles
+  const enrichmentTargets = uniqueTargets.filter(t => {
+    const hasArticle = allArticles.some(a => 
+      a.title.toLowerCase().includes(t.symbol.toLowerCase()) || 
+      a.title.toLowerCase().includes(t.name.toLowerCase())
+    );
+    return !hasArticle;
+  });
+
+  if (enrichmentTargets.length > 0 && !skipHeavyApis) {
+    console.log(`[Enrichment] ${enrichmentTargets.length} tickers lacked GDELT results. Proceeding with heavy APIs...`);
+    
+    // --- 3. Fetch Finnhub (US Only) ---
+    if (enabledProviders.includes('finnhub')) {
+      const finnhubTargets = await getMissingTickers(enrichmentTargets, 'finnhub');
+      for (const target of finnhubTargets) {
+        if (target.exchange === "US") {
+          const res = await fetchFinnhubNews(target);
+          addArticles(res);
+          await markFetched([target.symbol], 'finnhub');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+    }
+
+    // --- 4. Fetch Marketaux (Batched) ---
+    if (enabledProviders.includes('marketaux')) {
+      const marketauxTargets = await getMissingTickers(enrichmentTargets, 'marketaux');
+      if (marketauxTargets.length > 0) {
+        const chunkSize = parseInt(process.env.MARKETAUX_SYMBOLS_PER_REQUEST || "3", 10);
+        console.log(`[Marketaux] Batching ${marketauxTargets.length} tickers into chunks of ${chunkSize}.`);
+        
+        for (let i = 0; i < marketauxTargets.length; i += chunkSize) {
+          const chunk = marketauxTargets.slice(i, i + chunkSize);
+          const res = await fetchMarketauxBatched(chunk);
+          addArticles(res);
+          await markFetched(chunk.map(c => c.symbol), 'marketaux');
+          
+          if (process.env.NEWS_MOCK !== 'true' && i + chunkSize < marketauxTargets.length) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+        }
+      }
+    }
+  } else if (skipHeavyApis) {
+    console.warn(`[getNews] Skipping Finnhub & Marketaux to preserve API limits (skipHeavyApis=true).`);
+  }
+
+  console.log(`[getNews] Fetched ${allArticles.length} unique new articles across ${uniqueTargets.length} tickers.`);
   
   if (allArticles.length > 0) {
     console.log(`[getNews] --- RAW ARTICLES PULLED ---`);

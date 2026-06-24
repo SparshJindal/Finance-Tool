@@ -185,3 +185,23 @@ model MarketTicker {
 
   @@map("market_tickers")
 }
+
+model NewsFetchLog {
+  id        String   @id @default(uuid())
+  ticker    String
+  provider  String
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@unique([ticker, provider])
+  @@map("news_fetch_logs")
+}
+
+model DailyRequestCount {
+  id        String   @id @default(uuid())
+  provider  String
+  date      String   // format: YYYY-MM-DD
+  count     Int      @default(0)
+
+  @@unique([provider, date])
+  @@map("daily_request_counts")
+}
