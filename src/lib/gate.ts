@@ -1,6 +1,6 @@
 import { embedText } from "./providers/ai";
 import { cosineSimilarity } from "./math";
-
+import { prisma } from "@/lib/db";
 export interface GateCandidate {
   articleId: string;
   holdingId: string;
@@ -38,6 +38,22 @@ export async function filterRelevance(
   }
 
   console.log(`[Gate] Computing cosine similarity against threshold: ${threshold}`);
+  
+  // Fetch source-level trust scores derived from user feedback
+  const trustScores = await prisma.$queryRaw<any[]>`
+    SELECT a.source, 
+           SUM(CASE WHEN f.feedback = 'up' THEN 1 WHEN f.feedback = 'down' THEN -1 ELSE 0 END) as score
+    FROM findings f
+    JOIN articles a ON f.article_id = a.id
+    WHERE f.feedback IS NOT NULL
+    GROUP BY a.source
+  `;
+
+  const trustMap = new Map<string, number>();
+  trustScores.forEach(row => {
+    trustMap.set(row.source, Number(row.score));
+  });
+
   let totalEvaluated = 0;
   let passed = 0;
   const allScores: number[] = [];
@@ -45,6 +61,11 @@ export async function filterRelevance(
   for (const a of articles) {
     const aVec = articleEmbeddings.get(a.id);
     if (!aVec) continue;
+
+    // Apply simple +/- 0.005 nudge per net feedback point, capped at +/- 0.05
+    const rawTrustScore = trustMap.get(a.source) || 0;
+    const nudge = Math.max(-0.05, Math.min(0.05, rawTrustScore * 0.005));
+    const effectiveThreshold = threshold - nudge;
 
     for (const h of holdings) {
       const qEmbeds = holdingEmbeddings.get(h.id);
@@ -64,7 +85,7 @@ export async function filterRelevance(
       
       allScores.push(maxSimilarity);
 
-      if (maxSimilarity >= threshold) {
+      if (maxSimilarity >= effectiveThreshold) {
         passed++;
         candidates.push({ 
           articleId: a.id, 

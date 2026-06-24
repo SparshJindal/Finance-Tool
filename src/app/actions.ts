@@ -535,3 +535,25 @@ export async function importHoldings(holdings: { ticker: string, company: string
   revalidatePath('/dashboard')
   return { imported, skipped }
 }
+
+export async function submitFindingFeedback(findingId: string, feedback: 'up' | 'down' | null) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  // Ensure the finding belongs to a holding owned by the user
+  const finding = await prisma.finding.findUnique({
+    where: { id: findingId },
+    include: { holding: true }
+  })
+
+  if (!finding || finding.holding.userId !== session.user.id) {
+    throw new Error("Unauthorized")
+  }
+
+  await prisma.finding.update({
+    where: { id: findingId },
+    data: { feedback }
+  })
+
+  revalidatePath('/dashboard')
+}
