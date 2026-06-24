@@ -118,6 +118,7 @@ model Article {
   source      String
   publishedAt DateTime  @map("published_at")
   contentHash String    @map("content_hash")
+  excerpt     String?   @db.Text
   clusterId   String?   @map("cluster_id")
   firstSeen   DateTime  @default(now()) @map("first_seen")
 

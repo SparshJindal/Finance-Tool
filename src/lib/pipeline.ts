@@ -4,6 +4,7 @@ import crypto from "crypto";
 import stringSimilarity from "string-similarity";
 import { filterRelevance } from "@/lib/gate";
 import { evaluateCandidates } from "@/lib/providers/summary";
+import { fetchArticleExcerpt } from "@/lib/providers/extract";
 
 export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[]) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
@@ -55,9 +56,23 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   }
 
   // 2. Fetch News
-  const articles = await getNews(Array.from(targetTickers.values()));
+  const rawArticles = await getNews(Array.from(targetTickers.values()));
   
-  // 3. Hash & Upsert
+  // 3. Fetch Excerpts (with basic concurrency limit of 10)
+  const articles = [];
+  const chunkSize = 10;
+  for (let i = 0; i < rawArticles.length; i += chunkSize) {
+    const chunk = rawArticles.slice(i, i + chunkSize);
+    const chunkWithExcerpts = await Promise.all(
+      chunk.map(async (art) => {
+        const excerpt = await fetchArticleExcerpt(art.url);
+        return { ...art, excerpt };
+      })
+    );
+    articles.push(...chunkWithExcerpts);
+  }
+  
+  // 4. Hash & Upsert
   let upsertedCount = 0;
   for (const art of articles) {
     const contentHash = crypto.createHash('md5').update(art.url + art.title).digest('hex');
@@ -71,6 +86,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
           source: art.source,
           publishedAt: art.publishedAt,
           contentHash,
+          excerpt: art.excerpt,
         }
       });
       upsertedCount++;

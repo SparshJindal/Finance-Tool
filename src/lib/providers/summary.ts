@@ -69,6 +69,9 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
       contextStr += `Article Title: ${art.title}\\n`;
       contextStr += `Article URL: ${art.url}\\n`;
       contextStr += `Article Source: ${art.source}\\n`;
+      if (art.excerpt) {
+        contextStr += `Article Excerpt: ${art.excerpt}\\n`;
+      }
       if (c.questionId) {
         const matchedQ = hol.questions.find(q => q.id === c.questionId);
         if (matchedQ) {

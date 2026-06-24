@@ -9,7 +9,7 @@ export interface GateCandidate {
 }
 
 export async function filterRelevance(
-  articles: { id: string; title: string; source: string }[],
+  articles: { id: string; title: string; source: string; excerpt?: string | null }[],
   holdings: { id: string; questions: { id: string; text: string }[] }[]
 ): Promise<GateCandidate[]> {
   const threshold = parseFloat(process.env.RELEVANCE_THRESHOLD || "0.1");
@@ -31,7 +31,7 @@ export async function filterRelevance(
   console.log(`[Gate] Embedding ${articles.length} articles...`);
   const articleEmbeddings = new Map<string, number[]>();
   for (const a of articles) {
-    const text = `${a.title} - ${a.source}`;
+    const text = a.excerpt ? `${a.title}\n\n${a.excerpt}` : `${a.title} - ${a.source}`;
     const vec = await embedText(text);
     articleEmbeddings.set(a.id, vec);
     await new Promise(res => setTimeout(res, 300)); // strict rate limit buffer
