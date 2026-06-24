@@ -102,4 +102,13 @@ export default async function Page() {
       controls={controls}
     />
   )
+  } catch (error: any) {
+    return (
+      <div style={{ padding: '2rem', color: 'red', fontFamily: 'monospace' }}>
+        <h2>Dashboard Crashed</h2>
+        <p><strong>Error Message:</strong> {error?.message || String(error)}</p>
+        <p><strong>Stack Trace:</strong> {error?.stack}</p>
+      </div>
+    )
+  }
 }
