@@ -15,9 +15,11 @@ const evalSchema = {
           articleId: { type: Type.STRING },
           holdingId: { type: Type.STRING },
           severity: { type: Type.INTEGER, description: "1 to 5" },
+          direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
+          confidence: { type: Type.INTEGER, description: "0 to 100" },
           summary: { type: Type.STRING, description: "Short 1 sentence summary" }
         },
-        required: ["articleId", "holdingId", "severity", "summary"]
+        required: ["articleId", "holdingId", "severity", "direction", "confidence", "summary"]
       }
     }
   },
@@ -81,6 +83,7 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
       if (quote) {
         contextStr += `Market Reaction: ${quote.priceChangePct}% price change, ${quote.volumeRatio}x average volume\n`;
       }
+      contextStr += `Holding Direction Logic: ${hol.directionLogic}\n`;
       contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\n`;
       contextStr += `Article ID: ${art.id}\n`;
       contextStr += `Holding ID: ${hol.id}\n`;
@@ -104,7 +107,8 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
 You are an expert portfolio manager. Review the provided candidate articles mapped to portfolio holdings.
 
 Your task is to output a JSON object containing a "findings" array.
-For EACH candidate match, assign a severity/relevance score (1-5), and short summary.
+For EACH candidate match, assign a severity/relevance score (1-5), a short summary, a "direction" (BULLISH, BEARISH, or NEUTRAL), and a "confidence" score (0-100).
+Use the "Holding Direction Logic" to determine whether the news is BULLISH or BEARISH for *this investor's specific position*. For example, if the investor's logic is "SHORT", then negative news for the company is BULLISH for the investor's position.
 
 Data Context:
 ${contextStr}
@@ -176,6 +180,8 @@ ${contextStr}
           articleId: f.articleId,
           holdingId: f.holdingId,
           severity: f.severity,
+          direction: f.direction || null,
+          confidence: f.confidence || null,
           summary: f.summary,
           priceChangePct: quote?.priceChangePct ?? null,
           volumeRatio: quote?.volumeRatio ?? null,
@@ -246,6 +252,8 @@ export async function generateDailyBrief(userId: string) {
       contextStr += `Market Reaction: ${f.priceChangePct}% price change, ${f.volumeRatio}x average volume\n`;
     }
     contextStr += `Severity: ${f.severity}/5\n`;
+    contextStr += `Direction: ${f.direction || 'Unknown'}\n`;
+    contextStr += `Confidence: ${f.confidence != null ? f.confidence + '%' : 'Unknown'}\n`;
     contextStr += `Article Title: ${f.article.title}\n`;
     contextStr += `Article URL: ${f.article.url}\n`;
     contextStr += `Article Source: ${f.article.source}\n`;
@@ -261,8 +269,8 @@ The "brief" MUST be a beautifully formatted markdown report encompassing all the
 The markdown "brief" MUST contain:
 - A clear, engaging Title.
 - **Industry-Level Rollup**: Group related holdings/events and discuss the macro/sector implications.
-- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis. If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
-- **Severity Visuals**: Attach the severity score visually next to the stock headers or key points using exactly 5 circles (e.g. 🔴🔴🔴⚪⚪ for severity 3, 🔴🔴🔴🔴🔴 for 5).
+- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis. If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🟢 🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
+- **Severity & Direction Visuals**: Render a direction icon (🟢 bullish / 🔴 bearish / ⚪ neutral) alongside the exactly 5 severity circles next to the stock headers or key points (e.g. 🟢 🔴🔴🔴⚪⚪ for bullish, severity 3).
 - **Hyperlinks**: You MUST hyperlink all referenced articles back to their original URLs using markdown (e.g. [Article Title](URL)). Do NOT output raw URLs.
 
 Data Context:

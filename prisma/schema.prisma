@@ -134,6 +134,8 @@ model Finding {
   holdingId   String   @map("holding_id")
   questionId  String?  @map("question_id")
   severity    Int
+  direction   String?  // "BULLISH" | "BEARISH" | "NEUTRAL"
+  confidence  Int?     // 0-100
   summary     String
   priceChangePct Float?
   volumeRatio    Float?

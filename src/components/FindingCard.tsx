@@ -118,6 +118,10 @@ export function FindingCard({
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+          {finding.direction === 'BULLISH' && <span title="Bullish">🟢</span>}
+          {finding.direction === 'BEARISH' && <span title="Bearish">🔴</span>}
+          {finding.direction === 'NEUTRAL' && <span title="Neutral">⚪</span>}
+          {finding.confidence != null && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{finding.confidence}%</span>}
           <RelevanceBadge severity={finding.severity} size="sm" />
           <Severity value={finding.severity} size="sm" />
         </div>
