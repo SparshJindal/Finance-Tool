@@ -173,7 +173,7 @@ async function fetchMarketauxNews(target: TickerInput): Promise<NormalizedArticl
   }
 }
 
-export async function getNews(targets: TickerInput[]): Promise<NormalizedArticle[]> {
+export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = false): Promise<NormalizedArticle[]> {
   // Deduplicate targets by symbol
   const uniqueTargetsMap = new Map<string, TickerInput>();
   targets.forEach(t => uniqueTargetsMap.set(t.symbol, t));
@@ -227,23 +227,27 @@ export async function getNews(targets: TickerInput[]): Promise<NormalizedArticle
   }
 
   // --- 2. Fetch Finnhub & Marketaux (Per Ticker) ---
-  for (const target of uniqueTargets) {
-    const promises = [];
-    if (target.exchange === "US") {
-      promises.push(fetchFinnhubNews(target));
-    }
-    promises.push(fetchMarketauxNews(target));
-
-    const results = await Promise.allSettled(promises);
-
-    results.forEach(result => {
-      if (result.status === "fulfilled") {
-        addArticles(result.value);
+  if (!skipHeavyApis && uniqueTargets.length <= 10) {
+    for (const target of uniqueTargets) {
+      const promises = [];
+      if (target.exchange === "US") {
+        promises.push(fetchFinnhubNews(target));
       }
-    });
+      promises.push(fetchMarketauxNews(target));
 
-    // Spacing for strict free tier limits of Finnhub/Marketaux
-    await new Promise(resolve => setTimeout(resolve, 1500));
+      const results = await Promise.allSettled(promises);
+
+      results.forEach(result => {
+        if (result.status === "fulfilled") {
+          addArticles(result.value);
+        }
+      });
+
+      // Spacing for strict free tier limits of Finnhub/Marketaux
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  } else {
+    console.warn(`[getNews] Skipping Finnhub & Marketaux to preserve API limits (Batch size: ${uniqueTargets.length} > 10). Relying entirely on GDELT.`);
   }
 
   console.log(`[getNews] Fetched ${allArticles.length} unique articles across ${uniqueTargets.length} tickers.`);

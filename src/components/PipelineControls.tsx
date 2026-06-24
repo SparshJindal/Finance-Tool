@@ -30,8 +30,8 @@ export function PipelineControls({
     if (holdings.length === 0) return
     setPipelineState({ active: true, text: 'Preparing to study...', percent: 0 })
     
-    // Chunk holdings into batches of 5 for safety against Vercel 10s timeouts
-    const CHUNK_SIZE = 5
+    // Chunk holdings into batches of 10 for safety against Vercel 10s timeouts
+    const CHUNK_SIZE = 10
     const chunks = []
     for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
       chunks.push(holdings.slice(i, i + CHUNK_SIZE))
@@ -63,7 +63,7 @@ export function PipelineControls({
     setPipelineState({ active: true, text: 'Fetching live news & gating...', percent: 5 })
     
     // Phase 1: Chunked Fetch & Gate
-    const CHUNK_SIZE = 5
+    const CHUNK_SIZE = 10
     const chunks = []
     for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
       chunks.push(holdings.slice(i, i + CHUNK_SIZE))
@@ -78,6 +78,9 @@ export function PipelineControls({
       
       const fd = new FormData()
       fd.append('ids', JSON.stringify(chunk.map(h => h.id)))
+      if (holdings.length > 10) {
+        fd.append('skipHeavyApis', 'true')
+      }
       const phase1 = await runIngestPhase1(fd)
       
       if (phase1.error) {

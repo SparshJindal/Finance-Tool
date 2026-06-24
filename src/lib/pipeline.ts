@@ -6,7 +6,7 @@ import { filterRelevance } from "@/lib/gate";
 import { evaluateCandidates } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 
-export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[]) {
+export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
   
   // 1. Gather all unique targets
@@ -56,13 +56,27 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   }
 
   // 2. Fetch News
-  const rawArticles = await getNews(Array.from(targetTickers.values()));
+  const rawArticles = await getNews(Array.from(targetTickers.values()), skipHeavyApis);
   
-  // 3. Fetch Excerpts (with basic concurrency limit of 10)
+  // 3. Pre-filter and Fetch Excerpts
+  const targetKeywords = Array.from(targetTickers.values()).flatMap(t => {
+    return [t.symbol.toLowerCase(), t.name.toLowerCase(), ...t.themes.map((th: string) => th.toLowerCase())];
+  });
+
+  console.log(`[ingestNews] Pre-filtering ${rawArticles.length} raw articles...`);
+  const filteredArticles = rawArticles.filter(art => {
+    const textToSearch = (art.title + " " + art.url).toLowerCase();
+    return targetKeywords.some(kw => textToSearch.includes(kw));
+  });
+  console.log(`[ingestNews] Kept ${filteredArticles.length} articles after pre-filtering.`);
+
+  // Limit to 100 to absolutely prevent Vercel timeouts on massive batches
+  const articlesToProcess = filteredArticles.slice(0, 100);
+
   const articles = [];
   const chunkSize = 10;
-  for (let i = 0; i < rawArticles.length; i += chunkSize) {
-    const chunk = rawArticles.slice(i, i + chunkSize);
+  for (let i = 0; i < articlesToProcess.length; i += chunkSize) {
+    const chunk = articlesToProcess.slice(i, i + chunkSize);
     const chunkWithExcerpts = await Promise.all(
       chunk.map(async (art) => {
         const excerpt = await fetchArticleExcerpt(art.url);

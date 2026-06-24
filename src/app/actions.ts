@@ -389,9 +389,10 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
 
   const idsJson = formData?.get('ids') as string | undefined
   const targetHoldingIds = idsJson ? JSON.parse(idsJson) as string[] : undefined
+  const skipHeavyApis = formData?.get('skipHeavyApis') === 'true'
 
   try {
-    const result = await ingestNews(userId, false, targetHoldingIds) // Skip evaluation
+    const result = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
     const candidates = (result as any)?.candidates || []
     console.log("Found Candidates:", candidates.length)
     return { success: true, candidates }
