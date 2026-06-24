@@ -74,6 +74,7 @@ model Holding {
   company         String
   exchange        String        @default("US")
   sector          String?
+  themes          String[]
   thesis          String
   directionLogic  String        @map("direction_logic")
   createdAt       DateTime      @default(now()) @map("created_at")

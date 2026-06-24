@@ -9,6 +9,8 @@ import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
 import { generateWatchQuestions, batchGenerateWatchQuestions } from '@/lib/providers/gemini'
 import { ingestNews } from '@/lib/pipeline'
 import { evaluateCandidates } from '@/lib/providers/summary'
+import { askAI } from '@/lib/providers/ai'
+import { Type } from '@google/genai'
 
 const holdingSchema = z.object({
   id: z.string().optional(),
@@ -37,12 +39,36 @@ export async function addHolding(formData: FormData) {
   }
 
   try {
+    let themes: string[] = []
+    try {
+      const themeSchema = {
+        type: Type.OBJECT,
+        properties: {
+          themes: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "3-5 search phrases or keywords related to the company's industry, sector, or macro environment."
+          }
+        },
+        required: ["themes"]
+      }
+      
+      const aiRes = await askAI({
+        prompt: `Generate 3-5 macro/industry search phrases (themes) for ${result.data.company} based on this thesis: ${result.data.thesis}. These are used for news search. Return them as short strings (e.g., 'crude oil', 'interest rates', 'semiconductors').`,
+        schema: themeSchema
+      })
+      themes = JSON.parse(aiRes).themes || []
+    } catch (e) {
+      console.error("Failed to generate themes:", e)
+    }
+
     await prisma.holding.create({
       data: {
         userId,
         ticker: result.data.ticker,
         company: result.data.company,
         exchange: result.data.exchange,
+        themes,
         thesis: result.data.thesis,
         directionLogic: result.data.directionLogic
       }

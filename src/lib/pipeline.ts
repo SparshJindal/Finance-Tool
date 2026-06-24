@@ -14,7 +14,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       userId,
       ...(targetHoldingIds ? { id: { in: targetHoldingIds } } : {})
     },
-    select: { id: true, ticker: true, company: true, sector: true, exchange: true } 
+    select: { id: true, ticker: true, company: true, sector: true, exchange: true, themes: true } 
   });
   
   const holdingIds = holdings.map(h => h.id);
@@ -31,7 +31,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       symbol: h.ticker,
       name: h.company,
       exchange: h.exchange,
-      sector: h.sector || undefined
+      sector: h.sector || undefined,
+      themes: h.themes
     });
   });
 
@@ -43,7 +44,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         symbol: c.ticker,
         name: c.name,
         exchange: parent?.exchange || "US",
-        sector: parent?.sector || undefined
+        sector: parent?.sector || undefined,
+        themes: parent?.themes || []
       });
     }
   });

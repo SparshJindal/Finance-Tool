@@ -20,21 +20,7 @@ function getDaysAgoString(days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
-  // US gets symbol, non-US gets company name
-  const queryTerms = chunk.map(t => {
-    return t.exchange === "US" ? `"${t.symbol}"` : `"${t.name}"`;
-  }).join(' OR ');
-
-  const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
-  // Timespan 3 days to match Finnhub, maxrecords 100 since we're batching
-  let url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
-
-  // If any stock in chunk is Indian, optionally prioritize Indian sources
-  if (chunk.some(t => t.exchange === 'NSE' || t.exchange === 'BSE')) {
-    url += '&sourcecountry=IN';
-  }
-
+async function executeGDELTQuery(url: string): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
   const maxTries = 3;
   let attempt = 0;
 
@@ -45,39 +31,28 @@ async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: Normal
       if (res.status === 429) {
         attempt++;
         if (attempt >= maxTries) return { articles: [], rateLimited: true };
-        // Exponential backoff: 6s, 12s, 24s (attempt 1 -> 6s, attempt 2 -> 12s)
         const backoff = 3000 * Math.pow(2, attempt); 
         await new Promise(r => setTimeout(r, backoff));
         continue;
       }
 
-      if (!res.ok) {
-        return { articles: [], rateLimited: false };
-      }
+      if (!res.ok) return { articles: [], rateLimited: false };
       
       const text = await res.text();
       let data;
       try {
         data = JSON.parse(text);
       } catch (e) {
-        // GDELT sometimes returns HTTP 200 with a plain text error message
         return { articles: [], rateLimited: false };
       }
 
       if (!data.articles) return { articles: [], rateLimited: false };
 
       const articles = data.articles.map((art: any) => {
-        // GDELT seendate format: YYYYMMDDTHHMMSSZ
         let date = new Date();
         if (art.seendate && art.seendate.length === 16) {
           const str = art.seendate;
-          const year = str.slice(0, 4);
-          const month = str.slice(4, 6);
-          const day = str.slice(6, 8);
-          const hour = str.slice(9, 11);
-          const min = str.slice(11, 13);
-          const sec = str.slice(13, 15);
-          date = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`);
+          date = new Date(`${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}T${str.slice(9, 11)}:${str.slice(11, 13)}:${str.slice(13, 15)}Z`);
         }
         return {
           url: art.url,
@@ -89,13 +64,49 @@ async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: Normal
 
       return { articles, rateLimited: false };
     } catch (error) {
-      // Never throw, return empty
       return { articles: [], rateLimited: false };
     }
   }
-
   return { articles: [], rateLimited: true };
 }
+
+async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
+  // US gets symbol, non-US gets company name
+  const queryTerms = chunk.map(t => {
+    return t.exchange === "US" ? `"${t.symbol}"` : `"${t.name}"`;
+  }).join(' OR ');
+
+  const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
+  let url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=100&format=json&timespan=3d`;
+
+  // If any stock in chunk is Indian, optionally prioritize Indian sources
+  if (chunk.some(t => t.exchange === 'NSE' || t.exchange === 'BSE')) {
+    url += '&sourcecountry=IN';
+  }
+
+  return executeGDELTQuery(url);
+}
+
+async function fetchGDELTThemeChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
+  const targetsWithThemes = chunk.filter(t => t.themes && t.themes.length > 0);
+  if (targetsWithThemes.length === 0) return { articles: [], rateLimited: false };
+
+  const queryTerms = targetsWithThemes.map(t => {
+    const themeStr = t.themes!.map(th => `"${th}"`).join(' OR ');
+    return `(${themeStr})`;
+  }).join(' OR ');
+
+  const query = encodeURIComponent(`(${queryTerms}) sourcelang:eng`);
+  let url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=50&format=json&timespan=3d`;
+
+  if (targetsWithThemes.some(t => t.exchange === 'NSE' || t.exchange === 'BSE')) {
+    url += '&sourcecountry=IN';
+  }
+
+  return executeGDELTQuery(url);
+}
+
+
 
 async function fetchFinnhubNews(target: TickerInput): Promise<NormalizedArticle[]> {
   if (target.exchange !== "US") return [];
@@ -194,13 +205,15 @@ export async function getNews(targets: TickerInput[]): Promise<NormalizedArticle
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    const { articles, rateLimited } = await fetchGDELTChunk(chunk);
+    const { articles: baseArticles, rateLimited: baseRL } = await fetchGDELTChunk(chunk);
+    const { articles: themeArticles, rateLimited: themeRL } = await fetchGDELTThemeChunk(chunk);
     
-    if (rateLimited) {
+    if (baseRL || themeRL) {
       rateLimitedTickersCount += chunk.length;
     }
     
-    addArticles(articles);
+    addArticles(baseArticles);
+    addArticles(themeArticles);
 
     // Throttle between GDELT chunks (>=5s + jitter)
     if (i < chunks.length - 1) {
@@ -215,10 +228,13 @@ export async function getNews(targets: TickerInput[]): Promise<NormalizedArticle
 
   // --- 2. Fetch Finnhub & Marketaux (Per Ticker) ---
   for (const target of uniqueTargets) {
-    const results = await Promise.allSettled([
-      fetchFinnhubNews(target),
-      fetchMarketauxNews(target)
-    ]);
+    const promises = [];
+    if (target.exchange === "US") {
+      promises.push(fetchFinnhubNews(target));
+    }
+    promises.push(fetchMarketauxNews(target));
+
+    const results = await Promise.allSettled(promises);
 
     results.forEach(result => {
       if (result.status === "fulfilled") {
