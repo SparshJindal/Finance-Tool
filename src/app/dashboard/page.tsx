@@ -24,7 +24,8 @@ export default async function Page() {
   if (!session?.user?.id) redirect('/login')
   const userId = session.user.id
 
-  const holdings = await prisma.holding.findMany({
+  try {
+    const holdings = await prisma.holding.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
   })
