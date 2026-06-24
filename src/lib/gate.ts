@@ -31,7 +31,7 @@ export async function filterRelevance(
   console.log(`[Gate] Embedding ${articles.length} articles...`);
   const articleEmbeddings = new Map<string, number[]>();
   for (const a of articles) {
-    const text = a.excerpt ? `${a.title}\n\n${a.excerpt}` : `${a.title} - ${a.source}`;
+    const text = `${a.title}. ${a.excerpt ?? ""}`;
     const vec = await embedText(text);
     articleEmbeddings.set(a.id, vec);
     await new Promise(res => setTimeout(res, 300)); // strict rate limit buffer

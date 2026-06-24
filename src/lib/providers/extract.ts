@@ -1,4 +1,5 @@
-import * as cheerio from 'cheerio';
+import { Readability } from '@mozilla/readability';
+import { JSDOM } from 'jsdom';
 
 export async function fetchArticleExcerpt(url: string, maxLength: number = 1500): Promise<string | null> {
   try {
@@ -20,21 +21,16 @@ export async function fetchArticleExcerpt(url: string, maxLength: number = 1500)
     }
 
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const doc = new JSDOM(html, { url });
+    const reader = new Readability(doc.window.document);
+    const article = reader.parse();
 
-    // Remove noisy elements that aren't the article body
-    $('script, style, noscript, iframe, svg, nav, footer, header, aside, .ad, .advertisement, .social-share').remove();
-
-    // Try to find the main article container first
-    let mainContent = $('article, main, .article-content, .post-content, .entry-content').text();
-    
-    // If no specific container found, fall back to the whole body
-    if (!mainContent || mainContent.trim().length < 200) {
-      mainContent = $('body').text();
+    if (!article || !article.textContent) {
+      return null;
     }
 
     // Clean up whitespace
-    let cleanText = mainContent
+    let cleanText = article.textContent
       .replace(/\s+/g, ' ')
       .replace(/\n+/g, ' ')
       .trim();
@@ -45,7 +41,7 @@ export async function fetchArticleExcerpt(url: string, maxLength: number = 1500)
 
     return cleanText.length > 50 ? cleanText : null;
   } catch (error) {
-    // console.error(`[fetchArticleExcerpt] Failed to fetch ${url}:`, error);
-    return null; // Silently fail and return null
+    // Silently fail and return null
+    return null;
   }
 }
