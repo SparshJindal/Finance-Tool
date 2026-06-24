@@ -18,7 +18,8 @@ const holdingSchema = z.object({
   company: z.string().min(1, 'Company name is required'),
   exchange: z.string().default('US'),
   thesis: z.string().min(1, 'Thesis is required'),
-  directionLogic: z.string().default('LONG')
+  directionLogic: z.string().default('LONG'),
+  kind: z.string().default('PORTFOLIO')
 })
 
 export async function addHolding(formData: FormData) {
@@ -31,7 +32,8 @@ export async function addHolding(formData: FormData) {
     company: formData.get('company'),
     exchange: formData.get('exchange') || 'US',
     thesis: formData.get('thesis'),
-    directionLogic: formData.get('directionLogic')
+    directionLogic: formData.get('directionLogic'),
+    kind: formData.get('kind') || 'PORTFOLIO'
   })
 
   if (!result.success) {
@@ -70,7 +72,8 @@ export async function addHolding(formData: FormData) {
         exchange: result.data.exchange,
         themes,
         thesis: result.data.thesis,
-        directionLogic: result.data.directionLogic
+        directionLogic: result.data.directionLogic,
+        kind: result.data.kind
       }
     })
     revalidatePath('/dashboard')
@@ -91,7 +94,8 @@ export async function updateHolding(formData: FormData) {
     ticker: formData.get('ticker'),
     company: formData.get('company'),
     thesis: formData.get('thesis'),
-    directionLogic: formData.get('directionLogic')
+    directionLogic: formData.get('directionLogic'),
+    kind: formData.get('kind') || 'PORTFOLIO'
   })
 
   if (!result.success) {
@@ -115,7 +119,8 @@ export async function updateHolding(formData: FormData) {
         ticker: result.data.ticker,
         company: result.data.company,
         thesis: result.data.thesis,
-        directionLogic: result.data.directionLogic
+        directionLogic: result.data.directionLogic,
+        kind: result.data.kind
       }
     })
     revalidatePath('/dashboard')
@@ -536,24 +541,3 @@ export async function importHoldings(holdings: { ticker: string, company: string
   return { imported, skipped }
 }
 
-export async function submitFindingFeedback(findingId: string, feedback: 'up' | 'down' | null) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Unauthorized")
-
-  // Ensure the finding belongs to a holding owned by the user
-  const finding = await prisma.finding.findUnique({
-    where: { id: findingId },
-    include: { holding: true }
-  })
-
-  if (!finding || finding.holding.userId !== session.user.id) {
-    throw new Error("Unauthorized")
-  }
-
-  await prisma.finding.update({
-    where: { id: findingId },
-    data: { feedback }
-  })
-
-  revalidatePath('/dashboard')
-}

@@ -9,6 +9,7 @@ type Holding = {
   company: string
   thesis: string
   directionLogic: string
+  kind: string
 }
 
 export function ManagePortfolioPanel({
@@ -168,7 +169,21 @@ export function ManagePortfolioPanel({
                           alignItems: 'center'
                         }}>
                           <div>
-                            <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{h.ticker}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                              <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{h.ticker}</div>
+                              {h.kind === 'WATCHLIST' && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  background: 'var(--surface-overlay)', 
+                                  border: '1px solid var(--border)', 
+                                  padding: '1px 4px', 
+                                  borderRadius: '2px', 
+                                  color: 'var(--text-muted)' 
+                                }}>
+                                  WATCH
+                                </span>
+                              )}
+                            </div>
                             <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>{h.company}</div>
                           </div>
                           <button 

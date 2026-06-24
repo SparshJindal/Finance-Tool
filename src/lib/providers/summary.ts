@@ -193,8 +193,11 @@ ${contextStr}
         data: findingsToSave
       });
 
-      // Fire push notification for high-severity findings
-      const criticalFindings = validFindings.filter((f: any) => f.severity >= 4);
+      // Fire push notification for high-severity findings (PORTFOLIO only)
+      const criticalFindings = validFindings.filter((f: any) => {
+        const holding = holdings.find(h => h.id === f.holdingId);
+        return f.severity >= 4 && holding?.kind === 'PORTFOLIO';
+      });
       if (criticalFindings.length > 0) {
         try {
           const { sendPushAlert } = await import('@/lib/push');
@@ -247,7 +250,8 @@ export async function generateDailyBrief(userId: string) {
   findings.forEach(f => {
     contextStr += `[Finding]\n`;
     contextStr += `Holding: ${f.holding.ticker} (${f.holding.company})\n`;
-    contextStr += `Thesis: ${f.holding.thesis}\n`;
+    contextStr += `Kind: ${f.holding.kind}\n`;
+    contextStr += `Thesis / Why Watching: ${f.holding.thesis}\n`;
     if (f.priceChangePct != null && f.volumeRatio != null) {
       contextStr += `Market Reaction: ${f.priceChangePct}% price change, ${f.volumeRatio}x average volume\n`;
     }
@@ -268,8 +272,9 @@ The "brief" MUST be a beautifully formatted markdown report encompassing all the
 
 The markdown "brief" MUST contain:
 - A clear, engaging Title.
-- **Industry-Level Rollup**: Group related holdings/events and discuss the macro/sector implications.
-- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis. If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🟢 🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
+- **Two Distinct Sections**: You MUST separate findings into "📈 Portfolio" (active investments) and "👀 Watchlist" (what's moving before you buy). For Portfolio items, link the finding back to the thesis.
+- **Industry-Level Rollup**: Group related holdings/events and discuss the macro/sector implications within those sections.
+- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis (or 'why watching'). If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🟢 🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
 - **Severity & Direction Visuals**: Render a direction icon (🟢 bullish / 🔴 bearish / ⚪ neutral) alongside the exactly 5 severity circles next to the stock headers or key points (e.g. 🟢 🔴🔴🔴⚪⚪ for bullish, severity 3).
 - **Hyperlinks**: You MUST hyperlink all referenced articles back to their original URLs using markdown (e.g. [Article Title](URL)). Do NOT output raw URLs.
 

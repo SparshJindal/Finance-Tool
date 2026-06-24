@@ -52,6 +52,8 @@ export default async function Page() {
     sourceTitle: f.article.title,
     questionText: f.question?.text || null,
     feedback: f.feedback as 'up' | 'down' | null,
+    direction: f.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null,
+    confidence: f.confidence,
   }))
 
   const tickerItems = findings

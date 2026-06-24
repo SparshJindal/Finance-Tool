@@ -18,6 +18,8 @@ export type FindingData = {
   sourceTitle: string
   questionText: string | null
   feedback: 'up' | 'down' | null
+  direction?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null
+  confidence?: number | null
 }
 
 function UpIcon({ active }: { active: boolean }) {

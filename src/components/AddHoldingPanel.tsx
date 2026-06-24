@@ -176,20 +176,37 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
             )}
           </div>
 
-          <div style={{ marginBottom: 'var(--sp-4)' }}>
-            <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
-              Exchange
-            </label>
-            <select name="exchange" className="input" defaultValue="US" style={{ width: '160px' }}>
-              <option value="US">US (NYSE/NASDAQ)</option>
-              <option value="NSE">India (NSE)</option>
-              <option value="BSE">India (BSE)</option>
-            </select>
+          <div style={{ display: 'flex', gap: 'var(--sp-6)', marginBottom: 'var(--sp-4)' }}>
+            <div>
+              <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
+                Exchange
+              </label>
+              <select name="exchange" className="input" defaultValue="US" style={{ width: '160px' }}>
+                <option value="US">US (NYSE/NASDAQ)</option>
+                <option value="NSE">India (NSE)</option>
+                <option value="BSE">India (BSE)</option>
+              </select>
+            </div>
+            <div>
+              <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
+                Type
+              </label>
+              <div style={{ display: 'flex', gap: 'var(--sp-4)', alignItems: 'center', height: '40px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', cursor: 'pointer' }}>
+                  <input type="radio" name="kind" value="PORTFOLIO" defaultChecked />
+                  <span style={{ fontSize: 'var(--text-sm)' }}>Portfolio</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', cursor: 'pointer' }}>
+                  <input type="radio" name="kind" value="WATCHLIST" />
+                  <span style={{ fontSize: 'var(--text-sm)' }}>Watchlist</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div style={{ marginBottom: 'var(--sp-4)' }}>
             <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
-              Investment Thesis
+              Investment Thesis / Why I'm Watching
             </label>
             <textarea
               name="thesis"
