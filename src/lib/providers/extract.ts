@@ -1,5 +1,4 @@
-import { Readability } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
+import * as cheerio from 'cheerio';
 
 export async function fetchArticleExcerpt(url: string, maxLength: number = 1500): Promise<string | null> {
   try {
@@ -21,18 +20,29 @@ export async function fetchArticleExcerpt(url: string, maxLength: number = 1500)
     }
 
     const html = await res.text();
-    const doc = new JSDOM(html, { url });
-    const reader = new Readability(doc.window.document);
-    const article = reader.parse();
+    const $ = cheerio.load(html);
 
-    if (!article || !article.textContent) {
+    // Remove scripts, styles, navs, headers, footers
+    $('script, style, nav, header, footer, noscript, iframe, svg').remove();
+
+    // Try to find the main article container, or fallback to body
+    let contentElement = $('article');
+    if (contentElement.length === 0) {
+      contentElement = $('main');
+    }
+    if (contentElement.length === 0) {
+      contentElement = $('body');
+    }
+
+    const textContent = contentElement.text();
+
+    if (!textContent) {
       return null;
     }
 
     // Clean up whitespace
-    let cleanText = article.textContent
+    let cleanText = textContent
       .replace(/\s+/g, ' ')
-      .replace(/\n+/g, ' ')
       .trim();
 
     if (cleanText.length > maxLength) {
