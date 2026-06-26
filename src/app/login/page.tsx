@@ -49,7 +49,8 @@ export default function LoginPage() {
         window.location.href = '/dashboard'
         return
       } catch (err: any) {
-        setErrorMsg("Server crashed while trying to sign up. Check logs.")
+        console.error("Sign up error:", err)
+        setErrorMsg(`Server crashed while trying to sign up. Error: ${err.message || err}`)
         setIsLoading(false)
         return
       }
