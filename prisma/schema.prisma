@@ -83,6 +83,7 @@ model Holding {
   directionLogic  String        @map("direction_logic")
   kind            String        @default("PORTFOLIO")
   createdAt       DateTime      @default(now()) @map("created_at")
+  lastIngestedAt  DateTime?     @map("last_ingested_at")
 
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
