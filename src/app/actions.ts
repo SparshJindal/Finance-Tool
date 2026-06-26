@@ -466,6 +466,10 @@ export async function signUp(formData: FormData) {
   const result = signUpSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    phone: formData.get('phone'),
+    nationality: formData.get('nationality'),
   })
 
   if (!result.success) {
