@@ -122,7 +122,7 @@ async function executeGDELTQuery(url: string): Promise<{ articles: NormalizedArt
 
 async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
   const queryTerms = chunk.map(t => {
-    return t.exchange === "US" ? `"${t.symbol}"` : `"${t.name}"`;
+    return t.exchange === "US" ? `("${t.name}" OR "${t.symbol}")` : `"${t.name}"`;
   }).join(' OR ');
 
   const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
@@ -290,7 +290,9 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         
         addArticles(baseArticles);
         addArticles(themeArticles);
-        await markFetched(chunk.map(c => c.symbol), 'gdelt');
+        if ((baseArticles.length + themeArticles.length) > 0) {
+          await markFetched(chunk.map(c => c.symbol), 'gdelt');
+        }
 
         if (i < chunks.length - 1) {
           const jitter = Math.floor(Math.random() * 1000) - 500;
@@ -320,7 +322,9 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         if (target.exchange === "US") {
           const res = await fetchFinnhubNews(target);
           addArticles(res);
-          await markFetched([target.symbol], 'finnhub');
+          if (res.length > 0) {
+            await markFetched([target.symbol], 'finnhub');
+          }
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
@@ -337,7 +341,9 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
           const chunk = marketauxTargets.slice(i, i + chunkSize);
           const res = await fetchMarketauxBatched(chunk);
           addArticles(res);
-          await markFetched(chunk.map(c => c.symbol), 'marketaux');
+          if (res.length > 0) {
+            await markFetched(chunk.map(c => c.symbol), 'marketaux');
+          }
           
           if (process.env.NEWS_MOCK !== 'true' && i + chunkSize < marketauxTargets.length) {
             await new Promise(resolve => setTimeout(resolve, 1500));
