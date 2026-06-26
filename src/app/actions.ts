@@ -11,6 +11,34 @@ import { ingestNews } from '@/lib/pipeline'
 import { evaluateCandidates } from '@/lib/providers/summary'
 import { askAI } from '@/lib/providers/ai'
 import { Type } from '@google/genai'
+import { generateHoldingProfile } from '@/lib/providers/profile'
+
+async function populateHoldingProfile(holdingId: string, ticker: string, company: string, thesis: string, directionLogic: string) {
+  try {
+    const profile = await generateHoldingProfile({ ticker, company, thesis, directionLogic });
+    const allThemes = Array.from(new Set([...profile.aliases, ...profile.themes]));
+    
+    await prisma.holding.update({
+      where: { id: holdingId },
+      data: { themes: allThemes }
+    });
+
+    if (profile.competitors && profile.competitors.length > 0) {
+      const uniqueComps = Array.from(new Map(profile.competitors.filter(c => c.name).map(c => [c.name, c])).values());
+      for (const comp of uniqueComps) {
+        await prisma.competitor.create({
+          data: {
+            holdingId,
+            name: comp.name,
+            ticker: comp.ticker || ""
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.error(`[populateHoldingProfile] Failed for ${ticker}:`, e);
+  }
+}
 
 const holdingSchema = z.object({
   id: z.string().optional(),
@@ -41,41 +69,22 @@ export async function addHolding(formData: FormData) {
   }
 
   try {
-    let themes: string[] = []
-    try {
-      const themeSchema = {
-        type: Type.OBJECT,
-        properties: {
-          themes: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "3-5 search phrases or keywords related to the company's industry, sector, or macro environment."
-          }
-        },
-        required: ["themes"]
-      }
-      
-      const aiRes = await askAI({
-        prompt: `Generate 3-5 macro/industry search phrases (themes) for ${result.data.company} based on this thesis: ${result.data.thesis}. These are used for news search. Return them as short strings (e.g., 'crude oil', 'interest rates', 'semiconductors').`,
-        schema: themeSchema
-      })
-      themes = JSON.parse(aiRes).themes || []
-    } catch (e) {
-      console.error("Failed to generate themes:", e)
-    }
-
-    await prisma.holding.create({
+    const holding = await prisma.holding.create({
       data: {
         userId,
         ticker: result.data.ticker,
         company: result.data.company,
         exchange: result.data.exchange,
-        themes,
+        themes: [],
         thesis: result.data.thesis,
         directionLogic: result.data.directionLogic,
         kind: result.data.kind
       }
     })
+    
+    // Asynchronously or awaited populate profile (must not fail creation)
+    await populateHoldingProfile(holding.id, holding.ticker, holding.company, holding.thesis, holding.directionLogic);
+    
     revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
@@ -524,7 +533,7 @@ export async function importHoldings(holdings: { ticker: string, company: string
       continue
     }
     
-    await prisma.holding.create({
+    const holding = await prisma.holding.create({
       data: {
         userId,
         ticker: h.ticker,
@@ -534,6 +543,8 @@ export async function importHoldings(holdings: { ticker: string, company: string
         directionLogic: 'LONG'
       }
     })
+    
+    await populateHoldingProfile(holding.id, holding.ticker, holding.company, holding.thesis, holding.directionLogic);
     imported++
   }
   
