@@ -25,7 +25,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await sendPushAlert({
+    const { auth } = await import('@/auth');
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await sendPushAlert(session.user.id, {
       title: '🔴 coranto Test',
       body: 'This is a test push notification. Your alerts are working!',
     });

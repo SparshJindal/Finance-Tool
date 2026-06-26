@@ -520,6 +520,7 @@ export async function importHoldings(holdings: { ticker: string, company: string
 
   let imported = 0
   let skipped = 0
+  const newlyCreatedHoldings = []
 
   for (const h of holdings) {
     if (!h.ticker) continue
@@ -544,9 +545,17 @@ export async function importHoldings(holdings: { ticker: string, company: string
       }
     })
     
-    await populateHoldingProfile(holding.id, holding.ticker, holding.company, holding.thesis, holding.directionLogic);
+    newlyCreatedHoldings.push(holding)
     imported++
   }
+
+  // Fire and forget sequential profile population in the background
+  Promise.resolve().then(async () => {
+    for (const holding of newlyCreatedHoldings) {
+      await populateHoldingProfile(holding.id, holding.ticker, holding.company, holding.thesis, holding.directionLogic);
+    }
+  }).catch(e => console.error('[importHoldings] Background profile generation failed:', e));
+  
   
   revalidatePath('/dashboard')
   return { imported, skipped }

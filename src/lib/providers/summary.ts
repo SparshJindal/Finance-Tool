@@ -17,9 +17,12 @@ const evalSchema = {
           severity: { type: Type.INTEGER, description: "1 to 5" },
           direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
           confidence: { type: Type.INTEGER, description: "0 to 100" },
-          summary: { type: Type.STRING, description: "Short 1 sentence summary" }
+          summary: { type: Type.STRING, description: "Short 1 sentence summary" },
+          answeredQuestionId: { type: Type.STRING, description: "id of the watch question this article actually answers, or empty string" },
+          answer: { type: Type.STRING, description: "one-line answer to that question from the article, or empty string" },
+          answerConfidence: { type: Type.INTEGER, description: "0 to 100, how directly the article answers the question" }
         },
-        required: ["articleId", "holdingId", "severity", "direction", "confidence", "summary"]
+        required: ["articleId", "holdingId", "severity", "direction", "confidence", "summary", "answeredQuestionId", "answer", "answerConfidence"]
       }
     }
   },
@@ -84,7 +87,7 @@ export async function evaluateCandidates(candidates: GateCandidate[]) {
         contextStr += `Market Reaction: ${quote.priceChangePct}% price change, ${quote.volumeRatio}x average volume\n`;
       }
       contextStr += `Holding Direction Logic: ${hol.directionLogic}\n`;
-      contextStr += `Watch Questions: ${hol.questions.map(q => q.text).join(" ")}\n`;
+      contextStr += `Watch Questions:\n${hol.questions.map(q => `- ${q.id}: ${q.text}`).join("\n")}\n`;
       contextStr += `Article ID: ${art.id}\n`;
       contextStr += `Holding ID: ${hol.id}\n`;
       contextStr += `Article Title: ${art.title}\n`;
@@ -109,6 +112,7 @@ You are an expert portfolio manager. Review the provided candidate articles mapp
 Your task is to output a JSON object containing a "findings" array.
 For EACH candidate match, assign a severity/relevance score (1-5), a short summary, a "direction" (BULLISH, BEARISH, or NEUTRAL), and a "confidence" score (0-100).
 Use the "Holding Direction Logic" to determine whether the news is BULLISH or BEARISH for *this investor's specific position*. For example, if the investor's logic is "SHORT", then negative news for the company is BULLISH for the investor's position.
+From the Watch Questions provided, decide if the article answers any. Pick the single best-answered one and return its id in "answeredQuestionId", provide a one-line "answer", and rate the "answerConfidence" (0-100). If none are answered, return empty strings and 0 for confidence.
 
 Data Context:
 ${contextStr}
@@ -176,16 +180,21 @@ ${contextStr}
         if (holding) {
           quote = await fetchQuote(holding.ticker, holding.exchange);
         }
+        const fallbackQuestionId = candidate?.questionId || null;
+        const validQuestionId = f.answeredQuestionId && holding?.questions.some(q => q.id === f.answeredQuestionId) 
+          ? f.answeredQuestionId 
+          : fallbackQuestionId;
+
         return {
           articleId: f.articleId,
           holdingId: f.holdingId,
           severity: f.severity,
           direction: f.direction || null,
           confidence: f.confidence || null,
-          summary: f.summary,
+          summary: f.answer ? `${f.summary} Answer: ${f.answer}` : f.summary,
           priceChangePct: quote?.priceChangePct ?? null,
           volumeRatio: quote?.volumeRatio ?? null,
-          questionId: candidate?.questionId || null,
+          questionId: validQuestionId,
         };
       }));
 
@@ -193,20 +202,29 @@ ${contextStr}
         data: findingsToSave
       });
 
-      // Fire push notification for high-severity findings (PORTFOLIO only)
+      // Fire push notification
+      const PUSH_ANSWER_CONFIDENCE = parseInt(process.env.PUSH_ANSWER_CONFIDENCE || '70', 10);
+      const PUSH_MIN_SEVERITY = parseInt(process.env.PUSH_MIN_SEVERITY || '3', 10);
+
       const criticalFindings = validFindings.filter((f: any) => {
         const holding = holdings.find(h => h.id === f.holdingId);
-        return f.severity >= 4 && holding?.kind === 'PORTFOLIO';
+        return holding?.kind === 'PORTFOLIO' && 
+               f.answeredQuestionId && 
+               f.answeredQuestionId.trim() !== '' &&
+               f.answerConfidence >= PUSH_ANSWER_CONFIDENCE &&
+               f.severity >= PUSH_MIN_SEVERITY;
       });
       if (criticalFindings.length > 0) {
         try {
           const { sendPushAlert } = await import('@/lib/push');
           const topFinding = criticalFindings[0];
           const holding = holdings.find(h => h.id === topFinding.holdingId);
-          await sendPushAlert({
-            title: `🔴 ${holding?.ticker || 'Portfolio'} — Severity ${topFinding.severity}/5`,
-            body: topFinding.summary,
-          });
+          if (holding) {
+            await sendPushAlert(holding.userId, {
+              title: `🔴 ${holding.ticker} — Severity ${topFinding.severity}/5`,
+              body: topFinding.summary,
+            });
+          }
         } catch (pushErr) {
           console.error('[evaluateCandidates] Push notification failed:', pushErr);
         }
@@ -291,17 +309,17 @@ ${contextStr}
   });
 
   const parsed = JSON.parse(responseText);
-  const sections = parsed?.sections || parsed || [];
+  const brief = parsed?.brief;
 
-  if (sections.length > 0) {
-    const brief = await prisma.dailyBrief.create({
+  if (typeof brief === 'string' && brief.length > 0) {
+    const briefDoc = await prisma.dailyBrief.create({
       data: {
         userId,
-        content: JSON.stringify(sections)
+        content: brief
       }
     });
     console.log(`[generateDailyBrief] Saved daily brief.`);
-    return brief;
+    return briefDoc;
   }
   return null;
 }

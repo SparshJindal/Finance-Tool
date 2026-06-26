@@ -52,10 +52,12 @@ export async function removeSubscription(endpoint: string) {
   }
 }
 
-export async function sendPushAlert(payload: { title: string; body: string }) {
+export async function sendPushAlert(userId: string, payload: { title: string; body: string }) {
   getVapidConfig();
 
-  const subscriptions = await prisma.pushSubscription.findMany();
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { userId }
+  });
 
   if (subscriptions.length === 0) {
     console.log('[Push] No active subscriptions. Skipping push.');

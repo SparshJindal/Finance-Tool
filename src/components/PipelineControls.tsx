@@ -30,8 +30,8 @@ export function PipelineControls({
     if (holdings.length === 0) return
     setPipelineState({ active: true, text: 'Preparing to study...', percent: 0 })
     
-    // Chunk holdings into batches of 10 for safety against Vercel 10s timeouts
-    const CHUNK_SIZE = 10
+    // Chunk holdings into batches of 3 for safety against Vercel 10s timeouts
+    const CHUNK_SIZE = 3
     const chunks = []
     for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
       chunks.push(holdings.slice(i, i + CHUNK_SIZE))
@@ -159,7 +159,7 @@ export function PipelineControls({
             {pipelineState.active ? (
               // True Percentage Bar
               <div style={{ background: 'var(--surface-elevated)', borderBottom: '1px solid var(--border)', padding: 'var(--sp-2) var(--sp-4)', display: 'flex', alignItems: 'center', gap: 'var(--sp-4)' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>{pipelineState.text}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 500, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>{pipelineState.text}</span>
                 <div style={{ flex: 1, height: '4px', background: 'var(--surface-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
                   <motion.div
                     animate={{ width: `${pipelineState.percent}%` }}
