@@ -8,6 +8,7 @@ import { FindingCard, FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
 import { ManagePortfolioPanel } from './ManagePortfolioPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
+import { ProfilePanel } from './ProfilePanel'
 import { PolygonMesh } from './PolygonMesh'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 
@@ -45,7 +46,17 @@ type DashboardShellProps = {
   addHoldingAction: (fd: FormData) => void | Promise<void>
   updateHoldingAction: (fd: FormData) => void | Promise<void>
   deleteHoldingAction: (fd: FormData) => void | Promise<void>
+  updateProfileAction: (fd: FormData) => Promise<{ success?: boolean; error?: string }>
   controls?: React.ReactNode
+  userProfile?: {
+    name: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    phone: string | null
+    nationality: string | null
+    image: string | null
+  }
 }
 
 export function DashboardShell({
@@ -58,7 +69,9 @@ export function DashboardShell({
   addHoldingAction,
   updateHoldingAction,
   deleteHoldingAction,
+  updateProfileAction,
   controls,
+  userProfile,
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
   const reduced = useReducedMotion()
@@ -111,14 +124,29 @@ export function DashboardShell({
           <div style={{ maxWidth: '840px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
             
             {/* Top controls area for the dashboard */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--sp-2)', gap: 'var(--sp-2)' }}>
-              <ManagePortfolioPanel 
-                holdings={holdings}
-                updateAction={updateHoldingAction}
-                deleteAction={deleteHoldingAction}
-              />
-              <AddHoldingPanel action={addHoldingAction} />
-              <ImportHoldingsPanel />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-2)', gap: 'var(--sp-4)', flexWrap: 'wrap' }}>
+              
+              {/* Identity Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #8A6D46)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)' }}>
+                  {userProfile?.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>{userProfile?.name || 'Investor'}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{userProfile?.email}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
+                {userProfile && <ProfilePanel userProfile={userProfile} updateAction={updateProfileAction} />}
+                <ManagePortfolioPanel 
+                  holdings={holdings}
+                  updateAction={updateHoldingAction}
+                  deleteAction={deleteHoldingAction}
+                />
+                <AddHoldingPanel action={addHoldingAction} />
+                <ImportHoldingsPanel />
+              </div>
             </div>
 
             {/* Findings Feed / Empty State */}

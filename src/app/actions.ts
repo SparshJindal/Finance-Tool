@@ -456,6 +456,10 @@ export async function triggerSendDigest() {
 const signUpSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  phone: z.string().optional().or(z.literal('')),
+  nationality: z.string().optional().or(z.literal('')),
 })
 
 export async function signUp(formData: FormData) {
@@ -468,7 +472,7 @@ export async function signUp(formData: FormData) {
     return { error: result.error.issues[0]?.message || 'Validation failed' }
   }
 
-  const { email, password } = result.data
+  const { email, password, firstName, lastName, phone, nationality } = result.data
 
   try {
     const existingUser = await prisma.user.findUnique({
@@ -481,10 +485,17 @@ export async function signUp(formData: FormData) {
 
     const passwordHash = await bcrypt.hash(password, 10)
 
+    const fullName = `${firstName} ${lastName}`.trim()
+
     await prisma.user.create({
       data: {
         email,
         passwordHash,
+        firstName,
+        lastName,
+        phone: phone || null,
+        nationality: nationality || null,
+        name: fullName,
       },
     })
 
@@ -497,6 +508,51 @@ export async function signUp(formData: FormData) {
 
 export async function logOut() {
   await signOut()
+}
+
+const updateProfileSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  phone: z.string().optional().or(z.literal('')),
+  nationality: z.string().optional().or(z.literal('')),
+})
+
+export async function updateProfile(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const result = updateProfileSchema.safeParse({
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    phone: formData.get('phone'),
+    nationality: formData.get('nationality'),
+  })
+
+  if (!result.success) {
+    return { error: result.error.issues[0]?.message || 'Validation failed' }
+  }
+
+  const { firstName, lastName, phone, nationality } = result.data
+  const fullName = `${firstName} ${lastName}`.trim()
+
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        firstName,
+        lastName,
+        phone: phone || null,
+        nationality: nationality || null,
+        name: fullName,
+      },
+    })
+
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err: any) {
+    console.error("[updateProfile] Database error:", err)
+    return { error: `Database Error: ${err.message || 'Failed to update profile'}` }
+  }
 }
 
 export async function submitFindingFeedback(findingId: string, feedback: 'up' | 'down' | null) {
@@ -520,7 +576,7 @@ export async function importHoldings(holdings: { ticker: string, company: string
 
   let imported = 0
   let skipped = 0
-  const newlyCreatedHoldings = []
+  const newlyCreatedHoldings: any[] = []
 
   for (const h of holdings) {
     if (!h.ticker) continue

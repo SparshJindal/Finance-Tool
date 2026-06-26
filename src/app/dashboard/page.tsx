@@ -12,6 +12,7 @@ import {
   triggerNewsIngestionPhase2,
   triggerSendDigest,
   logOut,
+  updateProfile,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
@@ -24,7 +25,34 @@ export default async function Page() {
   if (!session?.user?.id) redirect('/login')
   const userId = session.user.id
 
+  let userProfile = {
+    name: session.user.name || 'Investor',
+    email: session.user.email || 'investor@coranto.ai',
+    firstName: null as string | null,
+    lastName: null as string | null,
+    phone: null as string | null,
+    nationality: null as string | null,
+    image: session.user.image || null,
+  }
+
   try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true, name: true, email: true, phone: true, nationality: true, image: true }
+    })
+    
+    if (dbUser) {
+      userProfile = {
+        name: dbUser.name || userProfile.name,
+        email: dbUser.email || userProfile.email,
+        firstName: dbUser.firstName,
+        lastName: dbUser.lastName,
+        phone: dbUser.phone,
+        nationality: dbUser.nationality,
+        image: dbUser.image || userProfile.image,
+      }
+    }
+
     const holdings = await prisma.holding.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
@@ -92,15 +120,17 @@ export default async function Page() {
 
   return (
     <DashboardShell
+      userProfile={userProfile}
       holdings={holdings}
       findings={findings}
       tickerItems={tickerItems}
       lastScanAt={lastScanAt}
       totalThreats={totalThreats}
       maxPortfolioSeverity={maxPortfolioSeverity}
-      addHoldingAction={addHolding as unknown as (fd: FormData) => void | Promise<void>}
-      updateHoldingAction={updateHolding as unknown as (fd: FormData) => void | Promise<void>}
-      deleteHoldingAction={deleteHolding as unknown as (fd: FormData) => void | Promise<void>}
+      addHoldingAction={addHolding as unknown as (fd: FormData) => void}
+      updateHoldingAction={updateHolding as unknown as (fd: FormData) => void}
+      deleteHoldingAction={deleteHolding as unknown as (fd: FormData) => void}
+      updateProfileAction={updateProfile as unknown as (fd: FormData) => Promise<any>}
       controls={controls}
     />
   )

@@ -167,6 +167,86 @@ export default function LoginPage() {
               }}
             />
           </div>
+
+          {mode === 'signUp' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-4)' }}>
+                <div>
+                  <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>First Name</label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    placeholder="Jane"
+                    required
+                    className="input"
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      borderColor: 'var(--border-hi)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>Last Name</label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    placeholder="Doe"
+                    required
+                    className="input"
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      borderColor: 'var(--border-hi)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>Phone (Optional)</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="+1 (555) 000-0000"
+                  className="input"
+                  style={{
+                    width: '100%',
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    borderColor: 'var(--border-hi)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>Nationality (Optional)</label>
+                <select
+                  name="nationality"
+                  className="input"
+                  style={{
+                    width: '100%',
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    borderColor: 'var(--border-hi)',
+                    appearance: 'auto',
+                  }}
+                >
+                  <option value="">Select a country...</option>
+                  <option value="India">India</option>
+                  <option value="United States">United States</option>
+                  <option value="United Kingdom">United Kingdom</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Singapore">Singapore</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </>
+          )}
+
           <div>
             <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>Password</label>
             <input
