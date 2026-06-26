@@ -1,0 +1,46 @@
+
+> portfolio-disruption-radar@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3003
+- Network:       http://192.168.1.7:3003
+- Environments: .env
+✓ Ready in 263ms
+
+[Cron] Error during ingest: Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].holding.findMany()` invocation in
+/Users/sparshjindal/Documents/Finance/portfolio-disruption-radar/.next/dev/server/chunks/[root-of-the-server]__06pl6bg._.js:1942:163
+
+  1939 // In PostgreSQL, ORDER BY ASC puts NULLs last by default.
+  1940 // However, Prisma doesn't currently support NULLS FIRST out of the box in orderBy.
+  1941 // To ensure nulls are processed first, we can do a raw query, or simply fetch nulls first.
+→ 1942 let holdings = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].holding.findMany(
+The column `holdings.last_ingested_at` does not exist in the current database.
+    at <unknown> (src/app/api/cron/ingest/route.ts:23:41)
+    at async GET (src/app/api/cron/ingest/route.ts:23:20)
+  21 |     // However, Prisma doesn't currently support NULLS FIRST out of the box in orderBy.
+  22 |     // To ensure nulls are processed first, we can do a raw query, or simply fetch nulls f...
+> 23 |     let holdings = await prisma.holding.findMany({
+     |                                         ^
+  24 |       where: { lastIngestedAt: null },
+  25 |       take: batchSize,
+  26 |       select: { id: true } {
+  code: 'P2022',
+  meta: {
+    modelName: 'Holding',
+    driverAdapterError: Error [DriverAdapterError]: ColumnNotFound
+        at async GET (src/app/api/cron/ingest/route.ts:23:20)
+      21 |     // However, Prisma doesn't currently support NULLS FIRST out of the box in orderBy.
+      22 |     // To ensure nulls are processed first, we can do a raw query, or simply fetch nulls f...
+    > 23 |     let holdings = await prisma.holding.findMany({
+         |                    ^
+      24 |       where: { lastIngestedAt: null },
+      25 |       take: batchSize,
+      26 |       select: { id: true } {
+      [cause]: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+ GET /api/cron/ingest 500 in 4.6s (next.js: 824ms, application-code: 3.8s)

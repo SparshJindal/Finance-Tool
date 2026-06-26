@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { getNews } from "@/lib/providers/news";
 import crypto from "crypto";
 import stringSimilarity from "string-similarity";
-import { evaluateCandidates, judgeHoldingArticles } from "@/lib/providers/summary";
+import { judgeHoldingArticles } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
 

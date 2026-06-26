@@ -8,7 +8,6 @@ import bcrypt from 'bcryptjs'
 import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
 import { generateWatchQuestions, batchGenerateWatchQuestions } from '@/lib/providers/gemini'
 import { ingestNews } from '@/lib/pipeline'
-import { evaluateCandidates } from '@/lib/providers/summary'
 import { askAI } from '@/lib/providers/ai'
 import { Type } from '@google/genai'
 import { generateHoldingProfile } from '@/lib/providers/profile'
@@ -424,8 +423,8 @@ export async function triggerNewsIngestionPhase2(formData: FormData) {
   if (!candidatesJson) return { error: 'No candidates provided' }
   
   try {
-    const candidates = JSON.parse(candidatesJson)
-    await evaluateCandidates(candidates)
+    // Phase 2 is now deprecated as Phase 1 (ingestNews) handles the entire unified pipeline.
+    console.log('[Phase 2] Skipping deprecated Phase 2 call. Evaluation is now handled directly during ingestion.');
     revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
