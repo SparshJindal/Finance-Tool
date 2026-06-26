@@ -135,6 +135,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
             }
           });
 
+          let isNewOrUpgraded = false;
+
           if (existingFinding) {
             await prisma.finding.update({
               where: { id: existingFinding.id },
@@ -147,6 +149,9 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
                 volumeRatio: quote?.volumeRatio ?? null,
               }
             });
+            if (j.severity > existingFinding.severity) {
+              isNewOrUpgraded = true;
+            }
           } else {
             await prisma.finding.create({
               data: {
@@ -160,6 +165,19 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
                 volumeRatio: quote?.volumeRatio ?? null,
               }
             });
+            isNewOrUpgraded = true;
+          }
+          
+          if (isNewOrUpgraded) {
+            try {
+              const { sendPushAlert } = await import('@/lib/push');
+              await sendPushAlert(h.userId, {
+                title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
+                body: j.summary,
+              });
+            } catch (pushErr) {
+              console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
+            }
           }
           totalFindingsSaved++;
         }
