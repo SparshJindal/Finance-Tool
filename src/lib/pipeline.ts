@@ -59,19 +59,15 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   const rawArticles = await getNews(Array.from(targetTickers.values()), skipHeavyApis);
   
   // 3. Pre-filter and Fetch Excerpts
-  const targetKeywords = Array.from(targetTickers.values()).flatMap(t => {
-    return [t.symbol.toLowerCase(), t.name.toLowerCase(), ...t.themes.map((th: string) => th.toLowerCase())];
-  });
-
   console.log(`[ingestNews] Pre-filtering ${rawArticles.length} raw articles...`);
   const filteredArticles = rawArticles.filter(art => {
-    const textToSearch = (art.title + " " + art.url).toLowerCase();
-    return targetKeywords.some(kw => textToSearch.includes(kw));
+    return art.title && art.title !== "No Title" && art.title.trim().length > 0;
   });
   console.log(`[ingestNews] Kept ${filteredArticles.length} articles after pre-filtering.`);
 
-  // Limit to 100 to absolutely prevent Vercel timeouts on massive batches
-  const articlesToProcess = filteredArticles.slice(0, 100);
+  // Limit to MAX_ARTICLES_PER_RUN to absolutely prevent Vercel timeouts on massive batches
+  const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_RUN || "150", 10);
+  const articlesToProcess = filteredArticles.slice(0, maxArticles);
 
   const articles = [];
   const chunkSize = 10;
@@ -155,7 +151,19 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
 
   const fetchedUrls = articles.map(a => a.url);
   const evalArticles = await prisma.article.findMany({
-    where: { url: { in: fetchedUrls } },
+    where: {
+      OR: [
+        { url: { in: fetchedUrls } },
+        {
+          firstSeen: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+          findings: {
+            none: {
+              holdingId: { in: holdingIds }
+            }
+          }
+        }
+      ]
+    },
     orderBy: { publishedAt: 'desc' },
     take: 100
   });
