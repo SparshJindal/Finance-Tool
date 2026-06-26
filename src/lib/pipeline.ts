@@ -2,9 +2,9 @@ import { prisma } from "@/lib/db";
 import { getNews } from "@/lib/providers/news";
 import crypto from "crypto";
 import stringSimilarity from "string-similarity";
-import { filterRelevance } from "@/lib/gate";
-import { evaluateCandidates } from "@/lib/providers/summary";
+import { evaluateCandidates, judgeHoldingArticles } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
+import { fetchQuote } from "@/lib/providers/quote";
 
 export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
@@ -29,6 +29,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   
   holdings.forEach(h => {
     targetTickers.set(h.ticker, {
+      holdingId: h.id,
       symbol: h.ticker,
       name: h.company,
       exchange: h.exchange,
@@ -151,67 +152,96 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     }
   }
 
-  // 5. Semantic Relevance Gate
-  console.log("[ingestNews] Starting semantic relevance gating...");
+  // 5. Direct LLM Relevance & Judgment
+  console.log("[ingestNews] Starting direct LLM judgment...");
   const holdingsWithQs = await prisma.holding.findMany({
     where: userId ? { userId } : undefined,
     include: { questions: true },
-    // thesis and themes are scalar columns — always included by default
   });
 
+  // Fetch from DB the articles we just upserted so we have their full IDs and data
   const fetchedUrls = articles.map(a => a.url);
-  const evalArticles = await prisma.article.findMany({
-    where: {
-      OR: [
-        { url: { in: fetchedUrls } },
-        {
-          firstSeen: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
-          findings: {
-            none: {
-              holdingId: { in: holdingIds }
-            }
-          }
-        }
-      ]
-    },
-    orderBy: { publishedAt: 'desc' },
-    take: 100
+  const dbArticles = await prisma.article.findMany({
+    where: { url: { in: fetchedUrls } }
   });
 
-  const collapsedArticles: typeof evalArticles = [];
-  const seenClusters = new Set<string>();
-  for (const a of evalArticles) {
-    if (a.clusterId) {
-      if (!seenClusters.has(a.clusterId)) {
-        seenClusters.add(a.clusterId);
-        collapsedArticles.push(a);
+  let totalFindingsSaved = 0;
+  const pushMinSeverity = parseInt(process.env.PUSH_MIN_SEVERITY || "3", 10);
+
+  for (const h of holdingsWithQs) {
+    // Re-match the DB articles to this holding using matchedHoldingIds
+    // (articles array has matchedHoldingIds, dbArticles does not, so we map via URL)
+    const hUrls = articles.filter(a => a.matchedHoldingIds?.includes(h.id)).map(a => a.url);
+    if (hUrls.length === 0) continue;
+
+    const holdingArticlesToJudge = dbArticles.filter(dbA => hUrls.includes(dbA.url));
+    if (holdingArticlesToJudge.length === 0) continue;
+
+    try {
+      const judgments = await judgeHoldingArticles(h, holdingArticlesToJudge.map(a => ({
+        id: a.id,
+        title: a.title,
+        excerpt: a.excerpt || "",
+        url: a.url,
+        source: a.source
+      })));
+
+      for (const j of judgments) {
+        if (j.material === true || j.severity >= pushMinSeverity) {
+          // Fetch quote for finding context
+          const quote = await fetchQuote(h.ticker, h.exchange);
+          const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
+            ? j.answeredQuestionId 
+            : null;
+
+          const existingFinding = await prisma.finding.findFirst({
+            where: {
+              articleId: j.articleId,
+              holdingId: h.id
+            }
+          });
+
+          if (existingFinding) {
+            await prisma.finding.update({
+              where: { id: existingFinding.id },
+              data: {
+                severity: j.severity,
+                direction: j.direction || "NEUTRAL",
+                summary: j.summary,
+                questionId: validQuestionId,
+                priceChangePct: quote?.priceChangePct ?? null,
+                volumeRatio: quote?.volumeRatio ?? null,
+              }
+            });
+          } else {
+            await prisma.finding.create({
+              data: {
+                articleId: j.articleId,
+                holdingId: h.id,
+                severity: j.severity,
+                direction: j.direction || "NEUTRAL",
+                summary: j.summary,
+                questionId: validQuestionId,
+                priceChangePct: quote?.priceChangePct ?? null,
+                volumeRatio: quote?.volumeRatio ?? null,
+              }
+            });
+          }
+          totalFindingsSaved++;
+        }
       }
-    } else {
-      collapsedArticles.push(a);
+    } catch (error) {
+      console.error(`[ingestNews] Failed to judge articles for holding ${h.ticker}:`, error);
     }
   }
-
-  const candidates = await filterRelevance(
-    collapsedArticles.map(a => ({ id: a.id, title: a.title, source: a.source, excerpt: a.excerpt })),
-    holdingsWithQs.map(h => ({ id: h.id, questions: h.questions, thesis: h.thesis, themes: h.themes }))
-  );
 
   const report = {
     totalFetched: articles.length,
     newUpserted: upsertedCount,
     clustersFormed,
-    candidatesFound: candidates.length
+    findingsSaved: totalFindingsSaved
   };
 
-  let topCandidates: any[] = [];
-  if (candidates.length > 0) {
-    topCandidates = candidates.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
-    if (runEvaluation) {
-      console.log(`[ingestNews] Starting AI evaluation for top 20 candidates...`);
-      await evaluateCandidates(topCandidates);
-    }
-  }
-
   console.log("[ingestNews] Pipeline Fully Complete.");
-  return { report, candidates: topCandidates };
+  return { report, candidates: [] };
 }

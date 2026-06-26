@@ -10,9 +10,12 @@ export interface NormalizedArticle {
   publishedAt: Date;
   /** Optional excerpt/snippet from the search provider — avoids live scraping */
   excerpt?: string;
+  /** Tracks which holdings caused this article to be fetched */
+  matchedHoldingIds?: string[];
 }
 
 export interface TickerInput {
+  holdingId?: string;
   symbol: string;
   name: string;
   exchange: string;
@@ -278,11 +281,17 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   const allArticles: NormalizedArticle[] = [];
   const seenUrls = new Set<string>();
 
-  const addArticles = (articles: NormalizedArticle[]) => {
+  const addArticles = (articles: NormalizedArticle[], target?: TickerInput) => {
     articles.forEach(art => {
-      if (!seenUrls.has(art.url)) {
-        seenUrls.add(art.url);
+      let existing = allArticles.find(a => a.url === art.url);
+      if (!existing) {
+        art.matchedHoldingIds = target?.holdingId ? [target.holdingId] : [];
         allArticles.push(art);
+      } else {
+        if (target?.holdingId && (!existing.matchedHoldingIds || !existing.matchedHoldingIds.includes(target.holdingId))) {
+          if (!existing.matchedHoldingIds) existing.matchedHoldingIds = [];
+          existing.matchedHoldingIds.push(target.holdingId);
+        }
       }
     });
   };
@@ -307,7 +316,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       }
 
       const res = await fetchTavilyNews(target);
-      addArticles(res);
+      addArticles(res, target);
       if (res.length > 0) {
         await markFetched([target.symbol], 'tavily');
       }
@@ -338,6 +347,8 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         const { articles: baseArticles } = await fetchGDELTChunk(chunk);
         const { articles: themeArticles } = await fetchGDELTThemeChunk(chunk);
         
+        // Pass undefined as target for GDELT chunks since it's a batch query.
+        // We will rely on string matching later if GDELT returns articles.
         addArticles(baseArticles);
         addArticles(themeArticles);
         if ((baseArticles.length + themeArticles.length) > 0) {
@@ -371,7 +382,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       for (const target of finnhubTargets) {
         if (target.exchange === "US") {
           const res = await fetchFinnhubNews(target);
-          addArticles(res);
+          addArticles(res, target);
           if (res.length > 0) {
             await markFetched([target.symbol], 'finnhub');
           }
@@ -390,6 +401,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         for (let i = 0; i < marketauxTargets.length; i += chunkSize) {
           const chunk = marketauxTargets.slice(i, i + chunkSize);
           const res = await fetchMarketauxBatched(chunk);
+          // Pass undefined as target for batch chunk.
           addArticles(res);
           if (res.length > 0) {
             await markFetched(chunk.map(c => c.symbol), 'marketaux');

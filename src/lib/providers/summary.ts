@@ -4,6 +4,113 @@ import { prisma } from "@/lib/db";
 import { GateCandidate } from "../gate";
 import { fetchQuote } from "./quote";
 
+const judgeSchema = {
+  type: Type.OBJECT,
+  properties: {
+    results: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          articleId: { type: Type.STRING },
+          material: { type: Type.BOOLEAN, description: "True if the article contains highly relevant, impactful news about the holding" },
+          severity: { type: Type.INTEGER, description: "1 to 5, where 5 is extremely impactful" },
+          direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
+          answeredQuestionId: { type: Type.STRING, description: "The ID of the watch question this article most directly answers. If none, return empty string." },
+          summary: { type: Type.STRING, description: "A concise 1-2 sentence summary of why this is material." }
+        },
+        required: ["articleId", "material", "severity", "direction", "answeredQuestionId", "summary"]
+      }
+    }
+  },
+  required: ["results"]
+};
+
+export async function judgeHoldingArticles(
+  holding: { id: string, ticker: string, company: string, thesis: string, directionLogic: string, questions: {id: string, text: string}[] },
+  articles: { id: string, title: string, excerpt: string, url: string, source: string }[]
+) {
+  if (articles.length === 0) return [];
+
+  const CHUNK_SIZE = 10;
+  const chunks: typeof articles[] = [];
+  for (let i = 0; i < articles.length; i += CHUNK_SIZE) {
+    chunks.push(articles.slice(i, i + CHUNK_SIZE));
+  }
+
+  const allResults: any[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+
+    let contextStr = `Holding: ${holding.ticker} (${holding.company})\n`;
+    contextStr += `Thesis: ${holding.thesis}\n`;
+    contextStr += `Direction Logic: ${holding.directionLogic}\n`;
+    contextStr += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
+    
+    contextStr += `Articles to evaluate:\n`;
+    chunk.forEach(art => {
+      contextStr += `\nArticle ID: ${art.id}\n`;
+      contextStr += `Title: ${art.title}\n`;
+      contextStr += `Source: ${art.source}\n`;
+      contextStr += `Excerpt: ${art.excerpt || "No excerpt available."}\n`;
+    });
+
+    const prompt = `
+You are an expert portfolio manager. Review the provided articles for the specified portfolio holding.
+
+Your task is to output a JSON object containing a "results" array.
+Evaluate EACH article STRICTLY using the provided excerpt against the holding's thesis, direction logic, and watch-questions. Do not use outside facts.
+For each article:
+- Decide if the news is "material" (highly relevant and impactful). Set to true or false.
+- Assign a severity score (1-5).
+- Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic".
+- Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty.
+- Write a short 1-2 sentence summary of the material information.
+
+Data Context:
+${contextStr}
+`;
+
+    console.log(`[judgeHoldingArticles] Asking AI to judge chunk ${i + 1}/${chunks.length} for ${holding.ticker}...`);
+    
+    let attempt = 0;
+    let success = false;
+    while (attempt < 3 && !success) {
+      try {
+        const responseText = await askAI({
+          prompt,
+          schema: judgeSchema,
+          preferredModel: "gemini-2.5-flash"
+        });
+        const parsed = JSON.parse(responseText);
+        if (parsed && parsed.results && Array.isArray(parsed.results)) {
+          allResults.push(...parsed.results);
+        } else if (parsed && Array.isArray(parsed)) {
+          allResults.push(...parsed); // Fallback if groq returns the naked array
+        }
+        success = true;
+      } catch (err: any) {
+        attempt++;
+        if (err.status === 429 || (err.message && err.message.includes('429'))) {
+          if (attempt >= 3) break;
+          const delay = 4000 * Math.pow(2, attempt) + Math.random() * 1000;
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          console.error(`[judgeHoldingArticles] Error on chunk ${i + 1}:`, err);
+          break; // Continue to next chunk on non-429 error
+        }
+      }
+    }
+    
+    if (i < chunks.length - 1) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
+  return allResults;
+}
+
 const evalSchema = {
   type: Type.OBJECT,
   properties: {
