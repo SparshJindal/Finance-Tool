@@ -71,15 +71,24 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
 
   const articles = [];
   const chunkSize = 10;
+  let skippedScrapes = 0;
   for (let i = 0; i < articlesToProcess.length; i += chunkSize) {
     const chunk = articlesToProcess.slice(i, i + chunkSize);
     const chunkWithExcerpts = await Promise.all(
       chunk.map(async (art) => {
+        // Use search-provider excerpt if available; only fall back to live scraping
+        if (art.excerpt && art.excerpt.trim().length > 50) {
+          skippedScrapes++;
+          return { ...art };
+        }
         const excerpt = await fetchArticleExcerpt(art.url);
         return { ...art, excerpt };
       })
     );
     articles.push(...chunkWithExcerpts);
+  }
+  if (skippedScrapes > 0) {
+    console.log(`[ingestNews] Skipped ${skippedScrapes} live scrapes (excerpts provided by search API).`);
   }
   
   // 4. Hash & Upsert
@@ -146,7 +155,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   console.log("[ingestNews] Starting semantic relevance gating...");
   const holdingsWithQs = await prisma.holding.findMany({
     where: userId ? { userId } : undefined,
-    include: { questions: true }
+    include: { questions: true },
+    // thesis and themes are scalar columns — always included by default
   });
 
   const fetchedUrls = articles.map(a => a.url);
@@ -182,8 +192,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   }
 
   const candidates = await filterRelevance(
-    collapsedArticles.map(a => ({ id: a.id, title: a.title, source: a.source })),
-    holdingsWithQs.map(h => ({ id: h.id, questions: h.questions }))
+    collapsedArticles.map(a => ({ id: a.id, title: a.title, source: a.source, excerpt: a.excerpt })),
+    holdingsWithQs.map(h => ({ id: h.id, questions: h.questions, thesis: h.thesis, themes: h.themes }))
   );
 
   const report = {

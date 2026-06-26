@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
+import { fetchTavilyNews } from "./tavily";
 
 export interface NormalizedArticle {
   url: string;
   title: string;
   source: string;
   publishedAt: Date;
+  /** Optional excerpt/snippet from the search provider — avoids live scraping */
+  excerpt?: string;
 }
 
 export interface TickerInput {
@@ -65,6 +68,25 @@ async function checkMarketauxQuota(incrementBy: number = 0): Promise<boolean> {
   } else {
     const record = await prisma.dailyRequestCount.findUnique({
       where: { provider_date: { provider: "marketaux", date: dateStr } }
+    });
+    return (record?.count || 0) < cap;
+  }
+}
+
+async function checkTavilyCap(incrementBy: number = 0): Promise<boolean> {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const cap = parseInt(process.env.TAVILY_DAILY_CAP || "500", 10);
+  
+  if (incrementBy > 0) {
+    const record = await prisma.dailyRequestCount.upsert({
+      where: { provider_date: { provider: "tavily", date: dateStr } },
+      update: { count: { increment: incrementBy } },
+      create: { provider: "tavily", date: dateStr, count: incrementBy }
+    });
+    return record.count <= cap;
+  } else {
+    const record = await prisma.dailyRequestCount.findUnique({
+      where: { provider_date: { provider: "tavily", date: dateStr } }
     });
     return (record?.count || 0) < cap;
   }
@@ -265,11 +287,39 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     });
   };
 
-  const enabledProviders = (process.env.NEWS_PROVIDERS || "gdelt,finnhub,marketaux").toLowerCase().split(',');
+  const enabledProviders = (process.env.NEWS_PROVIDERS || "tavily,gdelt,finnhub,marketaux").toLowerCase().split(',');
   console.log(`[getNews] Enabled providers: ${enabledProviders.join(', ')}`);
   console.log(`[getNews] Fetching news for ${uniqueTargets.length} unique tickers...`);
 
-  // --- 1. Fetch GDELT (Batched) ---
+  // --- 0. Fetch Tavily (PRIMARY — one query per holding) ---
+  if (enabledProviders.includes('tavily')) {
+    const tavilyTargets = await getMissingTickers(uniqueTargets, 'tavily');
+    console.log(`[Tavily] Needs fetching for ${tavilyTargets.length}/${uniqueTargets.length} tickers.`);
+
+    for (let i = 0; i < tavilyTargets.length; i++) {
+      const target = tavilyTargets[i];
+
+      // Check daily cap before each call
+      const withinCap = await checkTavilyCap(1);
+      if (!withinCap) {
+        console.warn(`[Tavily] Daily cap exceeded (${process.env.TAVILY_DAILY_CAP || 500}). Stopping Tavily fetches.`);
+        break;
+      }
+
+      const res = await fetchTavilyNews(target);
+      addArticles(res);
+      if (res.length > 0) {
+        await markFetched([target.symbol], 'tavily');
+      }
+
+      // 300ms delay between queries to be polite to the API
+      if (i < tavilyTargets.length - 1) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+  }
+
+  // --- 1. Fetch GDELT (Fallback — batched) ---
   if (enabledProviders.includes('gdelt')) {
     const gdeltTargets = await getMissingTickers(uniqueTargets, 'gdelt');
     console.log(`[GDELT] Needs fetching for ${gdeltTargets.length}/${uniqueTargets.length} tickers.`);
@@ -303,7 +353,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   }
 
   // --- 2. Determine Enrichment Targets ---
-  // Only call Marketaux/Finnhub for tickers where GDELT returned zero articles
+  // Only call Marketaux/Finnhub for tickers where Tavily+GDELT returned zero articles
   const enrichmentTargets = uniqueTargets.filter(t => {
     const hasArticle = allArticles.some(a => 
       a.title.toLowerCase().includes(t.symbol.toLowerCase()) || 
@@ -313,7 +363,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   });
 
   if (enrichmentTargets.length > 0 && !skipHeavyApis) {
-    console.log(`[Enrichment] ${enrichmentTargets.length} tickers lacked GDELT results. Proceeding with heavy APIs...`);
+    console.log(`[Enrichment] ${enrichmentTargets.length} tickers lacked Tavily/GDELT results. Proceeding with heavy APIs...`);
     
     // --- 3. Fetch Finnhub (US Only) ---
     if (enabledProviders.includes('finnhub')) {

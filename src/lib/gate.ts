@@ -1,4 +1,4 @@
-import { embedText } from "./providers/ai";
+import { embedText, EmbeddingRateLimitError } from "./providers/ai";
 import { cosineSimilarity } from "./math";
 import { prisma } from "@/lib/db";
 export interface GateCandidate {
@@ -10,31 +10,74 @@ export interface GateCandidate {
 
 export async function filterRelevance(
   articles: { id: string; title: string; source: string; excerpt?: string | null }[],
-  holdings: { id: string; questions: { id: string; text: string }[] }[]
+  holdings: { id: string; questions: { id: string; text: string }[]; thesis?: string; themes?: string[] }[]
 ): Promise<GateCandidate[]> {
   const threshold = parseFloat(process.env.RELEVANCE_THRESHOLD || "0.1");
   const candidates: GateCandidate[] = [];
 
   console.log(`[Gate] Embedding ${holdings.length} holding question-sets individually...`);
   const holdingEmbeddings = new Map<string, { id: string, vec: number[] }[]>();
+  let embeddingSkips = 0;
+
   for (const h of holdings) {
-    if (h.questions.length === 0) continue;
+    // No-questions fallback: if a holding has no watch-questions,
+    // fall back to embedding its thesis and/or themes so it can still match articles.
+    if (h.questions.length === 0) {
+      const fallbackParts: string[] = [];
+      if (h.thesis) fallbackParts.push(h.thesis);
+      if (h.themes && h.themes.length > 0) fallbackParts.push(h.themes.join(", "));
+      
+      if (fallbackParts.length === 0) {
+        console.warn(`[Gate] Holding ${h.id} has no questions, thesis, or themes — skipping.`);
+        continue;
+      }
+
+      const fallbackText = fallbackParts.join(". ");
+      try {
+        const vec = await embedText(fallbackText);
+        // Use a synthetic question ID of null to indicate thesis-based match
+        holdingEmbeddings.set(h.id, [{ id: `thesis-${h.id}`, vec }]);
+        console.log(`[Gate] Holding ${h.id}: using thesis/themes fallback for embedding.`);
+      } catch (err: any) {
+        embeddingSkips++;
+        console.warn(`[Gate] Failed to embed thesis fallback for holding ${h.id}: ${err.message}. Skipping.`);
+      }
+      await new Promise(res => setTimeout(res, 300)); // strict rate limit buffer
+      continue;
+    }
+
     const qEmbeds = [];
     for (const q of h.questions) {
-      const vec = await embedText(q.text);
-      qEmbeds.push({ id: q.id, vec });
+      try {
+        const vec = await embedText(q.text);
+        qEmbeds.push({ id: q.id, vec });
+      } catch (err: any) {
+        embeddingSkips++;
+        console.warn(`[Gate] Failed to embed question ${q.id}: ${err.message}. Skipping.`);
+      }
       await new Promise(res => setTimeout(res, 300)); // strict rate limit buffer
     }
-    holdingEmbeddings.set(h.id, qEmbeds);
+    if (qEmbeds.length > 0) {
+      holdingEmbeddings.set(h.id, qEmbeds);
+    }
   }
 
   console.log(`[Gate] Embedding ${articles.length} articles...`);
   const articleEmbeddings = new Map<string, number[]>();
   for (const a of articles) {
     const text = `${a.title}. ${a.excerpt ?? ""}`;
-    const vec = await embedText(text);
-    articleEmbeddings.set(a.id, vec);
+    try {
+      const vec = await embedText(text);
+      articleEmbeddings.set(a.id, vec);
+    } catch (err: any) {
+      embeddingSkips++;
+      console.warn(`[Gate] Failed to embed article ${a.id} ("${a.title.slice(0, 60)}"): ${err.message}. Skipping.`);
+    }
     await new Promise(res => setTimeout(res, 300)); // strict rate limit buffer
+  }
+
+  if (embeddingSkips > 0) {
+    console.warn(`[Gate] ${embeddingSkips} embedding(s) failed and were skipped. Pipeline continues with successful embeddings.`);
   }
 
   console.log(`[Gate] Computing cosine similarity against threshold: ${threshold}`);
@@ -91,7 +134,8 @@ export async function filterRelevance(
           articleId: a.id, 
           holdingId: h.id, 
           similarity: maxSimilarity,
-          questionId: bestQuestionId
+          // If bestQuestionId starts with "thesis-", it's a fallback match — store null
+          questionId: bestQuestionId?.startsWith("thesis-") ? null : bestQuestionId
         });
       }
     }

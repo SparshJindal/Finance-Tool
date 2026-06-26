@@ -93,6 +93,18 @@ export async function askAI({
   return content;
 }
 
+/**
+ * Typed error for embedding rate-limit failures.
+ * The gate (and callers) can catch this specifically and skip/continue
+ * rather than letting the whole pipeline abort.
+ */
+export class EmbeddingRateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmbeddingRateLimitError";
+  }
+}
+
 export async function embedText(text: string): Promise<number[]> {
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!geminiKey) throw new Error("GEMINI_API_KEY is not set");
@@ -117,9 +129,17 @@ export async function embedText(text: string): Promise<number[]> {
   } catch (error: any) {
     const errString = String(error.message || error);
     if (error.status === 429 || error.status === 503 || errString.includes("429") || errString.includes("503") || errString.includes("RESOURCE_EXHAUSTED") || errString.includes("UNAVAILABLE")) {
-      console.warn(`[embedText] Gemini rate limit or 503 hit. Waiting 60s...`);
-      await new Promise(resolve => setTimeout(resolve, 60000));
-      return await attemptEmbed(primaryModel);
+      // ONE short retry (5s) instead of blocking for 60s
+      console.warn(`[embedText] Rate limit / 503 hit. Retrying in 5s...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      try {
+        return await attemptEmbed(primaryModel);
+      } catch (retryError: any) {
+        // Throw a typed error so callers (gate.ts) can catch and skip
+        throw new EmbeddingRateLimitError(
+          `[embedText] Retry failed for model ${primaryModel}: ${retryError.message || retryError}`
+        );
+      }
     }
     
     // Fallback to text-embedding-004 if the primary model fails
