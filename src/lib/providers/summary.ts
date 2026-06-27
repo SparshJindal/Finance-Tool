@@ -52,7 +52,7 @@ export async function judgeHoldingArticles(
       contextStr += `\nArticle Index: ${idx + 1}\n`;
       contextStr += `Title: ${art.title}\n`;
       contextStr += `Source: ${art.source}\n`;
-      contextStr += `Excerpt: ${art.excerpt || "No excerpt available."}\n`;
+      contextStr += `Excerpt: ${art.excerpt ? art.excerpt.slice(0, 600) + (art.excerpt.length > 600 ? "..." : "") : "No excerpt available."}\n`;
     });
 
     const prompt = `
@@ -200,7 +200,7 @@ ${contextStr}
   const responseText = await askAI({
     prompt,
     schema: briefSchema,
-    preferredModel: "gemini-2.5-pro",
+    preferredModel: "gemini-2.5-flash",
   });
 
   const parsed = JSON.parse(responseText);

@@ -60,6 +60,43 @@ export async function askAI({
     return content;
   };
 
+  const attemptOpenRouter = async () => {
+    const orKey = process.env.OPENROUTER_API_KEY;
+    if (!orKey) throw new Error("OPENROUTER_API_KEY is not set for OpenRouter");
+    
+    const fallbackPrompt = schema 
+      ? `${prompt}\n\nIMPORTANT: You must return the output as a valid JSON object exactly matching this JSON Schema structure:\n${JSON.stringify(schema, null, 2)}\n\nDo not return a naked JSON array. It must be a JSON object containing the specified keys.`
+      : prompt;
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${orKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3.3-70b-instruct:free",
+        messages: [{ role: "user", content: fallbackPrompt }],
+        temperature,
+        response_format: schema ? { type: "json_object" } : undefined,
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter HTTP error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    let content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error("OpenRouter returned empty text");
+
+    if (schema) {
+      content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+    }
+
+    return content;
+  };
+
   if (llmPrimary === "groq") {
     try {
       console.log(`[askAI] Attempting Groq primary (llama-3.3-70b-versatile)...`);
@@ -67,15 +104,26 @@ export async function askAI({
       console.log(`[askAI] Successfully served by Groq primary.`);
       return res;
     } catch (error: any) {
-      console.error(`[askAI] Groq primary failed. Falling back to Gemini. Error:`, error.message || error);
+      console.error(`[askAI] Groq primary failed. Falling back to OpenRouter. Error:`, error.message || error);
       try {
-        console.log(`[askAI] Attempting Gemini fallback (${preferredModel})...`);
-        const res = await attemptGemini();
-        console.log(`[askAI] Successfully served by Gemini fallback.`);
+        if (!process.env.OPENROUTER_API_KEY) {
+          throw new Error("OPENROUTER_API_KEY is not set, skipping OpenRouter");
+        }
+        console.log(`[askAI] Attempting OpenRouter fallback (meta-llama/llama-3.3-70b-instruct:free)...`);
+        const res = await attemptOpenRouter();
+        console.log(`[askAI] Successfully served by OpenRouter fallback.`);
         return res;
-      } catch (geminiError: any) {
-         console.error(`[askAI] Gemini fallback failed:`, geminiError.message || geminiError);
-         throw geminiError;
+      } catch (orError: any) {
+        console.error(`[askAI] OpenRouter fallback failed. Falling back to Gemini. Error:`, orError.message || orError);
+        try {
+          console.log(`[askAI] Attempting Gemini fallback (${preferredModel})...`);
+          const res = await attemptGemini();
+          console.log(`[askAI] Successfully served by Gemini fallback.`);
+          return res;
+        } catch (geminiError: any) {
+           console.error(`[askAI] Gemini fallback failed:`, geminiError.message || geminiError);
+           throw geminiError;
+        }
       }
     }
   } else {
@@ -95,10 +143,21 @@ export async function askAI({
     }
 
     // Fallback to Groq
-    console.log(`[askAI] Attempting Groq fallback (llama-3.3-70b-versatile)...`);
-    const res = await attemptGroq();
-    console.log(`[askAI] Successfully served by Groq fallback.`);
-    return res;
+    try {
+      console.log(`[askAI] Attempting Groq fallback (llama-3.3-70b-versatile)...`);
+      const res = await attemptGroq();
+      console.log(`[askAI] Successfully served by Groq fallback.`);
+      return res;
+    } catch (groqFallbackErr: any) {
+      console.error(`[askAI] Groq fallback failed. Falling back to OpenRouter. Error:`, groqFallbackErr.message || groqFallbackErr);
+      if (!process.env.OPENROUTER_API_KEY) {
+        throw new Error("OPENROUTER_API_KEY is not set, skipping OpenRouter and failing completely");
+      }
+      console.log(`[askAI] Attempting OpenRouter fallback (meta-llama/llama-3.3-70b-instruct:free)...`);
+      const res = await attemptOpenRouter();
+      console.log(`[askAI] Successfully served by OpenRouter fallback.`);
+      return res;
+    }
   }
 }
 
