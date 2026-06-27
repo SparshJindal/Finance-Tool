@@ -121,65 +121,76 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         source: a.source
       })));
 
+      const validArticleIds = new Set(dbArticles.map(a => a.id));
+
       for (const j of judgments) {
+        if (!j.articleId || !validArticleIds.has(j.articleId)) {
+          console.warn(`[ingestNews] Invalid or hallucinated articleId ${j.articleId} for holding ${h.ticker}. Skipping finding.`);
+          continue;
+        }
+
         if (j.material === true || j.severity >= pushMinSeverity) {
-          const quote = await fetchQuote(h.ticker, h.exchange);
-          const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
-            ? j.answeredQuestionId 
-            : null;
+          try {
+            const quote = await fetchQuote(h.ticker, h.exchange);
+            const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
+              ? j.answeredQuestionId 
+              : null;
 
-          const existingFinding = await prisma.finding.findFirst({
-            where: {
-              articleId: j.articleId,
-              holdingId: h.id
-            }
-          });
-
-          let isNewOrUpgraded = false;
-
-          if (existingFinding) {
-            await prisma.finding.update({
-              where: { id: existingFinding.id },
-              data: {
-                severity: j.severity,
-                direction: j.direction || "NEUTRAL",
-                summary: j.summary,
-                questionId: validQuestionId,
-                priceChangePct: quote?.priceChangePct ?? null,
-                volumeRatio: quote?.volumeRatio ?? null,
+            const existingFinding = await prisma.finding.findFirst({
+              where: {
+                articleId: j.articleId,
+                holdingId: h.id
               }
             });
-            if (j.severity > existingFinding.severity) {
+
+            let isNewOrUpgraded = false;
+
+            if (existingFinding) {
+              await prisma.finding.update({
+                where: { id: existingFinding.id },
+                data: {
+                  severity: j.severity,
+                  direction: j.direction || "NEUTRAL",
+                  summary: j.summary,
+                  questionId: validQuestionId,
+                  priceChangePct: quote?.priceChangePct ?? null,
+                  volumeRatio: quote?.volumeRatio ?? null,
+                }
+              });
+              if (j.severity > existingFinding.severity) {
+                isNewOrUpgraded = true;
+              }
+            } else {
+              await prisma.finding.create({
+                data: {
+                  articleId: j.articleId,
+                  holdingId: h.id,
+                  severity: j.severity,
+                  direction: j.direction || "NEUTRAL",
+                  summary: j.summary,
+                  questionId: validQuestionId,
+                  priceChangePct: quote?.priceChangePct ?? null,
+                  volumeRatio: quote?.volumeRatio ?? null,
+                }
+              });
               isNewOrUpgraded = true;
             }
-          } else {
-            await prisma.finding.create({
-              data: {
-                articleId: j.articleId,
-                holdingId: h.id,
-                severity: j.severity,
-                direction: j.direction || "NEUTRAL",
-                summary: j.summary,
-                questionId: validQuestionId,
-                priceChangePct: quote?.priceChangePct ?? null,
-                volumeRatio: quote?.volumeRatio ?? null,
+            
+            if (isNewOrUpgraded) {
+              try {
+                const { sendPushAlert } = await import('@/lib/push');
+                await sendPushAlert(h.userId, {
+                  title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
+                  body: j.summary,
+                });
+              } catch (pushErr) {
+                console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
               }
-            });
-            isNewOrUpgraded = true;
-          }
-          
-          if (isNewOrUpgraded) {
-            try {
-              const { sendPushAlert } = await import('@/lib/push');
-              await sendPushAlert(h.userId, {
-                title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
-                body: j.summary,
-              });
-            } catch (pushErr) {
-              console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
             }
+            totalFindingsSaved++;
+          } catch (findingErr) {
+            console.error(`[ingestNews] Failed to process finding for article ${j.articleId} on holding ${h.ticker}. Skipping. Error:`, findingErr);
           }
-          totalFindingsSaved++;
         }
       }
 

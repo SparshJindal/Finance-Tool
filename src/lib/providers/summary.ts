@@ -11,14 +11,14 @@ const judgeSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          articleId: { type: Type.STRING },
+          articleIndex: { type: Type.INTEGER, description: "The 1-based index of the article in the list" },
           material: { type: Type.BOOLEAN, description: "True if the article contains highly relevant, impactful news about the holding" },
           severity: { type: Type.INTEGER, description: "1 to 5, where 5 is extremely impactful" },
           direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
           answeredQuestionId: { type: Type.STRING, description: "The ID of the watch question this article most directly answers. If none, return empty string." },
           summary: { type: Type.STRING, description: "A concise 1-2 sentence summary of why this is material." }
         },
-        required: ["articleId", "material", "severity", "direction", "answeredQuestionId", "summary"]
+        required: ["articleIndex", "material", "severity", "direction", "answeredQuestionId", "summary"]
       }
     }
   },
@@ -48,8 +48,8 @@ export async function judgeHoldingArticles(
     contextStr += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
     
     contextStr += `Articles to evaluate:\n`;
-    chunk.forEach(art => {
-      contextStr += `\nArticle ID: ${art.id}\n`;
+    chunk.forEach((art, idx) => {
+      contextStr += `\nArticle Index: ${idx + 1}\n`;
       contextStr += `Title: ${art.title}\n`;
       contextStr += `Source: ${art.source}\n`;
       contextStr += `Excerpt: ${art.excerpt || "No excerpt available."}\n`;
@@ -83,10 +83,26 @@ ${contextStr}
           preferredModel: "gemini-2.5-flash"
         });
         const parsed = JSON.parse(responseText);
+        let rawResults: any[] = [];
         if (parsed && parsed.results && Array.isArray(parsed.results)) {
-          allResults.push(...parsed.results);
+          rawResults = parsed.results;
         } else if (parsed && Array.isArray(parsed)) {
-          allResults.push(...parsed); // Fallback if groq returns the naked array
+          rawResults = parsed; // Fallback if groq returns the naked array
+        }
+        
+        // Map integer index back to the real DB article.id
+        for (const r of rawResults) {
+          if (typeof r.articleIndex === 'number' && r.articleIndex >= 1 && r.articleIndex <= chunk.length) {
+            allResults.push({
+              ...r,
+              articleId: chunk[r.articleIndex - 1].id
+            });
+          } else {
+             // Handle cases where the model hallucinates an invalid index or returns articleId directly (if it ignored the schema somehow)
+             if (r.articleId) {
+               allResults.push(r);
+             }
+          }
         }
         success = true;
       } catch (err: any) {
