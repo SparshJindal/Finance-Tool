@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
-import { fetchTavilyNews } from "./tavily";
+import { fetchTavilyNews, fetchTavilyTopicNews } from "./tavily";
 
 export interface NormalizedArticle {
   url: string;
@@ -21,6 +21,7 @@ export interface TickerInput {
   exchange: string;
   sector?: string;
   themes?: string[];
+  aliases?: string[];
 }
 
 // Helper to get date string for N days ago (YYYY-MM-DD)
@@ -324,6 +325,80 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       // 300ms delay between queries to be polite to the API
       if (i < tavilyTargets.length - 1) {
         await new Promise(r => setTimeout(r, 300));
+      }
+    }
+  }
+
+  // --- 0b. Fetch Tavily TOPIC news (industry/sector — deduped across all holdings) ---
+  if (enabledProviders.includes('tavily')) {
+    // Build deduplicated topic set and topic -> holdingIds map
+    const topicToHoldings = new Map<string, string[]>();
+    for (const t of uniqueTargets) {
+      const topics: string[] = [];
+      if (t.sector) topics.push(t.sector);
+      if (t.themes) topics.push(...t.themes);
+      for (const topic of topics) {
+        const normalized = topic.trim().toLowerCase();
+        if (!normalized || normalized === 'unknown') continue;
+        if (!topicToHoldings.has(normalized)) {
+          topicToHoldings.set(normalized, []);
+        }
+        if (t.holdingId) {
+          topicToHoldings.get(normalized)!.push(t.holdingId);
+        }
+      }
+    }
+
+    if (topicToHoldings.size > 0) {
+      // Check cache for topics (reuse getMissingTickers with provider "tavily-topic")
+      const topicKeys = Array.from(topicToHoldings.keys());
+      const topicInputs: TickerInput[] = topicKeys.map(topic => ({
+        symbol: topic, // use topic string as the cache key
+        name: topic,
+        exchange: 'TOPIC',
+      }));
+      const missingTopics = await getMissingTickers(topicInputs, 'tavily-topic');
+      console.log(`[Tavily-Topic] Needs fetching for ${missingTopics.length}/${topicKeys.length} topics.`);
+
+      for (let i = 0; i < missingTopics.length; i++) {
+        const topicInput = missingTopics[i];
+        const topic = topicInput.symbol;
+
+        // Check daily cap before each call
+        const withinCap = await checkTavilyCap(1);
+        if (!withinCap) {
+          console.warn(`[Tavily-Topic] Daily cap exceeded. Stopping topic fetches.`);
+          break;
+        }
+
+        const res = await fetchTavilyTopicNews(topic);
+        
+        // Tag each article with ALL holdingIds that share this topic
+        const matchedIds = topicToHoldings.get(topic) || [];
+        for (const art of res) {
+          let existing = allArticles.find(a => a.url === art.url);
+          if (!existing) {
+            art.matchedHoldingIds = [...matchedIds];
+            allArticles.push(art);
+          } else {
+            // Merge holdingIds into existing article
+            if (!existing.matchedHoldingIds) existing.matchedHoldingIds = [];
+            for (const hid of matchedIds) {
+              if (!existing.matchedHoldingIds.includes(hid)) {
+                existing.matchedHoldingIds.push(hid);
+              }
+            }
+          }
+        }
+
+        if (res.length > 0) {
+          await markFetched([topic], 'tavily-topic');
+        }
+
+        // 300ms delay between topic queries
+        if (i < missingTopics.length - 1) {
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
     }
   }

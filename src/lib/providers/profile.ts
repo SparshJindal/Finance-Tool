@@ -21,12 +21,12 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
       aliases: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: "Names the company is frequently called in the press (e.g., 'Google' for 'Alphabet', acronyms)."
+        description: "Alternative names the company is frequently called in the press (e.g., 'Google' for 'Alphabet', acronyms, short names). Used for news search disambiguation."
       },
       themes: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: "3-7 sector/topic search phrases central to the thesis; e.g. NVDA -> 'AI accelerators', 'data center GPU'."
+        description: "3-5 industry/sector concept phrases central to the investment thesis. Examples for NVDA: 'AI accelerators', 'data-center capex', 'semiconductor supply chain'. Do NOT include company names, ticker symbols, or aliases. Keep them short for search queries."
       },
       competitors: {
         type: Type.ARRAY,
@@ -51,8 +51,8 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
     Investment Thesis: ${params.thesis}
 
     Return a JSON object containing:
-    1. aliases: Alternative names for the company in news articles.
-    2. themes: 3-7 key phrases describing the core technologies, sectors, or macro forces mentioned in the thesis (e.g. "cloud computing", "interest rates", "electric vehicles"). Keep them short for search queries.
+    1. aliases: Alternative names for the company in news articles (press names, acronyms, short names). Do NOT include the full official company name or ticker symbol.
+    2. themes: 3-5 key industry/sector concept phrases describing the core technologies, sectors, or macro forces relevant to the thesis (e.g. "cloud computing", "interest rate sensitivity", "electric vehicle adoption"). These must be INDUSTRY CONCEPTS, not company names or aliases. Keep them short for use as search queries.
     3. competitors: 2-5 direct competitors that operate in the same space.
   `;
 

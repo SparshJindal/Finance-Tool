@@ -15,11 +15,13 @@ import { generateHoldingProfile } from '@/lib/providers/profile'
 async function populateHoldingProfile(holdingId: string, ticker: string, company: string, thesis: string, directionLogic: string) {
   try {
     const profile = await generateHoldingProfile({ ticker, company, thesis, directionLogic });
-    const allThemes = Array.from(new Set([...profile.aliases, ...profile.themes]));
     
     await prisma.holding.update({
       where: { id: holdingId },
-      data: { themes: allThemes }
+      data: { 
+        themes: profile.themes,
+        aliases: profile.aliases,
+      }
     });
 
     if (profile.competitors && profile.competitors.length > 0) {

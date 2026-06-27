@@ -16,7 +16,7 @@ const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 /**
  * Build a smart natural-language query for a holding.
  * Uses company NAME (never the raw ticker symbol for Indian stocks),
- * enriched with up to 2 themes for better recall.
+ * enriched with an alias for disambiguation and a theme for topical context.
  */
 function buildQuery(target: TickerInput): string {
   const parts: string[] = [];
@@ -27,9 +27,14 @@ function buildQuery(target: TickerInput): string {
   // Always add "stock news" for financial context
   parts.push("stock news");
 
-  // Enrich with up to 2 themes if available
+  // Use an alias for disambiguation if available (e.g. "Alphabet" -> "Google")
+  if (target.aliases && target.aliases.length > 0) {
+    parts.push(target.aliases[0]);
+  }
+
+  // Add one industry theme for topical enrichment
   if (target.themes && target.themes.length > 0) {
-    parts.push(...target.themes.slice(0, 2));
+    parts.push(target.themes[0]);
   }
 
   // For Indian stocks, append "India" for disambiguation
@@ -54,19 +59,16 @@ function getTimeRange(): string {
 }
 
 /**
- * Fetch news articles for a single holding via the Tavily Search API.
- * Returns NormalizedArticle[] with excerpt populated.
+ * Shared Tavily search helper — makes a single POST and returns NormalizedArticle[].
  * Never throws — logs errors and returns [].
  */
-export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedArticle[]> {
+async function tavilySearch(query: string, maxResults: number, label: string): Promise<NormalizedArticle[]> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     console.warn("[Tavily] TAVILY_API_KEY is not set. Skipping Tavily provider. Get a free key at https://tavily.com");
     return [];
   }
 
-  const query = buildQuery(target);
-  const maxResults = parseInt(process.env.TAVILY_MAX_RESULTS || "10", 10);
   const timeRange = getTimeRange();
 
   try {
@@ -88,14 +90,14 @@ export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedAr
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      console.warn(`[Tavily] HTTP ${res.status} for "${target.name}" (query: "${query}"): ${errorText.slice(0, 200)}`);
+      console.warn(`[Tavily] HTTP ${res.status} for "${label}" (query: "${query}"): ${errorText.slice(0, 200)}`);
       return [];
     }
 
     const data = await res.json();
 
     if (!data.results || !Array.isArray(data.results)) {
-      console.warn(`[Tavily] No results array in response for "${target.name}"`);
+      console.warn(`[Tavily] No results array in response for "${label}"`);
       return [];
     }
 
@@ -128,10 +130,31 @@ export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedAr
         };
       });
 
-    console.log(`[Tavily] Fetched ${articles.length} articles for "${target.name}" (query: "${query}")`);
+    console.log(`[Tavily] Fetched ${articles.length} articles for "${label}" (query: "${query}")`);
     return articles;
   } catch (error: any) {
-    console.error(`[Tavily] Network error for "${target.name}":`, error.message || error);
+    console.error(`[Tavily] Network error for "${label}":`, error.message || error);
     return [];
   }
+}
+
+/**
+ * Fetch news articles for a single holding via the Tavily Search API.
+ * Returns NormalizedArticle[] with excerpt populated.
+ * Never throws — logs errors and returns [].
+ */
+export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedArticle[]> {
+  const query = buildQuery(target);
+  const maxResults = parseInt(process.env.TAVILY_MAX_RESULTS || "10", 10);
+  return tavilySearch(query, maxResults, target.name);
+}
+
+/**
+ * Fetch industry/sector news for a topic (no company name).
+ * Uses a smaller result cap to conserve Tavily budget.
+ * Never throws — logs errors and returns [].
+ */
+export async function fetchTavilyTopicNews(topic: string): Promise<NormalizedArticle[]> {
+  const query = `${topic} industry news outlook`;
+  return tavilySearch(query, 5, `topic:${topic}`);
 }

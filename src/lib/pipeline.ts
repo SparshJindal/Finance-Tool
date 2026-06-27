@@ -44,7 +44,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         name: h.company,
         exchange: h.exchange,
         sector: h.sector || undefined,
-        themes: h.themes
+        themes: h.themes,
+        aliases: h.aliases || [],
       };
 
       // 1. Fetch News for this holding

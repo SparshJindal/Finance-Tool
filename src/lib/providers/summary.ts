@@ -64,8 +64,9 @@ Evaluate EACH article STRICTLY using the provided excerpt. Do not use outside fa
 For each article:
 - Decide if the news is "material" (highly relevant and impactful). Set to true or false.
   * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
+  * INDUSTRY-LEVEL ARTICLES: Some articles may be industry/sector-level news that does not mention this company by name. For these, assess whether the industry development MATERIALLY affects this specific holding's thesis through second-order impact (e.g., a sector-wide tariff affects all players including this holding, or a competitor's breakthrough reshapes the market). Generic macro noise that doesn't meaningfully touch this holding's revenue, margins, demand, or competitive position should be marked as NOT material.
 - Assign a severity score (1-5).
-  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5.
+  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5. Industry-level news that has only indirect impact should generally be 1-2 unless it represents a major sector shift.
 - Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic". Use the holding's thesis to add weight to the severity and determine the exact direction.
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
 - Write a short 1-2 sentence summary of the material information.

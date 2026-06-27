@@ -79,6 +79,7 @@ model Holding {
   exchange        String        @default("US")
   sector          String?
   themes          String[]
+  aliases         String[]  @default([])
   thesis          String
   directionLogic  String        @map("direction_logic")
   kind            String        @default("PORTFOLIO")
