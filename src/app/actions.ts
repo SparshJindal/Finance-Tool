@@ -16,12 +16,20 @@ async function populateHoldingProfile(holdingId: string, ticker: string, company
   try {
     const profile = await generateHoldingProfile({ ticker, company, thesis, directionLogic });
     
+    const updateData: any = { 
+      themes: profile.themes,
+      aliases: profile.aliases,
+    };
+    
+    // Only overwrite thesis/directionLogic if the holding started with an empty thesis
+    if (!thesis || thesis.trim() === '') {
+      updateData.thesis = profile.thesis;
+      updateData.directionLogic = profile.directionLogic || 'LONG';
+    }
+    
     await prisma.holding.update({
       where: { id: holdingId },
-      data: { 
-        themes: profile.themes,
-        aliases: profile.aliases,
-      }
+      data: updateData
     });
 
     if (profile.competitors && profile.competitors.length > 0) {
@@ -612,7 +620,7 @@ export async function submitFindingFeedback(findingId: string, feedback: 'up' | 
   }
 }
 
-export async function importHoldings(holdings: { ticker: string, company: string, exchange?: string }[]) {
+export async function importHoldings(holdings: { ticker: string, company: string, exchange?: string, thesis?: string, directionLogic?: string }[]) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
   const userId = session.user.id
@@ -639,8 +647,8 @@ export async function importHoldings(holdings: { ticker: string, company: string
         ticker: h.ticker,
         company: h.company || h.ticker,
         exchange: h.exchange || 'US',
-        thesis: '',
-        directionLogic: 'LONG'
+        thesis: h.thesis || '',
+        directionLogic: h.directionLogic || 'LONG'
       }
     })
     
