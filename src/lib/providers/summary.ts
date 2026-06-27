@@ -59,12 +59,15 @@ export async function judgeHoldingArticles(
 You are an expert portfolio manager. Review the provided articles for the specified portfolio holding.
 
 Your task is to output a JSON object containing a "results" array.
-Evaluate EACH article STRICTLY using the provided excerpt against the holding's thesis, direction logic, and watch-questions. Do not use outside facts.
+Evaluate EACH article STRICTLY using the provided excerpt. Do not use outside facts.
+
 For each article:
 - Decide if the news is "material" (highly relevant and impactful). Set to true or false.
+  * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
 - Assign a severity score (1-5).
-- Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic".
-- Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty.
+  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5.
+- Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic". Use the holding's thesis to add weight to the severity and determine the exact direction.
+- Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
 - Write a short 1-2 sentence summary of the material information.
 
 Data Context:
