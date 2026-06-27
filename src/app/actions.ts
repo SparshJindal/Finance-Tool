@@ -456,6 +456,8 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
     
     console.log(`[ingestNews] Saved ${report?.findingsSaved || 0} findings across ${report?.totalHoldingsProcessed || 0} holdings.`);
 
+    revalidatePath('/dashboard')
+    
     return { 
       success: true, 
       processed: targetHoldingIds?.length || 0,

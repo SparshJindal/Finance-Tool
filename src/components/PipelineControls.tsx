@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 
 export function PipelineControls({
   holdings,
@@ -21,6 +22,7 @@ export function PipelineControls({
   logOutAction: (fd: FormData) => void | Promise<void>
 }) {
   const [isPendingDigest, startTransitionDigest] = useTransition()
+  const router = useRouter()
   
   const [pipelineState, setPipelineState] = useState<{ active: boolean, text: string, percent: number }>({ active: false, text: '', percent: 0 })
 
@@ -84,6 +86,8 @@ export function PipelineControls({
       
       if (phase1.error) {
         console.error("Ingest chunk error:", phase1.error)
+      } else {
+        router.refresh()
       }
       
       completed += chunk.length
