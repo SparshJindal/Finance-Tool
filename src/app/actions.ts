@@ -417,8 +417,9 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
   let remainingCount = 0;
 
   try {
+    const batchSize = parseInt(process.env.BATCH_SIZE || "5", 10);
+
     if (!targetHoldingIds || targetHoldingIds.length === 0) {
-      const batchSize = parseInt(process.env.BATCH_SIZE || "5", 10);
       let holdings = await prisma.holding.findMany({
         where: { userId, lastIngestedAt: null },
         take: batchSize,
@@ -443,6 +444,10 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
       
       const totalHoldings = await prisma.holding.count({ where: { userId } });
       remainingCount = Math.max(0, totalHoldings - targetHoldingIds.length);
+    } else {
+      const originalLength = targetHoldingIds.length;
+      targetHoldingIds = targetHoldingIds.slice(0, batchSize);
+      remainingCount = Math.max(0, originalLength - targetHoldingIds.length);
     }
 
     const result = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
