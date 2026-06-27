@@ -249,5 +249,5 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   };
 
   console.log("[ingestNews] Pipeline Fully Complete.", report);
-  return { report, candidates: [] };
+  return { report };
 }

@@ -437,13 +437,12 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
 
     const result = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
     
-    // For backwards compatibility with the UI's explicit-id chunking
-    const candidates = (result as any)?.candidates || []
     const report = (result as any)?.report || null
     
+    console.log(`[ingestNews] Saved ${report?.findingsSaved || 0} findings across ${report?.totalHoldingsProcessed || 0} holdings.`);
+
     return { 
       success: true, 
-      candidates, 
       processed: targetHoldingIds?.length || 0,
       remain: remainingCount,
       report 

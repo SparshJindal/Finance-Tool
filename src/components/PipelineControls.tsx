@@ -13,7 +13,7 @@ export function PipelineControls({
   logOutAction
 }: {
   holdings: { id: string, ticker: string }[]
-  runIngestPhase1: (fd?: FormData) => Promise<{ success?: boolean, candidates?: any[], error?: string }>
+  runIngestPhase1: (fd?: FormData) => Promise<{ success?: boolean, report?: any, error?: string }>
   runIngestPhase2: (fd: FormData) => Promise<any>
   studyHoldingAction: (fd: FormData) => Promise<any>
   studyBatchHoldingsAction: (fd: FormData) => Promise<any>
@@ -69,12 +69,11 @@ export function PipelineControls({
       chunks.push(holdings.slice(i, i + CHUNK_SIZE))
     }
 
-    const allCandidates: any[] = []
     let completed = 0
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
-      setPipelineState({ active: true, text: `Gating Threats Batch ${i + 1}/${chunks.length} (${completed + chunk.length}/${holdings.length})`, percent: 5 + Math.round((completed / holdings.length) * 45) })
+      setPipelineState({ active: true, text: `Ingesting Batch ${i + 1}/${chunks.length} (${completed + chunk.length}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
       
       const fd = new FormData()
       fd.append('ids', JSON.stringify(chunk.map(h => h.id)))
@@ -84,59 +83,19 @@ export function PipelineControls({
       const phase1 = await runIngestPhase1(fd)
       
       if (phase1.error) {
-        console.error("Phase 1 chunk error:", phase1.error)
-      } else if (phase1.candidates) {
-        allCandidates.push(...phase1.candidates)
+        console.error("Ingest chunk error:", phase1.error)
       }
       
       completed += chunk.length
-      setPipelineState({ active: true, text: `Gating Threats Batch ${i + 1}/${chunks.length} (${completed}/${holdings.length})`, percent: 5 + Math.round((completed / holdings.length) * 45) })
+      setPipelineState({ active: true, text: `Ingesting Batch ${i + 1}/${chunks.length} (${completed}/${holdings.length})`, percent: Math.round((completed / holdings.length) * 100) })
       
       if (i < chunks.length - 1) {
         await new Promise(r => setTimeout(r, 1000))
       }
     }
 
-    if (allCandidates.length === 0) {
-      setPipelineState({ active: false, text: '', percent: 0 })
-      alert("Ingest Complete: No new threats detected for your portfolio today.")
-      return
-    }
-
-    // Deduplicate candidates (since different chunks might find the same global cluster)
-    const uniqueCandidatesMap = new Map()
-    for (const c of allCandidates) {
-      uniqueCandidatesMap.set(c.id, c)
-    }
-    const uniqueCandidates = Array.from(uniqueCandidatesMap.values())
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 20) // Only take top 20 overall to evaluate
-
-    // Phase 2: Chunked Judging
-    const phase2Chunks = []
-    for (let i = 0; i < uniqueCandidates.length; i += CHUNK_SIZE) {
-      phase2Chunks.push(uniqueCandidates.slice(i, i + CHUNK_SIZE))
-    }
-
-    completed = 0
-    for (let i = 0; i < phase2Chunks.length; i++) {
-      const chunk = phase2Chunks[i]
-      setPipelineState({ active: true, text: `Judging Threats Batch ${i + 1}/${phase2Chunks.length} (${completed + chunk.length}/${uniqueCandidates.length})`, percent: 50 + Math.round((completed / uniqueCandidates.length) * 50) })
-      
-      const fd = new FormData()
-      fd.append('candidates', JSON.stringify(chunk))
-      await runIngestPhase2(fd)
-      
-      completed += chunk.length
-      setPipelineState({ active: true, text: `Judging Threats Batch ${i + 1}/${phase2Chunks.length} (${completed}/${uniqueCandidates.length})`, percent: 50 + Math.round((completed / uniqueCandidates.length) * 50) })
-      
-      if (i < phase2Chunks.length - 1) {
-        await new Promise(r => setTimeout(r, 1000))
-      }
-    }
-
     setPipelineState({ active: false, text: '', percent: 0 })
-    alert(`Ingest Complete: Evaluated ${uniqueCandidates.length} potential threats! Check your dashboard.`)
+    alert("Ingest Complete! Check your dashboard for any new findings.")
   }
 
   return (
