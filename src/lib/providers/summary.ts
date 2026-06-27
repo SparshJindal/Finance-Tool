@@ -27,7 +27,7 @@ const judgeSchema = {
 
 export async function judgeHoldingArticles(
   holding: { id: string, ticker: string, company: string, thesis: string, directionLogic: string, questions: {id: string, text: string}[] },
-  articles: { id: string, title: string, excerpt: string, url: string, source: string }[]
+  articles: { id: string, title: string, excerpt: string, url: string, source: string, matchedQuestionId?: string }[]
 ) {
   if (articles.length === 0) return [];
 
@@ -53,6 +53,9 @@ export async function judgeHoldingArticles(
       contextStr += `Title: ${art.title}\n`;
       contextStr += `Source: ${art.source}\n`;
       contextStr += `Excerpt: ${art.excerpt ? art.excerpt.slice(0, 600) + (art.excerpt.length > 600 ? "..." : "") : "No excerpt available."}\n`;
+      if (art.matchedQuestionId) {
+        contextStr += `*Hint: This article was retrieved specifically to answer question ID: ${art.matchedQuestionId}*\n`;
+      }
     });
 
     const prompt = `

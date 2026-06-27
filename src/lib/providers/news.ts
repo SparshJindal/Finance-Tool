@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
-import { fetchTavilyNews, fetchTavilyTopicNews } from "./tavily";
+import { fetchTavilyNews, fetchTavilyTopicNews, fetchTavilyQuestionNews } from "./tavily";
 
 export interface NormalizedArticle {
   url: string;
@@ -12,6 +12,8 @@ export interface NormalizedArticle {
   excerpt?: string;
   /** Tracks which holdings caused this article to be fetched */
   matchedHoldingIds?: string[];
+  /** Optional: tracks which specific watch-question (if any) this article was fetched to answer */
+  matchedQuestionId?: string;
 }
 
 export interface TickerInput {
@@ -22,6 +24,7 @@ export interface TickerInput {
   sector?: string;
   themes?: string[];
   aliases?: string[];
+  questions?: { id: string; text: string }[];
 }
 
 // Helper to get date string for N days ago (YYYY-MM-DD)
@@ -324,6 +327,44 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
 
       // 300ms delay between queries to be polite to the API
       if (i < tavilyTargets.length - 1) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+  }
+
+  // --- 0a. Fetch Tavily QUESTION news (driven by watch-questions) ---
+  if (enabledProviders.includes('tavily')) {
+    // Only check targets that have questions
+    const targetsWithQuestions = uniqueTargets.filter(t => t.questions && t.questions.length > 0);
+    const maxQuestionsPerHolding = parseInt(process.env.TAVILY_QUESTIONS_PER_HOLDING || "3", 10);
+    
+    for (const target of targetsWithQuestions) {
+      const questionsToRun = target.questions!.slice(0, maxQuestionsPerHolding);
+      
+      for (const q of questionsToRun) {
+        const cacheKey = `${target.symbol}#${q.id}`;
+        // Create a dummy TickerInput for the cache check
+        const qTarget: TickerInput = { ...target, symbol: cacheKey };
+        const missing = await getMissingTickers([qTarget], 'tavily-q');
+        
+        if (missing.length === 0) continue;
+
+        const withinCap = await checkTavilyCap(1);
+        if (!withinCap) {
+          console.warn(`[Tavily-Q] Daily cap exceeded. Stopping question fetches.`);
+          break;
+        }
+
+        const res = await fetchTavilyQuestionNews(target, q);
+        // Tag with the question ID
+        res.forEach(art => art.matchedQuestionId = q.id);
+        
+        addArticles(res, target);
+        
+        if (res.length > 0) {
+          await markFetched([cacheKey], 'tavily-q');
+        }
+
         await new Promise(r => setTimeout(r, 300));
       }
     }

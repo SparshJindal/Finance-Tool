@@ -158,3 +158,29 @@ export async function fetchTavilyTopicNews(topic: string): Promise<NormalizedArt
   const query = `${topic} industry news outlook`;
   return tavilySearch(query, 5, `topic:${topic}`);
 }
+
+/**
+ * Fetch news articles answering a specific watch-question.
+ * Lightly grounds the query with the company name if the question doesn't contain it.
+ * Never throws — logs errors and returns [].
+ */
+export async function fetchTavilyQuestionNews(target: TickerInput, question: { id: string, text: string }): Promise<NormalizedArticle[]> {
+  const parts: string[] = [];
+
+  // Ground with company name if the question doesn't mention it
+  if (!question.text.toLowerCase().includes(target.name.toLowerCase())) {
+    parts.push(target.name);
+  }
+
+  parts.push(question.text);
+
+  // For Indian stocks, append "India" for disambiguation
+  const exchange = target.exchange?.toUpperCase();
+  if (exchange === "NSE" || exchange === "BSE" || exchange === "NS" || exchange === "BO") {
+    parts.push("India");
+  }
+
+  const query = parts.join(" ");
+  // Use a smaller cap for question-specific queries
+  return tavilySearch(query, 3, `q:${question.id}`);
+}

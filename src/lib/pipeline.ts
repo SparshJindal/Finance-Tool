@@ -46,6 +46,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         sector: h.sector || undefined,
         themes: h.themes,
         aliases: h.aliases || [],
+        questions: h.questions.map(q => ({ id: q.id, text: q.text }))
       };
 
       // 1. Fetch News for this holding
@@ -65,7 +66,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       }
 
       // 3. Excerpts
-      const articles = [];
+      const articles: import("@/lib/providers/news").NormalizedArticle[] = [];
       const chunkSize = 10;
       let skippedScrapes = 0;
       for (let j = 0; j < articlesToProcess.length; j += chunkSize) {
@@ -77,7 +78,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
               return { ...art };
             }
             const excerpt = await fetchArticleExcerpt(art.url);
-            return { ...art, excerpt };
+            return { ...art, excerpt: excerpt || undefined };
           })
         );
         articles.push(...chunkWithExcerpts);
@@ -114,13 +115,17 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         where: { url: { in: fetchedUrls } }
       });
 
-      const judgments = await judgeHoldingArticles(h, dbArticles.map(a => ({
-        id: a.id,
-        title: a.title,
-        excerpt: a.excerpt || "",
-        url: a.url,
-        source: a.source
-      })));
+      const judgments = await judgeHoldingArticles(h, dbArticles.map(a => {
+        const originalArt = articles.find(orig => orig.url === a.url);
+        return {
+          id: a.id,
+          title: a.title,
+          excerpt: a.excerpt || "",
+          url: a.url,
+          source: a.source,
+          matchedQuestionId: originalArt?.matchedQuestionId
+        };
+      }));
 
       const validArticleIds = new Set(dbArticles.map(a => a.id));
 
