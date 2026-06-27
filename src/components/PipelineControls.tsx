@@ -65,7 +65,7 @@ export function PipelineControls({
     setPipelineState({ active: true, text: 'Fetching live news & gating...', percent: 5 })
     
     // Phase 1: Chunked Fetch & Gate
-    const CHUNK_SIZE = 10
+    const CHUNK_SIZE = 5
     const chunks = []
     for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
       chunks.push(holdings.slice(i, i + CHUNK_SIZE))
