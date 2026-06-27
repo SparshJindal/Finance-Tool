@@ -88,22 +88,7 @@ export async function askAI({
     } catch (error: any) {
       const errString = String(error.message || error);
       if (error.status === 429 || errString.includes("429") || errString.includes("RESOURCE_EXHAUSTED")) {
-        console.warn(`[askAI] Gemini 429 rate limit hit. Parsing retry delay...`);
-        let delayMs = 60000;
-        const delayMatch = errString.match(/"retryDelay":"(\d+)s"/);
-        if (delayMatch && delayMatch[1]) {
-          delayMs = parseInt(delayMatch[1], 10) * 1000 + 1000;
-        }
-        console.log(`[askAI] Waiting for ${delayMs}ms before retrying Gemini...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-
-        try {
-          const res = await attemptGemini();
-          console.log(`[askAI] Successfully served by Gemini (${preferredModel}) on retry.`);
-          return res;
-        } catch (retryError: any) {
-          console.error(`[askAI] Gemini retry failed. Falling back to Groq.`);
-        }
+        console.warn(`[askAI] Gemini 429 rate limit hit. Falling back to Groq immediately.`);
       } else {
         console.error(`[askAI] Gemini failed with non-429 error. Falling back to Groq. Error:`, error);
       }

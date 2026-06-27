@@ -401,14 +401,53 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
   const userId = session.user.id
 
   const idsJson = formData?.get('ids') as string | undefined
-  const targetHoldingIds = idsJson ? JSON.parse(idsJson) as string[] : undefined
+  let targetHoldingIds = idsJson ? JSON.parse(idsJson) as string[] : undefined
   const skipHeavyApis = formData?.get('skipHeavyApis') === 'true'
+  
+  let remainingCount = 0;
 
   try {
+    if (!targetHoldingIds || targetHoldingIds.length === 0) {
+      const batchSize = parseInt(process.env.BATCH_SIZE || "5", 10);
+      let holdings = await prisma.holding.findMany({
+        where: { userId, lastIngestedAt: null },
+        take: batchSize,
+        select: { id: true }
+      });
+
+      if (holdings.length < batchSize) {
+        const moreHoldings = await prisma.holding.findMany({
+          where: { userId, lastIngestedAt: { not: null } },
+          orderBy: { lastIngestedAt: 'asc' },
+          take: batchSize - holdings.length,
+          select: { id: true }
+        });
+        holdings = holdings.concat(moreHoldings);
+      }
+
+      if (holdings.length === 0) {
+        return { success: true, processed: 0, remain: 0, report: null };
+      }
+
+      targetHoldingIds = holdings.map(h => h.id);
+      
+      const totalHoldings = await prisma.holding.count({ where: { userId } });
+      remainingCount = Math.max(0, totalHoldings - targetHoldingIds.length);
+    }
+
     const result = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
+    
+    // For backwards compatibility with the UI's explicit-id chunking
     const candidates = (result as any)?.candidates || []
-    console.log("Found Candidates:", candidates.length)
-    return { success: true, candidates }
+    const report = (result as any)?.report || null
+    
+    return { 
+      success: true, 
+      candidates, 
+      processed: targetHoldingIds?.length || 0,
+      remain: remainingCount,
+      report 
+    }
   } catch (err) {
     console.error(err)
     return { error: 'Phase 1 failed' }
