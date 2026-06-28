@@ -58,14 +58,21 @@ export default async function Page() {
     orderBy: { createdAt: 'desc' },
   })
 
+  const twoWeeksAgo = new Date()
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+
   const findingsRaw = await prisma.finding.findMany({
-    where: { holding: { userId } },
+    where: { 
+      holding: { userId },
+      createdAt: { gte: twoWeeksAgo }
+    },
     include: {
       article: true,
       holding: true,
       question: true,
     },
     orderBy: { createdAt: 'desc' },
+    take: 100,
   })
 
   // Format findings for the client

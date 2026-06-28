@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, memo } from 'react'
 import { motion } from 'framer-motion'
 import { Severity } from './Severity'
 import { RelevanceBadge } from './RelevanceBadge'
@@ -44,22 +44,24 @@ function sevColor(sev: number): string {
   return colors[Math.min(4, Math.max(0, sev - 1))]
 }
 
-export function FindingCard({
+export const FindingCard = memo(function FindingCard({
   finding,
   index,
   reducedMotion,
   itemVariants,
+  disableLayout,
 }: {
   finding: FindingData
   index: number
   reducedMotion?: boolean
   itemVariants?: any
+  disableLayout?: boolean
 }) {
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(finding.feedback)
   const [isPending, startTransition] = useTransition()
 
   const isHighSeverity = finding.severity >= 4
-  const pulseClass = isHighSeverity ? 'severity-pulse attention-ping' : ''
+  const pulseClass = (isHighSeverity && index < 5) ? 'severity-pulse attention-ping' : ''
 
   const handleFeedback = (type: 'up' | 'down') => {
     const newFeedback = feedback === type ? null : type
@@ -71,7 +73,7 @@ export function FindingCard({
 
   return (
     <motion.div
-      layout
+      layout={disableLayout ? false : true}
       variants={reducedMotion ? undefined : itemVariants}
       initial={reducedMotion ? { opacity: 0, y: 16 } : undefined}
       animate={reducedMotion ? { opacity: 1, y: 0 } : undefined}
@@ -79,8 +81,8 @@ export function FindingCard({
       transition={reducedMotion ? {
         opacity: { duration: 0.25, delay: index * 0.03, ease: 'easeOut' },
         y: { type: 'spring', stiffness: 300, damping: 26, delay: index * 0.03 },
-        layout: { type: 'spring', stiffness: 300, damping: 28 }
-      } : { layout: { type: 'spring', stiffness: 300, damping: 28 } }}
+        layout: disableLayout ? undefined : { type: 'spring', stiffness: 300, damping: 28 }
+      } : { layout: disableLayout ? undefined : { type: 'spring', stiffness: 300, damping: 28 } }}
       whileHover={reducedMotion ? undefined : { scale: 1.01 }}
       whileTap={reducedMotion ? undefined : { scale: 0.99 }}
       className={`card ${pulseClass}`}
@@ -212,4 +214,4 @@ export function FindingCard({
       </div>
     </motion.div>
   )
-}
+})

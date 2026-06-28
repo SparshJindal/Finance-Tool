@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
@@ -87,14 +87,21 @@ export function DashboardShell({
     }
   })
 
-  // Filter findings
-  const filteredFindings = findings.filter(f => {
-    if (activeHolding && f.holdingId !== activeHolding) return false
-    return true
-  })
+  const [displayCount, setDisplayCount] = useState(40)
 
-  // Sort: highest severity first, then newest
-  filteredFindings.sort((a, b) => b.severity - a.severity)
+  // Memoize filter and sort to prevent re-computation on every re-render (e.g. feedback clicks)
+  const filteredFindings = useMemo(() => {
+    const filtered = findings.filter(f => {
+      if (activeHolding && f.holdingId !== activeHolding) return false
+      return true
+    })
+    // Sort: highest severity first, then newest
+    filtered.sort((a, b) => b.severity - a.severity)
+    return filtered
+  }, [findings, activeHolding])
+
+  const displayedFindings = filteredFindings.slice(0, displayCount)
+  const disableLayout = displayedFindings.length > 25
 
   return (
     <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -191,20 +198,39 @@ export function DashboardShell({
                 </p>
               </div>
             ) : (
-              <motion.div
-                layout
-                className="findings-feed"
-                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}
-                variants={reduced ? undefined : containerVariants}
-                initial={reduced ? undefined : 'hidden'}
-                animate={reduced ? undefined : 'visible'}
-              >
-                <AnimatePresence mode="popLayout">
-                  {filteredFindings.map((f, i) => (
-                    <FindingCard key={f.id} finding={f} index={i} reducedMotion={reduced} itemVariants={reduced ? undefined : itemVariants} />
-                  ))}
-                </AnimatePresence>
-              </motion.div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+                <motion.div
+                  layout={disableLayout ? false : true}
+                  className="findings-feed"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}
+                  variants={reduced ? undefined : containerVariants}
+                  initial={reduced ? undefined : 'hidden'}
+                  animate={reduced ? undefined : 'visible'}
+                >
+                  <AnimatePresence mode="popLayout">
+                    {displayedFindings.map((f, i) => (
+                      <FindingCard 
+                        key={f.id} 
+                        finding={f} 
+                        index={i} 
+                        reducedMotion={reduced} 
+                        itemVariants={reduced ? undefined : itemVariants} 
+                        disableLayout={disableLayout}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+                
+                {filteredFindings.length > displayCount && (
+                  <button 
+                    onClick={() => setDisplayCount(prev => prev + 40)}
+                    className="btn btn-secondary"
+                    style={{ alignSelf: 'center', padding: 'var(--sp-2) var(--sp-6)' }}
+                  >
+                    Show more ({filteredFindings.length - displayCount} remaining)
+                  </button>
+                )}
+              </div>
             )}
 
           </div>
