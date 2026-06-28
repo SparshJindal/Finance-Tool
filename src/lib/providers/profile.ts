@@ -28,7 +28,7 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
       themes: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: "3-5 industry/sector concept phrases central to the investment thesis. Examples for NVDA: 'AI accelerators', 'data-center capex', 'semiconductor supply chain'. Do NOT include company names, ticker symbols, or aliases. Keep them short for search queries."
+        description: "3-5 SPECIFIC thesis-relevant industry phrases. Each must be 2-4 words describing a concrete business driver, technology, or market force. GOOD examples for MCHP: 'automotive MCU pricing', 'mature node chip shortage', 'industrial IoT adoption'. GOOD examples for NVDA: 'AI accelerator demand', 'data-center GPU capex', 'CUDA software moat'. BAD examples (DO NOT USE): single words like 'semiconductors', 'microchip', 'technology'; company names or tickers; generic terms like 'stock market', 'innovation', 'growth'. Every theme must be at least 2 words."
       },
       competitors: {
         type: Type.ARRAY,
@@ -62,7 +62,10 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
 
     Return a JSON object containing:
     1. aliases: Alternative names for the company in news articles (press names, acronyms, short names). Do NOT include the full official company name or ticker symbol.
-    2. themes: 3-5 key industry/sector concept phrases describing the core technologies, sectors, or macro forces relevant to the thesis (e.g. "cloud computing", "interest rate sensitivity", "electric vehicle adoption"). These must be INDUSTRY CONCEPTS, not company names or aliases. Keep them short for use as search queries.
+    2. themes: 3-5 SPECIFIC thesis-relevant industry phrases (2-4 words each) describing concrete business drivers, technologies, or market forces central to the investment thesis.
+       GOOD examples: "automotive MCU pricing", "mature node chip shortage", "AI accelerator demand", "cloud infrastructure spending".
+       BAD (DO NOT USE): single generic words like "semiconductors" or "technology"; company names or tickers; vague terms like "innovation" or "growth".
+       Every theme MUST be at least 2 words and specific enough to retrieve targeted news.
     3. competitors: 2-5 direct competitors that operate in the same space.
     4. thesis: A concise 2-3 sentence investment thesis for the company. Use the provided thesis if present, otherwise generate a fresh, accurate one based on the company and sector.
     5. directionLogic: Either "LONG" or "SHORT". Use the provided direction if present and valid, otherwise default to "LONG".

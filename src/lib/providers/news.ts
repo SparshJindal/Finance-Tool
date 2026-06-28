@@ -14,6 +14,8 @@ export interface NormalizedArticle {
   matchedHoldingIds?: string[];
   /** Optional: tracks which specific watch-question (if any) this article was fetched to answer */
   matchedQuestionId?: string;
+  /** How the article was retrieved — used by the pre-judge relevance filter */
+  retrievalSource?: 'primary' | 'question' | 'topic';
 }
 
 export interface TickerInput {
@@ -25,6 +27,7 @@ export interface TickerInput {
   themes?: string[];
   aliases?: string[];
   questions?: { id: string; text: string }[];
+  competitors?: { ticker?: string; name: string }[];
 }
 
 // Helper to get date string for N days ago (YYYY-MM-DD)
@@ -320,6 +323,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       }
 
       const res = await fetchTavilyNews(target);
+      res.forEach(art => art.retrievalSource = 'primary');
       addArticles(res, target);
       if (res.length > 0) {
         await markFetched([target.symbol], 'tavily');
@@ -356,8 +360,11 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         }
 
         const res = await fetchTavilyQuestionNews(target, q);
-        // Tag with the question ID
-        res.forEach(art => art.matchedQuestionId = q.id);
+        // Tag with the question ID and retrieval source
+        res.forEach(art => {
+          art.matchedQuestionId = q.id;
+          art.retrievalSource = 'question';
+        });
         
         addArticles(res, target);
         
@@ -370,74 +377,66 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     }
   }
 
-  // --- 0b. Fetch Tavily TOPIC news (industry/sector — deduped across all holdings) ---
+  // --- 0b. Fetch Tavily TOPIC news (company-anchored, capped at 2 topics per holding) ---
   if (enabledProviders.includes('tavily')) {
-    // Build deduplicated topic set and topic -> holdingIds map
-    const topicToHoldings = new Map<string, string[]>();
+    // Build per-holding topic queries: { companyName, topic, holdingId, cacheKey }
+    const topicQueries: { companyName: string; topic: string; holdingId: string; cacheKey: string }[] = [];
+    const MAX_TOPICS_PER_HOLDING = 2;
+
     for (const t of uniqueTargets) {
-      const topics: string[] = [];
-      if (t.sector) topics.push(t.sector);
-      if (t.themes) topics.push(...t.themes);
+      if (!t.holdingId) continue;
+      const topics = (t.themes || []).slice(0, MAX_TOPICS_PER_HOLDING);
       for (const topic of topics) {
         const normalized = topic.trim().toLowerCase();
-        if (!normalized || normalized === 'unknown') continue;
-        if (!topicToHoldings.has(normalized)) {
-          topicToHoldings.set(normalized, []);
-        }
-        if (t.holdingId) {
-          topicToHoldings.get(normalized)!.push(t.holdingId);
-        }
+        if (!normalized || normalized === 'unknown' || normalized.split(/\s+/).length < 2) continue;
+        const cacheKey = `${t.symbol}#${normalized}`;
+        topicQueries.push({ companyName: t.name, topic: normalized, holdingId: t.holdingId, cacheKey });
       }
     }
 
-    if (topicToHoldings.size > 0) {
-      // Check cache for topics (reuse getMissingTickers with provider "tavily-topic")
-      const topicKeys = Array.from(topicToHoldings.keys());
-      const topicInputs: TickerInput[] = topicKeys.map(topic => ({
-        symbol: topic, // use topic string as the cache key
-        name: topic,
+    if (topicQueries.length > 0) {
+      // Check cache
+      const cacheInputs: TickerInput[] = topicQueries.map(tq => ({
+        symbol: tq.cacheKey,
+        name: tq.cacheKey,
         exchange: 'TOPIC',
       }));
-      const missingTopics = await getMissingTickers(topicInputs, 'tavily-topic');
-      console.log(`[Tavily-Topic] Needs fetching for ${missingTopics.length}/${topicKeys.length} topics.`);
+      const missingInputs = await getMissingTickers(cacheInputs, 'tavily-topic');
+      const missingKeys = new Set(missingInputs.map(i => i.symbol));
+      const uncachedQueries = topicQueries.filter(tq => missingKeys.has(tq.cacheKey));
+      console.log(`[Tavily-Topic] Needs fetching for ${uncachedQueries.length}/${topicQueries.length} topic queries.`);
 
-      for (let i = 0; i < missingTopics.length; i++) {
-        const topicInput = missingTopics[i];
-        const topic = topicInput.symbol;
+      for (let i = 0; i < uncachedQueries.length; i++) {
+        const tq = uncachedQueries[i];
 
-        // Check daily cap before each call
         const withinCap = await checkTavilyCap(1);
         if (!withinCap) {
           console.warn(`[Tavily-Topic] Daily cap exceeded. Stopping topic fetches.`);
           break;
         }
 
-        const res = await fetchTavilyTopicNews(topic);
-        
-        // Tag each article with ALL holdingIds that share this topic
-        const matchedIds = topicToHoldings.get(topic) || [];
+        const res = await fetchTavilyTopicNews(tq.companyName, tq.topic);
+        // Tag as topic-sourced
+        res.forEach(art => art.retrievalSource = 'topic');
+
         for (const art of res) {
           let existing = allArticles.find(a => a.url === art.url);
           if (!existing) {
-            art.matchedHoldingIds = [...matchedIds];
+            art.matchedHoldingIds = [tq.holdingId];
             allArticles.push(art);
           } else {
-            // Merge holdingIds into existing article
             if (!existing.matchedHoldingIds) existing.matchedHoldingIds = [];
-            for (const hid of matchedIds) {
-              if (!existing.matchedHoldingIds.includes(hid)) {
-                existing.matchedHoldingIds.push(hid);
-              }
+            if (!existing.matchedHoldingIds.includes(tq.holdingId)) {
+              existing.matchedHoldingIds.push(tq.holdingId);
             }
           }
         }
 
         if (res.length > 0) {
-          await markFetched([topic], 'tavily-topic');
+          await markFetched([tq.cacheKey], 'tavily-topic');
         }
 
-        // 300ms delay between topic queries
-        if (i < missingTopics.length - 1) {
+        if (i < uncachedQueries.length - 1) {
           await new Promise(r => setTimeout(r, 300));
         }
       }
@@ -445,7 +444,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   }
 
   // --- 1. Fetch GDELT (Fallback — batched) ---
-  if (enabledProviders.includes('gdelt')) {
+  if (enabledProviders.includes('gdelt') && !skipHeavyApis) {
     const gdeltTargets = await getMissingTickers(uniqueTargets, 'gdelt');
     console.log(`[GDELT] Needs fetching for ${gdeltTargets.length}/${uniqueTargets.length} tickers.`);
     

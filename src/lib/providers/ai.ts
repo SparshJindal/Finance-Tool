@@ -1,6 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 import Groq from "groq-sdk";
 
+/**
+ * Thrown when the LLM provider's daily token/request quota is exhausted.
+ * Callers should catch this to abort remaining work gracefully rather than
+ * retrying or falling through to other providers.
+ */
+export class LlmQuotaExhaustedError extends Error {
+  constructor(provider: string, message: string) {
+    super(`[${provider}] Daily quota exhausted: ${message}`);
+    this.name = "LlmQuotaExhaustedError";
+  }
+}
+
 export async function askAI({
   prompt,
   schema,
@@ -13,6 +25,7 @@ export async function askAI({
   temperature?: number;
 }) {
   const llmPrimary = process.env.LLM_PRIMARY || "groq";
+  const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 
   const attemptGemini = async () => {
     const geminiKey = process.env.GEMINI_API_KEY;
@@ -42,22 +55,34 @@ export async function askAI({
       ? `${prompt}\n\nIMPORTANT: You must return the output as a valid JSON object exactly matching this JSON Schema structure:\n${JSON.stringify(schema, null, 2)}\n\nDo not return a naked JSON array. It must be a JSON object containing the specified keys.`
       : prompt;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: fallbackPrompt }],
-      model: "llama-3.3-70b-versatile",
-      temperature,
-      response_format: schema ? { type: "json_object" } : undefined,
-    });
+    try {
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: fallbackPrompt }],
+        model: groqModel,
+        temperature,
+        response_format: schema ? { type: "json_object" } : undefined,
+      });
 
-    let content = chatCompletion.choices[0]?.message?.content;
-    if (!content) throw new Error("Groq returned empty text");
+      let content = chatCompletion.choices[0]?.message?.content;
+      if (!content) throw new Error("Groq returned empty text");
 
-    // Clean markdown block if present
-    if (schema) {
-      content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      // Clean markdown block if present
+      if (schema) {
+        content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      }
+
+      return content;
+    } catch (error: any) {
+      const errMsg = String(error.message || error);
+      // Detect daily token-per-day (TPD) quota exhaustion — distinct from transient 429s
+      if (
+        (error.status === 429 || errMsg.includes('429')) &&
+        (errMsg.toLowerCase().includes('tokens per day') || errMsg.toLowerCase().includes('tpd') || errMsg.toLowerCase().includes('daily'))
+      ) {
+        throw new LlmQuotaExhaustedError('Groq', errMsg);
+      }
+      throw error;
     }
-
-    return content;
   };
 
   const attemptOpenRouter = async () => {
@@ -99,11 +124,16 @@ export async function askAI({
 
   if (llmPrimary === "groq") {
     try {
-      console.log(`[askAI] Attempting Groq primary (llama-3.3-70b-versatile)...`);
+      console.log(`[askAI] Attempting Groq primary (${groqModel})...`);
       const res = await attemptGroq();
       console.log(`[askAI] Successfully served by Groq primary.`);
       return res;
     } catch (error: any) {
+      // If daily quota exhausted, propagate immediately — do NOT fall through
+      if (error instanceof LlmQuotaExhaustedError) {
+        console.error(`[askAI] ${error.message}`);
+        throw error;
+      }
       console.error(`[askAI] Groq primary failed. Falling back to OpenRouter. Error:`, error.message || error);
       try {
         if (!process.env.OPENROUTER_API_KEY) {
@@ -144,11 +174,15 @@ export async function askAI({
 
     // Fallback to Groq
     try {
-      console.log(`[askAI] Attempting Groq fallback (llama-3.3-70b-versatile)...`);
+      console.log(`[askAI] Attempting Groq fallback (${groqModel})...`);
       const res = await attemptGroq();
       console.log(`[askAI] Successfully served by Groq fallback.`);
       return res;
     } catch (groqFallbackErr: any) {
+      // If daily quota exhausted, propagate immediately
+      if (groqFallbackErr instanceof LlmQuotaExhaustedError) {
+        throw groqFallbackErr;
+      }
       console.error(`[askAI] Groq fallback failed. Falling back to OpenRouter. Error:`, groqFallbackErr.message || groqFallbackErr);
       if (!process.env.OPENROUTER_API_KEY) {
         throw new Error("OPENROUTER_API_KEY is not set, skipping OpenRouter and failing completely");
@@ -160,4 +194,3 @@ export async function askAI({
     }
   }
 }
-

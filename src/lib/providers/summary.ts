@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { askAI } from "./ai";
+import { askAI, LlmQuotaExhaustedError } from "./ai";
 import { prisma } from "@/lib/db";
 import { fetchQuote } from "./quote";
 
@@ -113,6 +113,10 @@ ${contextStr}
         }
         success = true;
       } catch (err: any) {
+        // Daily quota exhaustion — re-throw immediately, don't retry
+        if (err instanceof LlmQuotaExhaustedError) {
+          throw err;
+        }
         attempt++;
         if (err.status === 429 || (err.message && err.message.includes('429'))) {
           if (attempt >= 3) break;

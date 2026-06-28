@@ -14,33 +14,40 @@ import type { NormalizedArticle, TickerInput } from "./news";
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 
 /**
- * Build a smart natural-language query for a holding.
- * Uses company NAME (never the raw ticker symbol for Indian stocks),
- * enriched with an alias for disambiguation and a theme for topical context.
+ * Build a disambiguated query for a holding.
+ * Uses the full company name in quotes for exact matching, plus the ticker
+ * symbol for US stocks. Adds negative terms for top competitors to prevent
+ * confusion (e.g. "Microchip Technology" pulling Micron results).
  */
 function buildQuery(target: TickerInput): string {
   const parts: string[] = [];
 
-  // Primary: company name
-  parts.push(target.name);
+  // Primary: full company name in quotes for exact phrase matching
+  parts.push(`"${target.name}"`);
+
+  // Add ticker symbol for additional disambiguation (helps for US stocks)
+  const exchange = target.exchange?.toUpperCase();
+  if (exchange !== "NSE" && exchange !== "BSE" && exchange !== "NS" && exchange !== "BO") {
+    parts.push(target.symbol);
+  }
 
   // Always add "stock news" for financial context
   parts.push("stock news");
 
-  // Use an alias for disambiguation if available (e.g. "Alphabet" -> "Google")
-  if (target.aliases && target.aliases.length > 0) {
-    parts.push(target.aliases[0]);
-  }
-
-  // Add one industry theme for topical enrichment
-  if (target.themes && target.themes.length > 0) {
-    parts.push(target.themes[0]);
-  }
-
   // For Indian stocks, append "India" for disambiguation
-  const exchange = target.exchange?.toUpperCase();
   if (exchange === "NSE" || exchange === "BSE" || exchange === "NS" || exchange === "BO") {
     parts.push("India");
+  }
+
+  // Add negative terms for top competitors to reduce confusion
+  // (e.g. exclude "Micron" for MCHP to avoid cross-contamination)
+  if (target.competitors && target.competitors.length > 0) {
+    const negatives = target.competitors.slice(0, 2);
+    for (const comp of negatives) {
+      if (comp.name && comp.name.toLowerCase() !== target.name.toLowerCase()) {
+        parts.push(`-"${comp.name}"`);
+      }
+    }
   }
 
   return parts.join(" ");
@@ -150,13 +157,14 @@ export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedAr
 }
 
 /**
- * Fetch industry/sector news for a topic (no company name).
- * Uses a smaller result cap to conserve Tavily budget.
+ * Fetch industry/sector news for a topic, ANCHORED to a specific company.
+ * This ensures topic queries return articles relevant to the holding, not
+ * generic industry noise.
  * Never throws — logs errors and returns [].
  */
-export async function fetchTavilyTopicNews(topic: string): Promise<NormalizedArticle[]> {
-  const query = `${topic} industry news outlook`;
-  return tavilySearch(query, 5, `topic:${topic}`);
+export async function fetchTavilyTopicNews(companyName: string, topic: string): Promise<NormalizedArticle[]> {
+  const query = `"${companyName}" ${topic}`;
+  return tavilySearch(query, 5, `topic:${companyName}/${topic}`);
 }
 
 /**

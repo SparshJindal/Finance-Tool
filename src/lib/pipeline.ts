@@ -5,6 +5,90 @@ import stringSimilarity from "string-similarity";
 import { judgeHoldingArticles } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
+import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
+import type { NormalizedArticle } from "@/lib/providers/news";
+
+/**
+ * Zero-token keyword relevance filter applied BEFORE the LLM judge.
+ * Drops articles that don't mention the company, keeping the LLM budget for genuine hits.
+ */
+function relevanceFilter(
+  articles: NormalizedArticle[],
+  holding: { ticker: string; company: string; aliases: string[] },
+  competitors: { ticker?: string; name: string }[]
+): { kept: NormalizedArticle[]; dropped: number } {
+  const tickerRe = new RegExp(`\\b${holding.ticker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+  const companyLower = holding.company.toLowerCase();
+
+  // Only use multi-word aliases (single words like "microchip" cause false positives)
+  const safeAliases = (holding.aliases || [])
+    .filter(a => a.trim().split(/\s+/).length >= 2)
+    .map(a => a.toLowerCase());
+
+  const competitorNames = competitors
+    .map(c => c.name?.toLowerCase())
+    .filter(Boolean) as string[];
+  const competitorTickers = competitors
+    .map(c => c.ticker?.toUpperCase())
+    .filter(Boolean) as string[];
+
+  function mentionsCompany(text: string): boolean {
+    if (!text) return false;
+    if (tickerRe.test(text)) return true;
+    const lower = text.toLowerCase();
+    if (lower.includes(companyLower)) return true;
+    for (const alias of safeAliases) {
+      if (lower.includes(alias)) return true;
+    }
+    return false;
+  }
+
+  function leadsWithCompetitor(title: string): boolean {
+    if (!title) return false;
+    const titleLower = title.toLowerCase();
+    // Check if title starts with a competitor name/ticker
+    for (const cn of competitorNames) {
+      if (titleLower.startsWith(cn)) return true;
+    }
+    for (const ct of competitorTickers) {
+      // Check if title starts with competitor ticker as a word
+      const ctRe = new RegExp(`^${ct.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (ctRe.test(title)) return true;
+    }
+    return false;
+  }
+
+  const kept: NormalizedArticle[] = [];
+  let dropped = 0;
+
+  for (const art of articles) {
+    const titleMatch = mentionsCompany(art.title);
+    const excerptMatch = mentionsCompany(art.excerpt || '');
+    const hasCompanyMention = titleMatch || excerptMatch;
+
+    // Topic-sourced articles MUST mention the company
+    if (art.retrievalSource === 'topic' && !hasCompanyMention) {
+      dropped++;
+      continue;
+    }
+
+    // Drop if title leads with a competitor and does NOT mention our company
+    if (leadsWithCompetitor(art.title) && !hasCompanyMention) {
+      dropped++;
+      continue;
+    }
+
+    // For primary/question sources, keep if there's any company mention
+    // or if there's no retrieval source tagged (legacy/fallback)
+    if (hasCompanyMention || !art.retrievalSource) {
+      kept.push(art);
+    } else {
+      dropped++;
+    }
+  }
+
+  return { kept, dropped };
+}
 
 export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false) {
   console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
@@ -38,6 +122,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     try {
       console.log(`[ingestNews] Processing holding ${i + 1}/${holdings.length}: ${h.ticker} (${h.company})`);
       
+      const holdingCompetitors = competitors.filter(c => c.holdingId === h.id);
+
       const targetTicker = {
         holdingId: h.id,
         symbol: h.ticker,
@@ -46,17 +132,29 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         sector: h.sector || undefined,
         themes: h.themes,
         aliases: h.aliases || [],
-        questions: h.questions.map(q => ({ id: q.id, text: q.text }))
+        questions: h.questions.map(q => ({ id: q.id, text: q.text })),
+        competitors: holdingCompetitors.map(c => ({ ticker: c.ticker, name: c.name }))
       };
 
       // 1. Fetch News for this holding
       const rawArticles = await getNews([targetTicker], skipHeavyApis);
       
-      // 2. Pre-filter
+      // 2. Pre-filter: basic title check + keyword relevance gate
       const filteredArticles = rawArticles.filter(art => {
         return art.title && art.title !== "No Title" && art.title.trim().length > 0;
       });
-      const articlesToProcess = filteredArticles.slice(0, maxArticles);
+
+      // Apply keyword relevance filter BEFORE LLM judging
+      const { kept: relevantArticles, dropped: droppedCount } = relevanceFilter(
+        filteredArticles,
+        { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
+        holdingCompetitors
+      );
+      if (droppedCount > 0) {
+        console.log(`[ingestNews] ${h.ticker}: Pre-filter dropped ${droppedCount} irrelevant articles, kept ${relevantArticles.length}.`);
+      }
+
+      const articlesToProcess = relevantArticles.slice(0, maxArticles);
 
       if (articlesToProcess.length === 0) {
         console.log(`[ingestNews] No articles found for ${h.ticker}. Moving to next holding.`);
@@ -207,6 +305,10 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       });
 
     } catch (error) {
+      if (error instanceof LlmQuotaExhaustedError) {
+        console.error(`[ingestNews] LLM daily quota exhausted. Aborting remaining holdings. Error: ${error.message}`);
+        break; // Stop processing further holdings gracefully
+      }
       console.error(`[ingestNews] Critical failure processing holding ${h.ticker}. Skipping to next. Error:`, error);
     }
   }
