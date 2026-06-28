@@ -53,9 +53,9 @@ async function getMissingTickers(targets: TickerInput[], provider: string): Prom
   return targets.filter(t => !cachedTickers.has(t.symbol));
 }
 
-async function markFetched(symbols: string[], provider: string) {
+export async function markFetched(stamps: { symbol: string, provider: string }[]) {
   const now = new Date();
-  for (const symbol of symbols) {
+  for (const { symbol, provider } of stamps) {
     await prisma.newsFetchLog.upsert({
       where: { ticker_provider: { ticker: symbol, provider } },
       update: { fetchedAt: now },
@@ -279,13 +279,14 @@ async function fetchMarketauxBatched(targets: TickerInput[]): Promise<Normalized
   }
 }
 
-export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = false): Promise<NormalizedArticle[]> {
+export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = false): Promise<{ articles: NormalizedArticle[], cacheStamps: { symbol: string, provider: string }[] }> {
   // Deduplicate targets by symbol
   const uniqueTargetsMap = new Map<string, TickerInput>();
   targets.forEach(t => uniqueTargetsMap.set(t.symbol, t));
   const uniqueTargets = Array.from(uniqueTargetsMap.values());
   
   const allArticles: NormalizedArticle[] = [];
+  const cacheStamps: { symbol: string, provider: string }[] = [];
   const seenUrls = new Set<string>();
 
   const addArticles = (articles: NormalizedArticle[], target?: TickerInput) => {
@@ -326,7 +327,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       res.forEach(art => art.retrievalSource = 'primary');
       addArticles(res, target);
       if (res.length > 0) {
-        await markFetched([target.symbol], 'tavily');
+        cacheStamps.push({ symbol: target.symbol, provider: 'tavily' });
       }
 
       // 300ms delay between queries to be polite to the API
@@ -369,7 +370,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         addArticles(res, target);
         
         if (res.length > 0) {
-          await markFetched([cacheKey], 'tavily-q');
+          cacheStamps.push({ symbol: cacheKey, provider: 'tavily-q' });
         }
 
         await new Promise(r => setTimeout(r, 300));
@@ -433,7 +434,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         }
 
         if (res.length > 0) {
-          await markFetched([tq.cacheKey], 'tavily-topic');
+          cacheStamps.push({ symbol: tq.cacheKey, provider: 'tavily-topic' });
         }
 
         if (i < uncachedQueries.length - 1) {
@@ -467,7 +468,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         addArticles(baseArticles);
         addArticles(themeArticles);
         if ((baseArticles.length + themeArticles.length) > 0) {
-          await markFetched(chunk.map(c => c.symbol), 'gdelt');
+          chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'gdelt' }));
         }
 
         if (i < chunks.length - 1) {
@@ -499,7 +500,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
           const res = await fetchFinnhubNews(target);
           addArticles(res, target);
           if (res.length > 0) {
-            await markFetched([target.symbol], 'finnhub');
+            cacheStamps.push({ symbol: target.symbol, provider: 'finnhub' });
           }
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
@@ -519,7 +520,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
           // Pass undefined as target for batch chunk.
           addArticles(res);
           if (res.length > 0) {
-            await markFetched(chunk.map(c => c.symbol), 'marketaux');
+            chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'marketaux' }));
           }
           
           if (process.env.NEWS_MOCK !== 'true' && i + chunkSize < marketauxTargets.length) {
@@ -542,5 +543,5 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     console.log(`[getNews] ---------------------------`);
   }
 
-  return allArticles;
+  return { articles: allArticles, cacheStamps };
 }

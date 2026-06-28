@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getNews } from "@/lib/providers/news";
+import { getNews, markFetched } from "@/lib/providers/news";
 import crypto from "crypto";
 import stringSimilarity from "string-similarity";
 import { judgeHoldingArticles } from "@/lib/providers/summary";
@@ -114,6 +114,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   let upsertedCount = 0;
   let clustersFormed = 0;
   let totalFindingsSaved = 0;
+  let quotaExhausted = false;
   const pushMinSeverity = parseInt(process.env.PUSH_MIN_SEVERITY || "3", 10);
   const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_RUN || "150", 10);
 
@@ -137,7 +138,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       };
 
       // 1. Fetch News for this holding
-      const rawArticles = await getNews([targetTicker], skipHeavyApis);
+      const { articles: rawArticles, cacheStamps } = await getNews([targetTicker], skipHeavyApis);
       
       // 2. Pre-filter: basic title check + keyword relevance gate
       const filteredArticles = rawArticles.filter(art => {
@@ -155,63 +156,98 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       }
 
       const articlesToProcess = relevantArticles.slice(0, maxArticles);
-
-      if (articlesToProcess.length === 0) {
-        console.log(`[ingestNews] No articles found for ${h.ticker}. Moving to next holding.`);
-        // Update lastIngestedAt even if no news found, so it goes to back of queue
-        await prisma.holding.update({ where: { id: h.id }, data: { lastIngestedAt: new Date() }});
-        continue;
-      }
-
-      // 3. Excerpts
       const articles: import("@/lib/providers/news").NormalizedArticle[] = [];
-      const chunkSize = 10;
-      let skippedScrapes = 0;
-      for (let j = 0; j < articlesToProcess.length; j += chunkSize) {
-        const chunk = articlesToProcess.slice(j, j + chunkSize);
-        const chunkWithExcerpts = await Promise.all(
-          chunk.map(async (art) => {
-            if (art.excerpt && art.excerpt.trim().length > 50) {
-              skippedScrapes++;
-              return { ...art };
-            }
-            const excerpt = await fetchArticleExcerpt(art.url);
-            return { ...art, excerpt: excerpt || undefined };
-          })
-        );
-        articles.push(...chunkWithExcerpts);
-      }
-      if (skippedScrapes > 0) {
-        console.log(`[ingestNews] ${h.ticker}: Skipped ${skippedScrapes} live scrapes.`);
-      }
 
-      // 4. Hash & Upsert
-      for (const art of articles) {
-        const contentHash = crypto.createHash('md5').update(art.url + art.title).digest('hex');
-        try {
-          await prisma.article.upsert({
-            where: { url: art.url },
-            update: {},
-            create: {
-              url: art.url,
-              title: art.title,
-              source: art.source,
-              publishedAt: art.publishedAt,
-              contentHash,
-              excerpt: art.excerpt,
-            }
-          });
-          upsertedCount++;
-        } catch (e) {
-          console.error(`[ingestNews] Failed to upsert ${art.url}:`, e);
+      if (articlesToProcess.length > 0) {
+        // 3. Excerpts
+        const chunkSize = 10;
+        let skippedScrapes = 0;
+        for (let j = 0; j < articlesToProcess.length; j += chunkSize) {
+          const chunk = articlesToProcess.slice(j, j + chunkSize);
+          const chunkWithExcerpts = await Promise.all(
+            chunk.map(async (art) => {
+              if (art.excerpt && art.excerpt.trim().length > 50) {
+                skippedScrapes++;
+                return { ...art };
+              }
+              const excerpt = await fetchArticleExcerpt(art.url);
+              return { ...art, excerpt: excerpt || undefined };
+            })
+          );
+          articles.push(...chunkWithExcerpts);
+        }
+        if (skippedScrapes > 0) {
+          console.log(`[ingestNews] ${h.ticker}: Skipped ${skippedScrapes} live scrapes.`);
+        }
+
+        // 4. Hash & Upsert
+        for (const art of articles) {
+          const contentHash = crypto.createHash('md5').update(art.url + art.title).digest('hex');
+          try {
+            await prisma.article.upsert({
+              where: { url: art.url },
+              update: {},
+              create: {
+                url: art.url,
+                title: art.title,
+                source: art.source,
+                publishedAt: art.publishedAt,
+                contentHash,
+                excerpt: art.excerpt,
+              }
+            });
+            upsertedCount++;
+          } catch (e) {
+            console.error(`[ingestNews] Failed to upsert ${art.url}:`, e);
+          }
         }
       }
 
-      // 5. Direct LLM Judgment
+      // 5. Gather all articles to judge (newly fetched + unjudged DB articles)
       const fetchedUrls = articles.map(a => a.url);
-      const dbArticles = await prisma.article.findMany({
+      let dbArticles = await prisma.article.findMany({
         where: { url: { in: fetchedUrls } }
       });
+
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const unjudgedDbArticles = await prisma.article.findMany({
+        where: {
+          publishedAt: { gte: threeDaysAgo },
+          findings: { none: { holdingId: h.id } },
+          OR: [
+            { title: { contains: h.ticker, mode: 'insensitive' } },
+            { title: { contains: h.company, mode: 'insensitive' } },
+            { excerpt: { contains: h.ticker, mode: 'insensitive' } },
+            { excerpt: { contains: h.company, mode: 'insensitive' } },
+          ]
+        }
+      });
+
+      // Pass unjudged db articles through the strict memory relevanceFilter
+      const { kept: relevantUnjudged } = relevanceFilter(
+        unjudgedDbArticles.map(a => ({ ...a, url: a.url, title: a.title, excerpt: a.excerpt || undefined })),
+        { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
+        holdingCompetitors
+      );
+      
+      const relevantUnjudgedUrls = new Set(relevantUnjudged.map(a => a.url));
+      const finalUnjudgedDbArticles = unjudgedDbArticles.filter(a => relevantUnjudgedUrls.has(a.url));
+
+      if (finalUnjudgedDbArticles.length > 0) {
+        console.log(`[ingestNews] ${h.ticker}: Found ${finalUnjudgedDbArticles.length} unjudged DB articles from previous runs to evaluate.`);
+      }
+
+      const allToJudgeMap = new Map<string, any>();
+      dbArticles.forEach(a => allToJudgeMap.set(a.id, a));
+      finalUnjudgedDbArticles.forEach(a => allToJudgeMap.set(a.id, a));
+      dbArticles = Array.from(allToJudgeMap.values());
+
+      if (dbArticles.length === 0) {
+        console.log(`[ingestNews] No new or unjudged articles to evaluate for ${h.ticker}.`);
+        await prisma.holding.update({ where: { id: h.id }, data: { lastIngestedAt: new Date() }});
+        if (cacheStamps.length > 0) await markFetched(cacheStamps);
+        continue;
+      }
 
       const judgments = await judgeHoldingArticles(h, dbArticles.map(a => {
         const originalArt = articles.find(orig => orig.url === a.url);
@@ -298,15 +334,20 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         }
       }
 
-      // 6. Update lastIngestedAt
+      // 6. Update lastIngestedAt and stamp the cache ONLY because judging succeeded
       await prisma.holding.update({
         where: { id: h.id },
         data: { lastIngestedAt: new Date() }
       });
 
+      if (cacheStamps.length > 0) {
+        await markFetched(cacheStamps);
+      }
+
     } catch (error) {
       if (error instanceof LlmQuotaExhaustedError) {
         console.error(`[ingestNews] LLM daily quota exhausted. Aborting remaining holdings. Error: ${error.message}`);
+        quotaExhausted = true;
         break; // Stop processing further holdings gracefully
       }
       console.error(`[ingestNews] Critical failure processing holding ${h.ticker}. Skipping to next. Error:`, error);
@@ -353,7 +394,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     totalHoldingsProcessed: holdings.length,
     newUpserted: upsertedCount,
     clustersFormed,
-    findingsSaved: totalFindingsSaved
+    findingsSaved: totalFindingsSaved,
+    quotaExhausted
   };
 
   console.log("[ingestNews] Pipeline Fully Complete.", report);

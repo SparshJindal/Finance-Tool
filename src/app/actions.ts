@@ -458,6 +458,10 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
 
     revalidatePath('/dashboard')
     
+    if (report?.quotaExhausted) {
+      return { success: false, error: 'LLM_QUOTA_EXHAUSTED' }
+    }
+    
     return { 
       success: true, 
       processed: targetHoldingIds?.length || 0,
