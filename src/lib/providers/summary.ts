@@ -67,12 +67,15 @@ Evaluate EACH article STRICTLY using the provided excerpt. Do not use outside fa
 For each article:
 - Decide if the news is "material" (highly relevant and impactful). Set to true or false.
   * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
-  * INDUSTRY-LEVEL ARTICLES: Some articles may be industry/sector-level news that does not mention this company by name. For these, assess whether the industry development MATERIALLY affects this specific holding's thesis through second-order impact (e.g., a sector-wide tariff affects all players including this holding, or a competitor's breakthrough reshapes the market). Generic macro noise that doesn't meaningfully touch this holding's revenue, margins, demand, or competitive position should be marked as NOT material.
+  * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by ticker, company name, or known alias), return material=false and drop it.
 - Assign a severity score (1-5).
-  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5. Industry-level news that has only indirect impact should generally be 1-2 unless it represents a major sector shift.
+  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5.
 - Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic". Use the holding's thesis to add weight to the severity and determine the exact direction.
+  * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade direction to NEUTRAL instead of BULLISH or BEARISH.
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
+  * EXPLICIT LINK RULE: Require an EXPLICIT causal link between the article fact and the matched watch-question. Don't bolt a thesis question onto unrelated news.
 - Write a short 1-2 sentence summary of the material information.
+  * SUMMARY GROUNDING RULE: The summary may ONLY name companies/entities that literally appear in the article title or body. NEVER introduce a company name not present in the source (e.g. do not write "Auroactive Pharma" for an Aurobindo holding if it's not in the text).
 
 Data Context:
 ${contextStr}
@@ -98,19 +101,92 @@ ${contextStr}
         }
         
         // Map integer index back to the real DB article.id
+        let chunkResults: any[] = [];
         for (const r of rawResults) {
           if (typeof r.articleIndex === 'number' && r.articleIndex >= 1 && r.articleIndex <= chunk.length) {
-            allResults.push({
+            chunkResults.push({
               ...r,
               articleId: chunk[r.articleIndex - 1].id
             });
           } else {
              // Handle cases where the model hallucinates an invalid index or returns articleId directly (if it ignored the schema somehow)
              if (r.articleId) {
-               allResults.push(r);
+               chunkResults.push(r);
              }
           }
         }
+
+        // TIER 2: Re-judge high-severity / high-relevance findings
+        if (process.env.TWO_TIER_JUDGE === 'true') {
+          const needsRejudge = chunkResults.filter(r => r.material && r.severity >= 4);
+          if (needsRejudge.length > 0) {
+            console.log(`[judgeHoldingArticles] TIER 2: Re-judging ${needsRejudge.length} high-severity articles for ${holding.ticker}...`);
+            
+            const rejudgeArticles = chunk.filter(art => needsRejudge.some(r => r.articleId === art.id));
+            let tier2Context = `Holding: ${holding.ticker} (${holding.company})\n`;
+            tier2Context += `Thesis: ${holding.thesis}\n`;
+            tier2Context += `Direction Logic: ${holding.directionLogic}\n`;
+            tier2Context += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
+            tier2Context += `Articles to evaluate:\n`;
+            rejudgeArticles.forEach((art, idx) => {
+              tier2Context += `\nArticle Index: ${idx + 1}\n`;
+              tier2Context += `Title: ${art.title}\n`;
+              tier2Context += `Source: ${art.source}\n`;
+              tier2Context += `Excerpt: ${art.excerpt ? art.excerpt.slice(0, 600) + (art.excerpt.length > 600 ? "..." : "") : "No excerpt available."}\n`;
+              if (art.matchedQuestionId) {
+                tier2Context += `*Hint: This article was retrieved specifically to answer question ID: ${art.matchedQuestionId}*\n`;
+              }
+            });
+
+            // Give the API a brief rest before hitting the heavier model
+            await new Promise(r => setTimeout(r, 2000));
+
+            let t2Attempt = 0;
+            let t2Success = false;
+            while (t2Attempt < 3 && !t2Success) {
+              try {
+                const t2ResponseText = await askAI({
+                  prompt: prompt.replace(contextStr, tier2Context),
+                  schema: judgeSchema,
+                  preferredModel: "gemini-2.5-flash",
+                  groqModelOverride: "llama-3.3-70b-versatile"
+                });
+                
+                const t2Parsed = JSON.parse(t2ResponseText);
+                let t2RawResults: any[] = [];
+                if (t2Parsed && t2Parsed.results && Array.isArray(t2Parsed.results)) {
+                  t2RawResults = t2Parsed.results;
+                } else if (t2Parsed && Array.isArray(t2Parsed)) {
+                  t2RawResults = t2Parsed;
+                }
+
+                for (const t2r of t2RawResults) {
+                  if (typeof t2r.articleIndex === 'number' && t2r.articleIndex >= 1 && t2r.articleIndex <= rejudgeArticles.length) {
+                    const finalId = rejudgeArticles[t2r.articleIndex - 1].id;
+                    const originalIdx = chunkResults.findIndex(r => r.articleId === finalId);
+                    if (originalIdx !== -1) chunkResults[originalIdx] = { ...t2r, articleId: finalId };
+                  } else if (t2r.articleId) {
+                    const originalIdx = chunkResults.findIndex(r => r.articleId === t2r.articleId);
+                    if (originalIdx !== -1) chunkResults[originalIdx] = t2r;
+                  }
+                }
+                t2Success = true;
+              } catch (err: any) {
+                if (err instanceof LlmQuotaExhaustedError) throw err;
+                t2Attempt++;
+                if (err.status === 429 || (err.message && err.message.includes('429'))) {
+                  if (t2Attempt >= 3) break;
+                  await new Promise(r => setTimeout(r, 4000 * Math.pow(2, t2Attempt) + Math.random() * 1000));
+                } else {
+                  console.error(`[judgeHoldingArticles] TIER 2 Error:`, err);
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        allResults.push(...chunkResults);
         success = true;
       } catch (err: any) {
         // Daily quota exhaustion — re-throw immediately, don't retry

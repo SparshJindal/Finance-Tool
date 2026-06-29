@@ -107,7 +107,7 @@ export default async function Page() {
       severity: f.severity,
     }))
 
-  const totalThreats = findings.filter(f => f.severity >= 4).length
+  const totalThreats = findings.filter(f => f.direction !== 'NEUTRAL').length
   const maxPortfolioSeverity = findings.length > 0 ? Math.max(...findings.map(f => f.severity)) : 1
 
   const lastScanAt = findingsRaw.length > 0 

@@ -89,7 +89,7 @@ export function DashboardShell({
   
   // Format holding nav data for IntelRail
   const navHoldings = holdings.map(h => {
-    const hFindings = findings.filter(f => f.holdingId === h.id)
+    const hFindings = findings.filter(f => f.holdingId === h.id && f.direction !== 'NEUTRAL')
     return {
       id: h.id,
       ticker: h.ticker,
@@ -130,6 +130,7 @@ export function DashboardShell({
   const filteredFindings = useMemo(() => {
     const filtered = findings.filter(f => {
       if (activeHolding && f.holdingId !== activeHolding) return false
+      if (f.direction === 'NEUTRAL') return false
       return true
     })
     // Sort: highest severity first, then newest

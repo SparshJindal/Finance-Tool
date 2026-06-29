@@ -17,15 +17,17 @@ export async function askAI({
   prompt,
   schema,
   preferredModel = "gemini-2.5-flash",
+  groqModelOverride,
   temperature = 0.2
 }: {
   prompt: string;
   schema?: any;
   preferredModel?: string;
+  groqModelOverride?: string;
   temperature?: number;
 }) {
   const llmPrimary = process.env.LLM_PRIMARY || "groq";
-  const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const groqModel = groqModelOverride || process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 
   const attemptGemini = async () => {
     const geminiKey = process.env.GEMINI_API_KEY;
