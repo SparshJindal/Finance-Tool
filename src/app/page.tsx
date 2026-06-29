@@ -20,7 +20,9 @@ export default function LandingPage() {
       overflow: 'hidden',
     }}>
       {/* Interactive polygon mesh background */}
-      <PolygonMesh />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+        <PolygonMesh />
+      </div>
 
       {/* Content layer */}
       <div style={{

@@ -161,7 +161,7 @@ export function DashboardShell({
     <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       {/* Background Mesh */}
       {!reduced && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.7, pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 0, opacity: 0.7, pointerEvents: 'none' }}>
           <PolygonMesh density={1.5} distortion={0.1} intensity={0.6} fadeMode="edges" />
         </div>
       )}
