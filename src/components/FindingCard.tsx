@@ -20,6 +20,7 @@ export type FindingData = {
   feedback: 'up' | 'down' | null
   direction?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'Supports' | 'Threatens' | 'Neutral' | null
   confidence?: number | null
+  additionalSources?: string[]
 }
 
 function UpIcon({ active }: { active: boolean }) {
@@ -247,6 +248,11 @@ export const FindingCard = memo(function FindingCard({
           </motion.button>
 
           {/* Source link */}
+          {finding.additionalSources && finding.additionalSources.length > 0 && (
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginRight: '4px', fontFamily: 'var(--font-mono)' }}>
+              +{finding.additionalSources.length} other sources
+            </span>
+          )}
           <motion.a
             whileHover={reducedMotion ? undefined : { scale: 1.02 }}
             whileTap={reducedMotion ? undefined : { scale: 0.98 }}

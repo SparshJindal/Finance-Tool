@@ -16,6 +16,21 @@ export type HoldingRunResult = {
   reason?: 'LLM_QUOTA_EXHAUSTED' | 'NO_NEW_ARTICLES' | 'FETCH_ERROR' | 'JUDGE_ERROR'
 }
 
+function getTokens(text: string): Set<string> {
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'have', 'are', 'was', 'were', 'will']);
+  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+  return new Set(words);
+}
+
+function calculateJaccard(a: string, b: string): number {
+  const setA = getTokens(a);
+  const setB = getTokens(b);
+  if (setA.size === 0 || setB.size === 0) return 0;
+  const intersection = new Set([...setA].filter(x => setB.has(x)));
+  const union = new Set([...setA, ...setB]);
+  return intersection.size / union.size;
+}
+
 /**
  * Zero-token keyword relevance filter applied BEFORE the LLM judge.
  * Drops articles that don't mention the company, keeping the LLM budget for genuine hits.
@@ -402,7 +417,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     }
   }
 
-  // Local Clustering (done globally across recent articles)
+  // Local Clustering (done globally across recent articles) using Jaccard token overlap
   const recentArticles = await prisma.article.findMany({
     where: {
       firstSeen: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
@@ -421,8 +436,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       for (let j = i + 1; j < recentArticles.length; j++) {
         const b = recentArticles[j];
         if (groupedIds.has(b.id)) continue;
-        const similarity = stringSimilarity.compareTwoStrings(a.title.toLowerCase(), b.title.toLowerCase());
-        if (similarity > 0.80) {
+        const similarity = calculateJaccard(a.title, b.title);
+        if (similarity >= 0.40) {
           hasMatch = true;
           matchIds.push(b.id);
           groupedIds.add(b.id);
@@ -436,6 +451,69 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         clustersFormed++;
       }
     }
+  }
+
+  // Deduplication: Per-Holding Event Collapse & Cross-Holding Weaker Attachment Drop
+  const recentFindings = await prisma.finding.findMany({
+    where: { createdAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) } },
+    include: { article: true }
+  });
+
+  // 1. Cross-Holding Weaker Attachment Drop
+  const findingsByArticle = new Map<string, typeof recentFindings>();
+  for (const f of recentFindings) {
+    if (!findingsByArticle.has(f.articleId)) findingsByArticle.set(f.articleId, []);
+    findingsByArticle.get(f.articleId)!.push(f);
+  }
+
+  const findingsToDelete = new Set<string>();
+
+  for (const group of findingsByArticle.values()) {
+    if (group.length > 1) {
+      const maxSev = Math.max(...group.map(g => g.severity));
+      const weakFindings = group.filter(g => g.severity < maxSev);
+      for (const w of weakFindings) {
+        findingsToDelete.add(w.id);
+      }
+    }
+  }
+
+  // 2. Per-Holding Event Collapse
+  const validFindings = recentFindings.filter(f => !findingsToDelete.has(f.id));
+  const findingsByHoldingAndEvent = new Map<string, typeof validFindings>();
+  
+  for (const f of validFindings) {
+    const eventKey = `${f.holdingId}-${f.article.clusterId || f.article.id}`;
+    if (!findingsByHoldingAndEvent.has(eventKey)) findingsByHoldingAndEvent.set(eventKey, []);
+    findingsByHoldingAndEvent.get(eventKey)!.push(f);
+  }
+
+  for (const group of findingsByHoldingAndEvent.values()) {
+    if (group.length > 1) {
+      // Sort by severity desc, then createdAt desc
+      group.sort((a, b) => b.severity !== a.severity ? b.severity - a.severity : b.createdAt.getTime() - a.createdAt.getTime());
+      const representative = group[0];
+      const duplicates = group.slice(1);
+      
+      const extraUrls = duplicates.map(d => d.article.url);
+      const currentExtras = representative.additionalSources || [];
+      const mergedExtras = Array.from(new Set([...currentExtras, ...extraUrls]));
+      
+      await prisma.finding.update({
+        where: { id: representative.id },
+        data: { additionalSources: mergedExtras }
+      });
+      
+      for (const d of duplicates) {
+        findingsToDelete.add(d.id);
+      }
+    }
+  }
+
+  if (findingsToDelete.size > 0) {
+    await prisma.finding.deleteMany({
+      where: { id: { in: Array.from(findingsToDelete) } }
+    });
   }
 
   const report = {

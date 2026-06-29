@@ -95,6 +95,7 @@ export default async function Page() {
     feedback: f.feedback as 'up' | 'down' | null,
     direction: f.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'Supports' | 'Threatens' | 'Neutral' | null,
     confidence: f.confidence,
+    additionalSources: f.additionalSources,
   }))
 
   const tickerItems = findings
