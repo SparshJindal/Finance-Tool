@@ -32,7 +32,6 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
       background: 'var(--base-1)',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-md)',
-      overflow: 'hidden',
       transition: 'border-color 0.15s ease',
     }}>
       {/* Toggle header */}
@@ -129,10 +128,10 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
             {searchResults.length > 0 && (
               <div style={{
                 position: 'absolute',
-                top: '100%',
+                bottom: '100%',
                 left: 0,
                 right: 0,
-                marginTop: '4px',
+                marginBottom: '4px',
                 background: 'var(--base-1)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
