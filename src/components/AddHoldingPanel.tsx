@@ -11,17 +11,20 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
   const [selectedTicker, setSelectedTicker] = useState<MarketTicker | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   useEffect(() => {
     if (!searchQuery || selectedTicker) {
       setSearchResults([])
       setIsLoading(false)
       setErrorMsg('')
+      setDebugInfo(null)
       return
     }
     
     setIsLoading(true)
     setErrorMsg('')
+    setDebugInfo(null)
     
     const timer = setTimeout(async () => {
       try {
@@ -37,6 +40,7 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
           throw new Error(`API returned ${res.status}: ${text.slice(0, 50)}`)
         }
         const data = await res.json()
+        if (data.debug) setDebugInfo(data.debug)
         setSearchResults(data.tickers || [])
       } catch (err: any) {
         console.error('Search API error:', err)
@@ -173,6 +177,11 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
                   ) : searchResults.length === 0 ? (
                     <div style={{ padding: 'var(--sp-3) var(--sp-4)', color: 'var(--text-muted)' }}>
                       No results found for "{searchQuery}"
+                      {debugInfo && (
+                        <div style={{ marginTop: '8px', padding: '4px', background: 'var(--bg-card)', fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          DEBUG: {JSON.stringify(debugInfo)}
+                        </div>
+                      )}
                     </div>
                   ) : searchResults.map((ticker) => (
                   <button

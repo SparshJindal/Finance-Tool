@@ -24,9 +24,23 @@ export async function GET(request: NextRequest) {
       orderBy: { symbol: 'asc' }
     })
 
-    return NextResponse.json({ tickers })
+    const dbUrl = process.env.DATABASE_URL || ''
+    const dbInfo = `${dbUrl.split('@')[1]?.split('/')[0] || 'unknown-db'} (length: ${dbUrl.length})`
+
+    return NextResponse.json({ 
+      tickers, 
+      debug: { 
+        queryReceived: query, 
+        dbHost: dbInfo,
+        tickersFound: tickers.length
+      } 
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    })
   } catch (error) {
     console.error('Ticker search error:', error)
-    return NextResponse.json({ error: 'Failed to search tickers' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to search tickers', details: String(error) }, { status: 500 })
   }
 }
