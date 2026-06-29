@@ -154,7 +154,8 @@ async function executeGDELTQuery(url: string): Promise<{ articles: NormalizedArt
 
 async function fetchGDELTChunk(chunk: TickerInput[]): Promise<{ articles: NormalizedArticle[], rateLimited: boolean }> {
   const queryTerms = chunk.map(t => {
-    return t.exchange === "US" ? `("${t.name}" OR "${t.symbol}")` : `"${t.name}"`;
+    const cleanSymbol = t.symbol.split('.')[0];
+    return t.exchange === "US" ? `("${t.name}" OR "${cleanSymbol}")` : `"${t.name}"`;
   }).join(' OR ');
 
   const query = encodeURIComponent(`(${queryTerms}) (stock OR market OR disruption OR competitor) sourcelang:eng`);
@@ -241,7 +242,8 @@ async function fetchMarketauxBatched(targets: TickerInput[]): Promise<Normalized
   if (!apiKey) return [];
 
   const searchStrs = targets.map(t => {
-    return t.exchange === "US" ? t.symbol : `${t.symbol}.${t.exchange === 'NSE' ? 'NS' : t.exchange === 'BSE' ? 'BO' : t.exchange}`;
+    const cleanSymbol = t.symbol.split('.')[0];
+    return t.exchange === "US" ? cleanSymbol : `${cleanSymbol}.${t.exchange === 'NSE' ? 'NS' : t.exchange === 'BSE' ? 'BO' : t.exchange}`;
   });
   
   const searchStr = searchStrs.join(',');

@@ -31,6 +31,14 @@ function calculateJaccard(a: string, b: string): number {
   return intersection.size / union.size;
 }
 
+function isHighCollision(ticker: string, company: string): boolean {
+  const cleanTicker = ticker.split('.')[0].toUpperCase();
+  if (cleanTicker.length <= 3) return true;
+  const commonNames = ['apple', 'block', 'meta', 'alphabet', 'snow', 'target', 'square', 'amazon', 'zoom', 'roku', 'snap', 'box', 'gap', 'yelp', 'visa'];
+  if (commonNames.some(c => company.toLowerCase().includes(c))) return true;
+  return false;
+}
+
 /**
  * Zero-token keyword relevance filter applied BEFORE the LLM judge.
  * Drops articles that don't mention the company, keeping the LLM budget for genuine hits.
@@ -40,7 +48,8 @@ function relevanceFilter(
   holding: { ticker: string; company: string; aliases: string[] },
   competitors: { ticker?: string; name: string }[]
 ): { kept: NormalizedArticle[]; dropped: number } {
-  const tickerRe = new RegExp(`\\b${holding.ticker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+  const cleanTicker = holding.ticker.split('.')[0];
+  const tickerRe = new RegExp(`\\b${cleanTicker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
   const companyLower = holding.company.toLowerCase();
 
   // Only use multi-word aliases (single words like "microchip" cause false positives)
@@ -84,6 +93,8 @@ function relevanceFilter(
   const kept: NormalizedArticle[] = [];
   let dropped = 0;
 
+  const highCollision = isHighCollision(holding.ticker, holding.company);
+
   for (const art of articles) {
     const titleMatch = mentionsCompany(art.title);
     const excerptMatch = mentionsCompany(art.excerpt || '');
@@ -103,10 +114,15 @@ function relevanceFilter(
 
     // For primary/question sources, keep if there's any company mention
     // or if there's no retrieval source tagged (legacy/fallback)
-    if (hasCompanyMention || !art.retrievalSource) {
-      kept.push(art);
+    // For low-collision unique names, keep them even without positive anchor hits!
+    if (highCollision) {
+      if (hasCompanyMention || !art.retrievalSource) {
+        kept.push(art);
+      } else {
+        dropped++;
+      }
     } else {
-      dropped++;
+      kept.push(art);
     }
   }
 
@@ -194,15 +210,17 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         return art.title && art.title !== "No Title" && art.title.trim().length > 0;
       });
 
+      const holdingArticles = filteredArticles;
+      console.log(`[ingestNews] ${h.ticker}: Fetched ${holdingArticles.length} raw articles BEFORE pre-filter.`);
+
       // Apply keyword relevance filter BEFORE LLM judging
       const { kept: relevantArticles, dropped: droppedCount } = relevanceFilter(
-        filteredArticles,
+        holdingArticles,
         { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
         holdingCompetitors
       );
-      if (droppedCount > 0) {
-        console.log(`[ingestNews] ${h.ticker}: Pre-filter dropped ${droppedCount} irrelevant articles, kept ${relevantArticles.length}.`);
-      }
+      
+      console.log(`[ingestNews] ${h.ticker}: Kept ${relevantArticles.length} articles AFTER pre-filter (dropped ${droppedCount}).`);
 
       const articlesToProcess = relevantArticles.slice(0, maxArticles);
       const articles: import("@/lib/providers/news").NormalizedArticle[] = [];

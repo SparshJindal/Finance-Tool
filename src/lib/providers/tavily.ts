@@ -13,6 +13,18 @@ import type { NormalizedArticle, TickerInput } from "./news";
 
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 
+function cleanCompanyName(name: string): string {
+  return name.replace(/\b(Inc\.|Inc|Corp\.|Corp|Corporation|Ltd\.|Ltd|Limited|Company|Co\.|Co|Holdings|PLC)\b/gi, '').trim();
+}
+
+function isHighCollision(ticker: string, company: string): boolean {
+  const cleanTicker = ticker.split('.')[0].toUpperCase();
+  if (cleanTicker.length <= 3) return true;
+  const commonNames = ['apple', 'block', 'meta', 'alphabet', 'snow', 'target', 'square', 'amazon', 'zoom', 'roku', 'snap', 'box', 'gap', 'yelp', 'visa'];
+  if (commonNames.some(c => company.toLowerCase().includes(c))) return true;
+  return false;
+}
+
 /**
  * Build a disambiguated query for a holding.
  * Uses the full company name in quotes for exact matching, plus the ticker
@@ -23,12 +35,13 @@ function buildQuery(target: TickerInput): string {
   const parts: string[] = [];
 
   // Primary: full company name in quotes for exact phrase matching
-  parts.push(`"${target.name}"`);
+  const cleanName = cleanCompanyName(target.name);
+  parts.push(`"${cleanName}"`);
 
   // Add ticker symbol for additional disambiguation (helps for US stocks)
   const exchange = target.exchange?.toUpperCase();
   if (exchange !== "NSE" && exchange !== "BSE" && exchange !== "NS" && exchange !== "BO") {
-    parts.push(target.symbol);
+    parts.push(target.symbol.split('.')[0]);
   }
 
   // Always add "stock news" for financial context
@@ -40,8 +53,8 @@ function buildQuery(target: TickerInput): string {
   }
 
   // Add negative terms for top competitors to reduce confusion
-  // (e.g. exclude "Micron" for MCHP to avoid cross-contamination)
-  if (target.competitors && target.competitors.length > 0) {
+  // Only apply aggressive negative-term filtering for names with known high-collision risk
+  if (isHighCollision(target.symbol, target.name) && target.competitors && target.competitors.length > 0) {
     const negatives = target.competitors.slice(0, 2);
     for (const comp of negatives) {
       if (comp.name && comp.name.toLowerCase() !== target.name.toLowerCase()) {
