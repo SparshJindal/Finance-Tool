@@ -15,7 +15,7 @@ export function PolygonMesh({
   density = 1,
   distortion = 1,
   fadeMode = 'full',
-  intensity = 1.0
+  intensity = 0.6
 }: {
   density?: number
   distortion?: number

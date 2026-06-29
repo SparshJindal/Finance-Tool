@@ -107,12 +107,12 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
 
           <div style={{ marginBottom: 'var(--sp-4)', position: 'relative' }}>
             <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
-              Search Indian Stocks
+              Search Stocks
             </label>
             <input
               type="text"
               className="input"
-              placeholder="Start typing a ticker or company name (e.g. RELIANCE)..."
+              placeholder="Start typing a ticker or company name (US or Indian)..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
