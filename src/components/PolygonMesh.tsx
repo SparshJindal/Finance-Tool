@@ -14,8 +14,8 @@ interface Point {
 export function PolygonMesh({
   density = 1,
   distortion = 1,
-  fadeMode = 'radial',
-  intensity = 0.5
+  fadeMode = 'full',
+  intensity = 1.5
 }: {
   density?: number
   distortion?: number
