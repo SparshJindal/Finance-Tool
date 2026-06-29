@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, memo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Severity } from './Severity'
 import { RelevanceBadge } from './RelevanceBadge'
 import { submitFindingFeedback } from '@/app/actions'
@@ -58,6 +58,7 @@ export const FindingCard = memo(function FindingCard({
   disableLayout?: boolean
 }) {
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(finding.feedback)
+  const [confirmation, setConfirmation] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const isHighSeverity = finding.severity >= 4
@@ -66,8 +67,13 @@ export const FindingCard = memo(function FindingCard({
   const handleFeedback = (type: 'up' | 'down') => {
     const newFeedback = feedback === type ? null : type
     setFeedback(newFeedback)
-    startTransition(() => {
-      submitFindingFeedback(finding.id, newFeedback)
+    setConfirmation(null)
+    startTransition(async () => {
+      await submitFindingFeedback(finding.id, newFeedback)
+      if (newFeedback) {
+        setConfirmation(newFeedback === 'up' ? "Got it" : "Thanks — we'll surface fewer like this")
+        setTimeout(() => setConfirmation(null), 3000)
+      }
     })
   }
 
@@ -193,6 +199,25 @@ export const FindingCard = memo(function FindingCard({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexShrink: 0 }}>
+          {/* Confirmation Message */}
+          <AnimatePresence>
+            {confirmation && (
+              <motion.span
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, x: 10 }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, x: 10 }}
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--accent)',
+                  marginRight: 'var(--sp-2)',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                {confirmation}
+              </motion.span>
+            )}
+          </AnimatePresence>
+
           {/* Feedback thumbs */}
           <motion.button
             whileHover={reducedMotion ? undefined : { scale: 1.05 }}
