@@ -61,7 +61,7 @@ export const FindingCard = memo(function FindingCard({
   const [isPending, startTransition] = useTransition()
 
   const isHighSeverity = finding.severity >= 4
-  const pulseClass = (isHighSeverity && index < 5) ? 'severity-pulse attention-ping' : ''
+  const pulseClass = (!reducedMotion && isHighSeverity && index < 2) ? 'severity-pulse attention-ping' : ''
 
   const handleFeedback = (type: 'up' | 'down') => {
     const newFeedback = feedback === type ? null : type

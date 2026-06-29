@@ -432,7 +432,6 @@ export function DashboardShell({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
                 <motion.div
-                  layout={disableLayout ? false : true}
                   className="findings-feed"
                   style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}
                   variants={reduced ? undefined : containerVariants}
