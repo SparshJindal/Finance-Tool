@@ -18,7 +18,7 @@ export type FindingData = {
   sourceTitle: string
   questionText: string | null
   feedback: 'up' | 'down' | null
-  direction?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null
+  direction?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'Supports' | 'Threatens' | 'Neutral' | null
   confidence?: number | null
 }
 
@@ -136,15 +136,15 @@ export const FindingCard = memo(function FindingCard({
               fontSize: '10px',
               fontWeight: 500,
               fontFamily: 'var(--font-mono)',
-              color: finding.direction === 'BULLISH' ? 'var(--bullish)' : finding.direction === 'BEARISH' ? 'var(--bearish)' : 'var(--text-muted)',
+              color: (finding.direction === 'BULLISH' || finding.direction === 'Supports') ? 'var(--bullish)' : (finding.direction === 'BEARISH' || finding.direction === 'Threatens') ? 'var(--bearish)' : 'var(--text-muted)',
               background: 'var(--surface-overlay)',
               padding: '2px 6px',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border)',
             }}>
-              {finding.direction === 'BULLISH' && <><span>🟢</span> Supports thesis</>}
-              {finding.direction === 'BEARISH' && <><span>🔴</span> Threatens thesis</>}
-              {finding.direction === 'NEUTRAL' && <><span>⚪</span> Neutral</>}
+              {(finding.direction === 'BULLISH' || finding.direction === 'Supports') && <><span>🟢</span> Supports thesis</>}
+              {(finding.direction === 'BEARISH' || finding.direction === 'Threatens') && <><span>🔴</span> Threatens thesis</>}
+              {(finding.direction === 'NEUTRAL' || finding.direction === 'Neutral') && <><span>⚪</span> Neutral</>}
             </span>
           )}
           {finding.confidence != null && (

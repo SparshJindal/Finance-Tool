@@ -93,7 +93,7 @@ export default async function Page() {
     sourceTitle: f.article.title,
     questionText: f.question?.text || null,
     feedback: f.feedback as 'up' | 'down' | null,
-    direction: f.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null,
+    direction: f.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'Supports' | 'Threatens' | 'Neutral' | null,
     confidence: f.confidence,
   }))
 
@@ -107,7 +107,7 @@ export default async function Page() {
       severity: f.severity,
     }))
 
-  const totalThreats = findings.filter(f => f.direction !== 'NEUTRAL').length
+  const totalThreats = findings.filter(f => f.direction !== 'NEUTRAL' && f.direction !== 'Neutral').length
   const maxPortfolioSeverity = findings.length > 0 ? Math.max(...findings.map(f => f.severity)) : 1
 
   const lastScanAt = findingsRaw.length > 0 

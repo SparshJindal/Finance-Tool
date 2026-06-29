@@ -14,16 +14,30 @@ const judgeSchema = {
           articleIndex: { type: Type.INTEGER, description: "The 1-based index of the article in the list" },
           material: { type: Type.BOOLEAN, description: "True if the article contains highly relevant, impactful news about the holding" },
           severity: { type: Type.INTEGER, description: "1 to 5, where 5 is extremely impactful" },
-          direction: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
+          companyImpact: { type: Type.STRING, description: "positive, negative, or neutral — how this news impacts the company fundamentally, IGNORING the portfolio holding's direction." },
           answeredQuestionId: { type: Type.STRING, description: "The ID of the watch question this article most directly answers. If none, return empty string." },
           summary: { type: Type.STRING, description: "A concise 1-2 sentence summary of why this is material." }
         },
-        required: ["articleIndex", "material", "severity", "direction", "answeredQuestionId", "summary"]
+        required: ["articleIndex", "material", "severity", "companyImpact", "answeredQuestionId", "summary"]
       }
     }
   },
   required: ["results"]
 };
+
+export function deriveThesisLabel(directionLogic: string, companyImpact: string): string {
+  const isLong = directionLogic.toUpperCase() === 'LONG';
+  const isShort = directionLogic.toUpperCase() === 'SHORT';
+  const impact = companyImpact.toLowerCase();
+
+  if (impact === 'positive') {
+    return isLong ? 'Supports' : isShort ? 'Threatens' : 'Neutral';
+  }
+  if (impact === 'negative') {
+    return isLong ? 'Threatens' : isShort ? 'Supports' : 'Neutral';
+  }
+  return 'Neutral';
+}
 
 export async function judgeHoldingArticles(
   holding: { id: string, ticker: string, company: string, thesis: string, directionLogic: string, questions: {id: string, text: string}[] },
@@ -70,8 +84,8 @@ For each article:
   * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by ticker, company name, or known alias), return material=false and drop it.
 - Assign a severity score (1-5).
   * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5.
-- Assign a direction (BULLISH, BEARISH, or NEUTRAL) based on the "Direction Logic". Use the holding's thesis to add weight to the severity and determine the exact direction.
-  * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade direction to NEUTRAL instead of BULLISH or BEARISH.
+- Assign a companyImpact ("positive", "negative", or "neutral"). Determine if the news is fundamentally good (positive) or bad (negative) for the company itself, IGNORING whether the holding is LONG or SHORT. Use the holding's thesis to add weight to the severity.
+  * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade companyImpact to "neutral".
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
   * EXPLICIT LINK RULE: Require an EXPLICIT causal link between the article fact and the matched watch-question. Don't bolt a thesis question onto unrelated news.
 - Write a short 1-2 sentence summary of the material information.
@@ -106,12 +120,16 @@ ${contextStr}
           if (typeof r.articleIndex === 'number' && r.articleIndex >= 1 && r.articleIndex <= chunk.length) {
             chunkResults.push({
               ...r,
+              direction: deriveThesisLabel(holding.directionLogic, r.companyImpact || 'neutral'),
               articleId: chunk[r.articleIndex - 1].id
             });
           } else {
              // Handle cases where the model hallucinates an invalid index or returns articleId directly (if it ignored the schema somehow)
              if (r.articleId) {
-               chunkResults.push(r);
+               chunkResults.push({
+                 ...r,
+                 direction: deriveThesisLabel(holding.directionLogic, r.companyImpact || 'neutral')
+               });
              }
           }
         }
@@ -164,10 +182,17 @@ ${contextStr}
                   if (typeof t2r.articleIndex === 'number' && t2r.articleIndex >= 1 && t2r.articleIndex <= rejudgeArticles.length) {
                     const finalId = rejudgeArticles[t2r.articleIndex - 1].id;
                     const originalIdx = chunkResults.findIndex(r => r.articleId === finalId);
-                    if (originalIdx !== -1) chunkResults[originalIdx] = { ...t2r, articleId: finalId };
+                    if (originalIdx !== -1) chunkResults[originalIdx] = {
+                      ...t2r,
+                      direction: deriveThesisLabel(holding.directionLogic, t2r.companyImpact || 'neutral'),
+                      articleId: finalId
+                    };
                   } else if (t2r.articleId) {
                     const originalIdx = chunkResults.findIndex(r => r.articleId === t2r.articleId);
-                    if (originalIdx !== -1) chunkResults[originalIdx] = t2r;
+                    if (originalIdx !== -1) chunkResults[originalIdx] = {
+                      ...t2r,
+                      direction: deriveThesisLabel(holding.directionLogic, t2r.companyImpact || 'neutral')
+                    };
                   }
                 }
                 t2Success = true;
