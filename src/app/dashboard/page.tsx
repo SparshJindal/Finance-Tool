@@ -55,9 +55,14 @@ export default async function Page() {
     }
 
     const holdings = await prisma.holding.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-  })
+      where: { userId },
+      include: {
+        questions: {
+          select: { id: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
   const twoWeeksAgo = new Date()
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)

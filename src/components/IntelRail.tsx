@@ -13,6 +13,7 @@ type HoldingNav = {
   findingCount: number
   lastIngestedAt?: string | null
   lastRunStatus?: 'updated' | 'quiet' | 'failed' | 'cached' | null
+  isStudied?: boolean
 }
 
 function formatRelativeTime(dateStr?: string | null) {
@@ -322,36 +323,48 @@ function RailContent({
                 {h.maxSeverity > 0 && <Severity value={h.maxSeverity} size="sm" label={false} />}
               </div>
               
-              {/* Ephemeral status chip */}
-              {h.lastRunStatus ? (
-                <span style={{
-                  fontSize: '9px',
-                  fontFamily: 'var(--font-mono)',
-                  lineHeight: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: h.lastRunStatus === 'updated' 
-                    ? 'var(--bullish)' 
-                    : h.lastRunStatus === 'failed' 
-                      ? 'var(--bearish)' 
-                      : 'var(--text-muted)'
+              {/* Study Coverage & Scan Status indicators */}
+              <div style={{
+                fontSize: '9.5px',
+                fontFamily: 'var(--font-mono)',
+                lineHeight: 1.3,
+                color: 'var(--text-muted)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1px',
+                marginTop: '1.5px'
+              }}>
+                <span style={{ 
+                  color: h.isStudied ? 'var(--accent)' : 'var(--bearish)', 
+                  fontWeight: 500,
+                  fontSize: '9px'
                 }}>
-                  {h.lastRunStatus === 'updated' && `● Updated ${formatRelativeTime(h.lastIngestedAt)}`}
-                  {h.lastRunStatus === 'quiet' && `○ Quiet ${formatRelativeTime(h.lastIngestedAt)}`}
-                  {h.lastRunStatus === 'failed' && `✕ Run failed`}
-                  {h.lastRunStatus === 'cached' && `⏸ Cached`}
+                  {h.isStudied ? '✓ Studied' : '⚠️ Not studied'}
                 </span>
-              ) : h.lastIngestedAt ? (
-                <span style={{
-                  fontSize: '9px',
-                  fontFamily: 'var(--font-mono)',
-                  lineHeight: 1,
-                  color: 'var(--text-muted)'
-                }}>
-                  synced {formatRelativeTime(h.lastIngestedAt)}
-                </span>
-              ) : null}
+                
+                {h.lastRunStatus ? (
+                  <span style={{
+                    fontSize: '9px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: h.lastRunStatus === 'updated' 
+                      ? 'var(--bullish)' 
+                      : h.lastRunStatus === 'failed' 
+                        ? 'var(--bearish)' 
+                        : 'var(--text-muted)'
+                  }}>
+                    {h.lastRunStatus === 'updated' && `● Updated ${formatRelativeTime(h.lastIngestedAt)}`}
+                    {h.lastRunStatus === 'quiet' && `○ Quiet ${formatRelativeTime(h.lastIngestedAt)}`}
+                    {h.lastRunStatus === 'failed' && `✕ Run failed`}
+                    {h.lastRunStatus === 'cached' && `⏸ Cached`}
+                  </span>
+                ) : (
+                  <span>
+                    {h.lastIngestedAt ? `scan: ${formatRelativeTime(h.lastIngestedAt)}` : 'never scanned'}
+                  </span>
+                )}
+              </div>
             </div>
             
             <span style={{
