@@ -104,42 +104,43 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
 
           <div style={{ height: 'var(--sp-5)' }} />
 
-          <div style={{ marginBottom: 'var(--sp-4)', position: 'relative' }}>
+          <div style={{ marginBottom: 'var(--sp-4)' }}>
             <label className="section-label" style={{ display: 'block', marginBottom: 'var(--sp-2)' }}>
               Search Stocks
             </label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Start typing a ticker or company name (US or Indian)..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                if (selectedTicker) setSelectedTicker(null)
-              }}
-              autoComplete="off"
-            />
-            
-            {/* Hidden fields for the form action */}
-            <input type="hidden" name="ticker" value={selectedTicker?.symbol || searchQuery.toUpperCase()} />
-            <input type="hidden" name="company" value={selectedTicker?.company || searchQuery} />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="Start typing a ticker or company name (US or Indian)..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  if (selectedTicker) setSelectedTicker(null)
+                }}
+                autoComplete="off"
+              />
+              
+              {/* Hidden fields for the form action */}
+              <input type="hidden" name="ticker" value={selectedTicker?.symbol || searchQuery.toUpperCase()} />
+              <input type="hidden" name="company" value={selectedTicker?.company || searchQuery} />
 
-            {/* Dropdown Results */}
-            {searchResults.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: 0,
-                right: 0,
-                marginBottom: '4px',
-                background: 'var(--base-1)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-lg)',
-                zIndex: 10,
-                maxHeight: '250px',
-                overflowY: 'auto',
-              }}>
+              {/* Dropdown Results */}
+              {searchResults.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '4px',
+                  background: 'var(--base-1)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-lg)',
+                  zIndex: 50,
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                }}>
                 {searchResults.map((ticker) => (
                   <button
                     key={ticker.symbol}
@@ -173,6 +174,7 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
                 ))}
               </div>
             )}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--sp-6)', marginBottom: 'var(--sp-4)' }}>
