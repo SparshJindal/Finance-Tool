@@ -174,6 +174,23 @@ export async function deleteHolding(formData: FormData) {
   }
 }
 
+export async function deleteAllHoldings(formData?: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
+  try {
+    await prisma.holding.deleteMany({
+      where: { userId }
+    })
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err) {
+    console.error("Failed to delete entire portfolio:", err)
+    return { error: 'Failed to delete entire portfolio' }
+  }
+}
+
 export async function studyHolding(formData: FormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")

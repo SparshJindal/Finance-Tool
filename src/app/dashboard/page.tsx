@@ -5,6 +5,7 @@ import {
   addHolding,
   updateHolding,
   deleteHolding,
+  deleteAllHoldings,
   studyAllHoldings,
   studyHolding,
   studyBatchHoldings,
@@ -120,6 +121,7 @@ export default async function Page() {
         studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
         studyBatchHoldingsAction={studyBatchHoldings as unknown as (fd: FormData) => Promise<any>}
         sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
+        deleteAllHoldingsAction={deleteAllHoldings as unknown as (fd?: FormData) => Promise<{success?: boolean, error?: string}>}
         logOutAction={logOut as unknown as (fd: FormData) => void}
       />
     </div>

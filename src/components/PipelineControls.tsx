@@ -11,6 +11,7 @@ export function PipelineControls({
   studyHoldingAction,
   studyBatchHoldingsAction,
   sendDigestAction,
+  deleteAllHoldingsAction,
   logOutAction
 }: {
   holdings: { id: string, ticker: string }[]
@@ -19,6 +20,7 @@ export function PipelineControls({
   studyHoldingAction: (fd: FormData) => Promise<any>
   studyBatchHoldingsAction: (fd: FormData) => Promise<any>
   sendDigestAction: (fd: FormData) => void | Promise<void>
+  deleteAllHoldingsAction: (fd?: FormData) => Promise<{success?: boolean, error?: string}>
   logOutAction: (fd: FormData) => void | Promise<void>
 }) {
   const [isPendingDigest, startTransitionDigest] = useTransition()
@@ -100,6 +102,23 @@ export function PipelineControls({
 
     setPipelineState({ active: false, text: '', percent: 0 })
     alert("Ingest Complete! Check your dashboard for any new findings.")
+  }
+
+  const handleDeleteAll = async () => {
+    if (holdings.length === 0) return
+    const confirmed = window.confirm("Are you SURE you want to delete your entire portfolio? This will permanently wipe all your holdings, findings, and history. This action cannot be undone.")
+    if (!confirmed) return
+
+    setPipelineState({ active: true, text: 'Deleting portfolio...', percent: 50 })
+    try {
+      const res = await deleteAllHoldingsAction()
+      if (res.error) {
+        alert(res.error)
+      }
+    } catch (e: any) {
+      alert("Failed to delete portfolio")
+    }
+    setPipelineState({ active: false, text: '', percent: 0 })
   }
 
   return (
@@ -186,6 +205,16 @@ export function PipelineControls({
             Log Out
           </button>
         </form>
+
+        <button 
+          type="button" 
+          onClick={handleDeleteAll}
+          className="btn" 
+          style={{ width: '100%', justifyContent: 'center', color: 'var(--bearish)', marginTop: 'var(--sp-2)' }}
+          disabled={isAnyPending || holdings.length === 0}
+        >
+          Delete Entire Portfolio
+        </button>
       </div>
     </>
   )
