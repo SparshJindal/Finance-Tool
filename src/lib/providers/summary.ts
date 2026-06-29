@@ -130,7 +130,8 @@ ${contextStr}
     }
     
     if (i < chunks.length - 1) {
-      await new Promise(r => setTimeout(r, 1000));
+      // 2s delay between chunks to pace TPM under the 6k limit
+      await new Promise(r => setTimeout(r, 2000));
     }
   }
 

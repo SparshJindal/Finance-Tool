@@ -87,6 +87,30 @@ function relevanceFilter(
     }
   }
 
+  // Sort kept articles by relevance
+  kept.sort((a, b) => {
+    // 1. Title match is highest priority
+    const aTitle = mentionsCompany(a.title);
+    const bTitle = mentionsCompany(b.title);
+    if (aTitle && !bTitle) return -1;
+    if (!aTitle && bTitle) return 1;
+
+    // 2. Source priority (question > primary > topic)
+    const sourceScore = (src?: string) => {
+      if (src === 'question') return 3;
+      if (src === 'primary') return 2;
+      if (src === 'topic') return 1;
+      return 0;
+    };
+    
+    const aScore = sourceScore(a.retrievalSource);
+    const bScore = sourceScore(b.retrievalSource);
+    if (aScore !== bScore) return bScore - aScore;
+
+    // 3. Fallback to newest first
+    return b.publishedAt.getTime() - a.publishedAt.getTime();
+  });
+
   return { kept, dropped };
 }
 
@@ -116,7 +140,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   let totalFindingsSaved = 0;
   let quotaExhausted = false;
   const pushMinSeverity = parseInt(process.env.PUSH_MIN_SEVERITY || "3", 10);
-  const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_RUN || "150", 10);
+  const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_HOLDING || "10", 10);
 
   for (let i = 0; i < holdings.length; i++) {
     const h = holdings[i];
@@ -209,6 +233,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         where: { url: { in: fetchedUrls } }
       });
 
+      const maxBacklog = parseInt(process.env.MAX_BACKLOG_PER_HOLDING || "5", 10);
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       const unjudgedDbArticles = await prisma.article.findMany({
         where: {
@@ -220,7 +245,9 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
             { excerpt: { contains: h.ticker, mode: 'insensitive' } },
             { excerpt: { contains: h.company, mode: 'insensitive' } },
           ]
-        }
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: maxBacklog
       });
 
       // Pass unjudged db articles through the strict memory relevanceFilter
