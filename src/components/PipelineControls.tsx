@@ -244,19 +244,19 @@ export function PipelineControls({
                 {/* Updated */}
                 {runSummary.updated.length > 0 && (
                   <div style={{ color: 'var(--bullish)', marginBottom: 'var(--sp-1)' }}>
-                    ✓ {runSummary.updated.length} updated ({runSummary.updated.join(', ')}) · +{runSummary.findingsAdded} finding{runSummary.findingsAdded !== 1 ? 's' : ''}
+                    ✓ {runSummary.updated.length} updated ({runSummary.updated.length <= 4 ? runSummary.updated.join(', ') : `${runSummary.updated.slice(0, 4).join(', ')} and ${runSummary.updated.length - 4} others`}) · +{runSummary.findingsAdded} finding{runSummary.findingsAdded !== 1 ? 's' : ''}
                   </div>
                 )}
                 {/* Quiet */}
                 {runSummary.quiet.length > 0 && (
                   <div style={{ color: 'var(--text-secondary)', marginBottom: 'var(--sp-1)' }}>
-                    ○ {runSummary.quiet.length} quiet ({runSummary.quiet.join(', ')})
+                    ○ {runSummary.quiet.length} quiet ({runSummary.quiet.length <= 4 ? runSummary.quiet.join(', ') : `${runSummary.quiet.slice(0, 4).join(', ')} and ${runSummary.quiet.length - 4} others`})
                   </div>
                 )}
                 {/* Cached */}
                 {runSummary.cached.length > 0 && (
                   <div style={{ color: 'var(--text-muted)', marginBottom: 'var(--sp-1)' }}>
-                    ⏸ {runSummary.cached.length} cached ({runSummary.cached.join(', ')})
+                    ⏸ {runSummary.cached.length} cached ({runSummary.cached.length <= 4 ? runSummary.cached.join(', ') : `${runSummary.cached.slice(0, 4).join(', ')} and ${runSummary.cached.length - 4} others`})
                   </div>
                 )}
                 {/* Failed */}
