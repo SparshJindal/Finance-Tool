@@ -25,7 +25,13 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
     
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/tickers/search?q=${encodeURIComponent(searchQuery)}`)
+        const res = await fetch(`/api/tickers/search?q=${encodeURIComponent(searchQuery)}`, {
+          cache: 'no-store',
+          headers: {
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          }
+        })
         if (!res.ok) {
           const text = await res.text()
           throw new Error(`API returned ${res.status}: ${text.slice(0, 50)}`)
