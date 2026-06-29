@@ -163,6 +163,10 @@ export async function deleteHolding(formData: FormData) {
     })
     if (!existing) return { error: 'Not found' }
 
+    await prisma.finding.deleteMany({ where: { holdingId: id } })
+    await prisma.question.deleteMany({ where: { holdingId: id } })
+    await prisma.competitor.deleteMany({ where: { holdingId: id } })
+    
     await prisma.holding.delete({
       where: { id }
     })
@@ -180,9 +184,14 @@ export async function deleteAllHoldings(formData?: FormData) {
   const userId = session.user.id
 
   try {
-    await prisma.holding.deleteMany({
-      where: { userId }
-    })
+    const holdings = await prisma.holding.findMany({ where: { userId }, select: { id: true } })
+    const holdingIds = holdings.map(h => h.id)
+    if (holdingIds.length > 0) {
+      await prisma.finding.deleteMany({ where: { holdingId: { in: holdingIds } } })
+      await prisma.question.deleteMany({ where: { holdingId: { in: holdingIds } } })
+      await prisma.competitor.deleteMany({ where: { holdingId: { in: holdingIds } } })
+      await prisma.holding.deleteMany({ where: { id: { in: holdingIds } } })
+    }
     revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
@@ -322,6 +331,23 @@ export async function studyBatchHoldings(formData: FormData) {
           result.questions.forEach((q: any) => {
             allQuestionsToInsert.push({
               holdingId,
+              category: q.category,
+              text: q.text
+            })
+          })
+        }
+      }
+    }
+
+    // Fallback: If any holding was missed by the batch LLM call, generate them individually
+    for (const h of holdingsData) {
+      const isMissing = !allQuestionsToInsert.some(q => q.holdingId === h.id)
+      if (isMissing) {
+        const fallbackQuestions = await generateWatchQuestions(h.company, h.thesis, h.sector, h.competitors).catch(() => [])
+        if (fallbackQuestions && Array.isArray(fallbackQuestions)) {
+          fallbackQuestions.forEach(q => {
+            allQuestionsToInsert.push({
+              holdingId: h.id,
               category: q.category,
               text: q.text
             })
