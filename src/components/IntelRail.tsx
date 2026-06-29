@@ -11,7 +11,19 @@ type HoldingNav = {
   ticker: string
   maxSeverity: number
   findingCount: number
+  lastIngestedAt?: string | null
+  lastRunStatus?: 'updated' | 'quiet' | 'failed' | 'cached' | null
 }
+
+function formatRelativeTime(dateStr?: string | null) {
+  if (!dateStr) return '';
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 
 export function IntelRail({
   holdings,
@@ -203,6 +215,17 @@ function RailContent({
         }}>
           IST · synced {syncAgo}
         </div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '9px',
+          color: 'var(--text-secondary)',
+          marginTop: 'var(--sp-2)',
+          borderTop: '1px dashed var(--border)',
+          paddingTop: 'var(--sp-2)',
+          lineHeight: 1.4,
+        }}>
+          Last scan: {syncAgo} · LLM: Groq · {totalThreats} findings
+        </div>
       </div>
 
       <div style={{ height: '1px', background: 'var(--border)', margin: '0 var(--sp-4)' }} />
@@ -285,18 +308,52 @@ function RailContent({
               transition: 'background 0.15s ease',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-xs)',
-                fontWeight: 600,
-                color: activeHolding === h.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {h.ticker}
-              </span>
-              {h.maxSeverity > 0 && <Severity value={h.maxSeverity} size="sm" label={false} />}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, gap: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
+                <span style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  color: activeHolding === h.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {h.ticker}
+                </span>
+                {h.maxSeverity > 0 && <Severity value={h.maxSeverity} size="sm" label={false} />}
+              </div>
+              
+              {/* Ephemeral status chip */}
+              {h.lastRunStatus ? (
+                <span style={{
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-mono)',
+                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: h.lastRunStatus === 'updated' 
+                    ? 'var(--bullish)' 
+                    : h.lastRunStatus === 'failed' 
+                      ? 'var(--bearish)' 
+                      : 'var(--text-muted)'
+                }}>
+                  {h.lastRunStatus === 'updated' && `● Updated ${formatRelativeTime(h.lastIngestedAt)}`}
+                  {h.lastRunStatus === 'quiet' && `○ Quiet ${formatRelativeTime(h.lastIngestedAt)}`}
+                  {h.lastRunStatus === 'failed' && `✕ Run failed`}
+                  {h.lastRunStatus === 'cached' && `⏸ Cached`}
+                </span>
+              ) : h.lastIngestedAt ? (
+                <span style={{
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-mono)',
+                  lineHeight: 1,
+                  color: 'var(--text-muted)'
+                }}>
+                  synced {formatRelativeTime(h.lastIngestedAt)}
+                </span>
+              ) : null}
             </div>
+            
             <span style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--text-2xs)',

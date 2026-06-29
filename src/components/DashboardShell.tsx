@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
+import { PipelineControls } from './PipelineControls'
 import { FindingCard, FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
 import { ManagePortfolioPanel } from './ManagePortfolioPanel'
@@ -11,6 +12,7 @@ import { ImportHoldingsPanel } from './ImportHoldingsPanel'
 import { ProfilePanel } from './ProfilePanel'
 import { PolygonMesh } from './PolygonMesh'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import type { HoldingRunResult } from '@/lib/pipeline'
 
 const containerVariants = {
   hidden: {},
@@ -74,7 +76,16 @@ export function DashboardShell({
   userProfile,
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
+  const [holdingRunStatuses, setHoldingRunStatuses] = useState<Record<string, HoldingRunResult>>({})
   const reduced = useReducedMotion()
+
+  const handleRunComplete = useCallback((results: HoldingRunResult[]) => {
+    setHoldingRunStatuses(prev => {
+      const next = { ...prev }
+      results.forEach(r => { next[r.holdingId] = r })
+      return next
+    })
+  }, [])
   
   // Format holding nav data for IntelRail
   const navHoldings = holdings.map(h => {
@@ -83,7 +94,9 @@ export function DashboardShell({
       id: h.id,
       ticker: h.ticker,
       maxSeverity: hFindings.reduce((max, f) => Math.max(max, f.severity), 0),
-      findingCount: hFindings.length
+      findingCount: hFindings.length,
+      lastIngestedAt: h.lastIngestedAt ? (typeof h.lastIngestedAt === 'string' ? h.lastIngestedAt : h.lastIngestedAt.toISOString()) : null,
+      lastRunStatus: holdingRunStatuses[h.id]?.status ?? null,
     }
   })
 
@@ -102,6 +115,22 @@ export function DashboardShell({
 
   const displayedFindings = filteredFindings.slice(0, displayCount)
   const disableLayout = displayedFindings.length > 25
+
+  const controlsWithCallback = useMemo(() => {
+    if (!controls) return null
+    try {
+      const children = React.Children.map((controls as any).props.children, child => {
+        if (child && child.type === PipelineControls) {
+          return React.cloneElement(child, { onRunComplete: handleRunComplete })
+        }
+        return child
+      })
+      return React.cloneElement(controls as any, {}, children)
+    } catch (e) {
+      console.error("Failed to inject onRunComplete", e)
+      return controls
+    }
+  }, [controls, handleRunComplete])
 
   return (
     <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -124,7 +153,7 @@ export function DashboardShell({
           maxPortfolioSeverity={maxPortfolioSeverity}
           activeHolding={activeHolding}
           onHoldingClick={setActiveHolding}
-          controls={controls}
+          controls={controlsWithCallback}
         />
         
         <main style={{ flex: 1, padding: 'var(--sp-8) var(--sp-4)', paddingBottom: 'var(--sp-16)' }} className="md:ml-[220px]">

@@ -121,15 +121,60 @@ export const FindingCard = memo(function FindingCard({
             {finding.company}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
-          {finding.direction === 'BULLISH' && <span title="Bullish">🟢</span>}
-          {finding.direction === 'BEARISH' && <span title="Bearish">🔴</span>}
-          {finding.direction === 'NEUTRAL' && <span title="Neutral">⚪</span>}
-          {finding.confidence != null && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{finding.confidence}%</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+          {finding.direction && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '10px',
+              fontWeight: 500,
+              fontFamily: 'var(--font-mono)',
+              color: finding.direction === 'BULLISH' ? 'var(--bullish)' : finding.direction === 'BEARISH' ? 'var(--bearish)' : 'var(--text-muted)',
+              background: 'var(--surface-overlay)',
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+            }}>
+              {finding.direction === 'BULLISH' && <><span>🟢</span> Supports thesis</>}
+              {finding.direction === 'BEARISH' && <><span>🔴</span> Threatens thesis</>}
+              {finding.direction === 'NEUTRAL' && <><span>⚪</span> Neutral</>}
+            </span>
+          )}
+          {finding.confidence != null && (
+            <span style={{
+              fontSize: '10px',
+              fontWeight: 500,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)',
+              background: 'var(--surface-overlay)',
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+            }}>
+              confidence: {finding.confidence}%
+            </span>
+          )}
           <RelevanceBadge severity={finding.severity} size="sm" />
           <Severity value={finding.severity} size="sm" />
         </div>
       </div>
+
+      {/* Promoted Question Text */}
+      {finding.questionText && (
+        <div style={{
+          background: 'var(--surface-overlay)',
+          borderLeft: '3px solid var(--accent)',
+          padding: 'var(--sp-2) var(--sp-3)',
+          borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-secondary)',
+          fontFamily: 'var(--font-ui)',
+          lineHeight: 1.4,
+        }}>
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Flagged because:</span> {finding.questionText}
+        </div>
+      )}
 
       {/* Summary — secondary weight */}
       <p style={{
@@ -145,21 +190,6 @@ export const FindingCard = memo(function FindingCard({
       {/* Meta bottom: question match · source link · feedback */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flex: 1, minWidth: 0 }}>
-          {finding.questionText && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
-              <span className="label" style={{ background: 'var(--surface-overlay)', color: 'var(--text-muted)', border: '1px solid var(--border)', flexShrink: 0 }}>MATCH</span>
-              <span style={{
-                fontFamily: 'var(--font-ui)',
-                fontSize: 'var(--text-xs)',
-                color: 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {finding.questionText}
-              </span>
-            </div>
-          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexShrink: 0 }}>

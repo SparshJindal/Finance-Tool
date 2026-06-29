@@ -1,69 +1,100 @@
-import 'dotenv/config'
+import csvParser from 'csv-parser'
+import https from 'https'
+import fs from 'fs'
 import { prisma } from '../src/lib/db'
-import fetch from 'node-fetch'
 
-async function seedTickers() {
-  console.log("Fetching NSE Equity list...")
-  
-  try {
-    const res = await fetch("https://archives.nseindia.com/content/equities/EQUITY_L.csv", {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      }
-    })
-    
-    if (!res.ok) {
-      throw new Error(`Failed to fetch NSE data: ${res.status} ${res.statusText}`)
-    }
-    
-    const csvData = await res.text()
-    
-    // Parse CSV
-    const lines = csvData.split('\n').map(line => line.trim()).filter(line => line.length > 0)
-    // Remove header
-    const header = lines.shift()
-    
-    if (!header || !header.includes('SYMBOL')) {
-      throw new Error("Invalid CSV format received from NSE")
-    }
-
-    const tickers = []
-    
-    for (const line of lines) {
-      // Split by comma, but handle quotes if necessary (NSE CSV is usually simple comma separated)
-      const parts = line.split(',')
-      if (parts.length >= 2) {
-        const symbol = parts[0].trim()
-        const company = parts[1].trim()
-        
-        if (symbol && company && symbol !== 'SYMBOL') {
-          // Append .NS to make it Yahoo Finance compatible if they ever want to fetch quotes
-          tickers.push({
-            symbol: `${symbol}.NS`,
-            company: company,
-            exchange: 'NSE',
-            sector: parts.length > 2 ? parts[2].trim() : null
-          })
+async function fetchJson(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Node.js' } }, (res) => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data))
+        } catch (e) {
+          reject(e)
         }
+      })
+    }).on('error', reject)
+  })
+}
+
+async function fetchCsv(url: string): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const results: any[] = []
+    https.get(url, { headers: { 'User-Agent': 'Node.js' } }, (res) => {
+      res.pipe(csvParser())
+        .on('data', (data) => results.push(data))
+        .on('end', () => resolve(results))
+        .on('error', reject)
+    }).on('error', reject)
+  })
+}
+
+async function seed() {
+  console.log("Starting ticker seed process...")
+  const tickers: any[] = []
+  const seen = new Set()
+
+  try {
+    // 1. Fetch Top 500 US companies (S&P 500)
+    console.log("Fetching US (S&P 500) companies...")
+    const sp500Url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
+    const usData = await fetchCsv(sp500Url)
+    for (const item of usData) {
+      if (!seen.has(item.Symbol)) {
+        tickers.push({
+          symbol: item.Symbol,
+          company: item.Security || item.Name,
+          exchange: "US",
+          sector: item['GICS Sector'] || item.Sector || null,
+        })
+        seen.add(item.Symbol)
       }
     }
+    console.log(`Loaded ${usData.length} US tickers.`)
+
+    // 2. Fetch Indian companies (NSE Official List)
+    console.log("Fetching Indian (NSE) companies...")
+    const nseUrl = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+    const indData = await fetchCsv(nseUrl)
+    for (const item of indData) {
+      const symbol = item.SYMBOL || item.Symbol
+      const company = item['NAME OF COMPANY'] || item['Company Name'] || Object.values(item)[1]
+      
+      if (symbol && company && !seen.has(`${symbol}.NS`)) {
+        tickers.push({
+          symbol: `${symbol}.NS`, // Append .NS for NSE
+          company: company.trim(),
+          exchange: "NSE",
+          sector: item[' SERIES'] || item.SERIES || null,
+        })
+        seen.add(`${symbol}.NS`)
+      }
+    }
+    console.log(`Loaded ${indData.length} Indian tickers.`)
+
+    // Insert into DB
+    console.log(`Inserting ${tickers.length} total tickers into DB (skipping duplicates)...`)
     
-    console.log(`Found ${tickers.length} tickers. Inserting into database...`)
-    
-    // Bulk insert with skipDuplicates
-    const result = await prisma.marketTicker.createMany({
-      data: tickers,
-      skipDuplicates: true,
-    })
-    
-    console.log(`\nSeeding complete! Inserted ${result.count} new tickers.`)
-    
-  } catch (error) {
-    console.error("Error seeding tickers:", error)
+    // We do it in chunks of 500 to not overload the DB connection
+    const CHUNK_SIZE = 500
+    for (let i = 0; i < tickers.length; i += CHUNK_SIZE) {
+      const chunk = tickers.slice(i, i + CHUNK_SIZE)
+      await prisma.marketTicker.createMany({
+        data: chunk,
+        skipDuplicates: true,
+      })
+      console.log(`Inserted chunk ${Math.floor(i / CHUNK_SIZE) + 1}/${Math.ceil(tickers.length / CHUNK_SIZE)}`)
+    }
+
+    console.log("Seed complete!")
+
+  } catch (err) {
+    console.error("Failed to seed:", err)
   } finally {
     await prisma.$disconnect()
   }
 }
 
-seedTickers()
+seed()

@@ -1,12 +1,17 @@
-/**
- * <Severity />
- *
- * A 5-segment bar chip rendered in JetBrains Mono.
- * Each segment lights up to the level, dimming remaining ones.
- * Dark terminal style with subtle glow on active segments.
- */
+'use client'
+
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+
+const legend = {
+  1: 'Noise',
+  2: 'Minor',
+  3: 'Notable',
+  4: 'Significant',
+  5: 'Thesis-critical'
+}
+
 
 export function Severity({
   value,
@@ -17,6 +22,7 @@ export function Severity({
   size?: 'sm' | 'md'
   label?: boolean
 }) {
+  const [hovered, setHovered] = useState(false)
   const clamped = Math.min(5, Math.max(1, Math.round(value)))
 
   // Per-level color tokens
@@ -37,16 +43,42 @@ export function Severity({
     <motion.span
       animate={!reduced && clamped >= 4 ? { opacity: [1, 0.6, 1] } : undefined}
       transition={!reduced && clamped >= 4 ? { repeat: Infinity, duration: 2.2, ease: "easeInOut" } : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: `${gap + 4}px`,
         fontFamily: 'var(--font-mono)',
         fontVariantNumeric: 'tabular-nums',
+        position: 'relative',
+        cursor: 'help',
       }}
-      aria-label={`Severity ${clamped} of 5`}
-      title={`Severity ${clamped}/5`}
+      aria-label={`Severity ${clamped} of 5: ${legend[clamped as 1|2|3|4|5]}`}
+      title={`Severity ${clamped}/5: ${legend[clamped as 1|2|3|4|5]}`}
     >
+      {hovered && (
+        <span style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%) translateY(-6px)',
+          background: 'var(--surface-elevated)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-primary)',
+          padding: '4px 8px',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: '9px',
+          fontFamily: 'var(--font-mono)',
+          whiteSpace: 'nowrap',
+          zIndex: 999,
+          pointerEvents: 'none',
+          boxShadow: 'var(--shadow-md)',
+          lineHeight: 1,
+        }}>
+          {clamped} · {legend[clamped as 1|2|3|4|5]}
+        </span>
+      )}
       {/* Segment bar */}
       <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: `${gap}px` }}>
         {Array.from({ length: 5 }, (_, i) => {

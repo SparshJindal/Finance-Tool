@@ -8,6 +8,14 @@ import { fetchQuote } from "@/lib/providers/quote";
 import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
 import type { NormalizedArticle } from "@/lib/providers/news";
 
+export type HoldingRunResult = {
+  holdingId: string
+  ticker: string
+  status: 'updated' | 'quiet' | 'failed' | 'cached'
+  findingsAdded: number
+  reason?: 'LLM_QUOTA_EXHAUSTED' | 'NO_NEW_ARTICLES' | 'FETCH_ERROR' | 'JUDGE_ERROR'
+}
+
 /**
  * Zero-token keyword relevance filter applied BEFORE the LLM judge.
  * Drops articles that don't mention the company, keeping the LLM budget for genuine hits.
@@ -139,11 +147,13 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   let clustersFormed = 0;
   let totalFindingsSaved = 0;
   let quotaExhausted = false;
+  const holdingResults: HoldingRunResult[] = [];
   const pushMinSeverity = parseInt(process.env.PUSH_MIN_SEVERITY || "3", 10);
   const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_HOLDING || "10", 10);
 
   for (let i = 0; i < holdings.length; i++) {
     const h = holdings[i];
+    let holdingFindingsAdded = 0;
     try {
       console.log(`[ingestNews] Processing holding ${i + 1}/${holdings.length}: ${h.ticker} (${h.company})`);
       
@@ -273,6 +283,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         console.log(`[ingestNews] No new or unjudged articles to evaluate for ${h.ticker}.`);
         await prisma.holding.update({ where: { id: h.id }, data: { lastIngestedAt: new Date() }});
         if (cacheStamps.length > 0) await markFetched(cacheStamps);
+        holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'cached', findingsAdded: 0, reason: 'NO_NEW_ARTICLES' });
         continue;
       }
 
@@ -355,6 +366,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
               }
             }
             totalFindingsSaved++;
+            holdingFindingsAdded++;
           } catch (findingErr) {
             console.error(`[ingestNews] Failed to process finding for article ${j.articleId} on holding ${h.ticker}. Skipping. Error:`, findingErr);
           }
@@ -371,13 +383,22 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         await markFetched(cacheStamps);
       }
 
+      holdingResults.push({
+        holdingId: h.id,
+        ticker: h.ticker,
+        status: holdingFindingsAdded > 0 ? 'updated' : 'quiet',
+        findingsAdded: holdingFindingsAdded
+      });
+
     } catch (error) {
       if (error instanceof LlmQuotaExhaustedError) {
         console.error(`[ingestNews] LLM daily quota exhausted. Aborting remaining holdings. Error: ${error.message}`);
         quotaExhausted = true;
+        holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' });
         break; // Stop processing further holdings gracefully
       }
       console.error(`[ingestNews] Critical failure processing holding ${h.ticker}. Skipping to next. Error:`, error);
+      holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'FETCH_ERROR' });
     }
   }
 
@@ -422,7 +443,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     newUpserted: upsertedCount,
     clustersFormed,
     findingsSaved: totalFindingsSaved,
-    quotaExhausted
+    quotaExhausted,
+    holdingResults
   };
 
   console.log("[ingestNews] Pipeline Fully Complete.", report);
