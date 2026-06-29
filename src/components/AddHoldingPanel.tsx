@@ -19,9 +19,10 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
       try {
         const res = await fetch(`/api/tickers/search?q=${encodeURIComponent(searchQuery)}`)
         const data = await res.json()
+        console.log('Search API returned:', data)
         setSearchResults(data.tickers || [])
       } catch (err) {
-        console.error(err)
+        console.error('Search API error:', err)
       }
     }, 300)
     return () => clearTimeout(timer)
@@ -126,7 +127,7 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
               <input type="hidden" name="company" value={selectedTicker?.company || searchQuery} />
 
               {/* Dropdown Results */}
-              {searchResults.length > 0 && (
+              {(searchResults.length > 0 || searchQuery.length > 0) && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
@@ -141,7 +142,11 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
                   maxHeight: '250px',
                   overflowY: 'auto',
                 }}>
-                {searchResults.map((ticker) => (
+                  {searchResults.length === 0 ? (
+                    <div style={{ padding: 'var(--sp-3) var(--sp-4)', color: 'var(--text-muted)' }}>
+                      No results found or loading...
+                    </div>
+                  ) : searchResults.map((ticker) => (
                   <button
                     key={ticker.symbol}
                     type="button"
