@@ -9,20 +9,34 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MarketTicker[]>([])
   const [selectedTicker, setSelectedTicker] = useState<MarketTicker | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     if (!searchQuery || selectedTicker) {
       setSearchResults([])
+      setIsLoading(false)
+      setErrorMsg('')
       return
     }
+    
+    setIsLoading(true)
+    setErrorMsg('')
+    
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/tickers/search?q=${encodeURIComponent(searchQuery)}`)
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(`API returned ${res.status}: ${text.slice(0, 50)}`)
+        }
         const data = await res.json()
-        console.log('Search API returned:', data)
         setSearchResults(data.tickers || [])
-      } catch (err) {
+      } catch (err: any) {
         console.error('Search API error:', err)
+        setErrorMsg(err.message || 'Unknown error occurred')
+      } finally {
+        setIsLoading(false)
       }
     }, 300)
     return () => clearTimeout(timer)
@@ -127,7 +141,7 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
               <input type="hidden" name="company" value={selectedTicker?.company || searchQuery} />
 
               {/* Dropdown Results */}
-              {(searchResults.length > 0 || searchQuery.length > 0) && (
+              {(searchResults.length > 0 || searchQuery.length > 0) && !selectedTicker && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
@@ -142,9 +156,17 @@ export function AddHoldingPanel({ action }: { action: (fd: FormData) => void | P
                   maxHeight: '250px',
                   overflowY: 'auto',
                 }}>
-                  {searchResults.length === 0 ? (
+                  {isLoading ? (
                     <div style={{ padding: 'var(--sp-3) var(--sp-4)', color: 'var(--text-muted)' }}>
-                      No results found or loading...
+                      Searching...
+                    </div>
+                  ) : errorMsg ? (
+                    <div style={{ padding: 'var(--sp-3) var(--sp-4)', color: 'var(--error)' }}>
+                      {errorMsg}
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{ padding: 'var(--sp-3) var(--sp-4)', color: 'var(--text-muted)' }}>
+                      No results found for "{searchQuery}"
                     </div>
                   ) : searchResults.map((ticker) => (
                   <button
