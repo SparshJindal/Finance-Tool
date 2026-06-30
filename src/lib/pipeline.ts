@@ -16,19 +16,66 @@ export type HoldingRunResult = {
   reason?: 'LLM_QUOTA_EXHAUSTED' | 'NO_NEW_ARTICLES' | 'FETCH_ERROR' | 'JUDGE_ERROR'
 }
 
-function getTokens(text: string): Set<string> {
-  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'have', 'are', 'was', 'were', 'will', 'say', 'says', 'said', 'has', 'had', 'its', 'their', 'they', 'after', 'over', 'more', 'than', 'which', 'what', 'who', 'when', 'where', 'why', 'how', 'about', 'news', 'stock', 'shares', 'company', 'inc', 'corp', 'new', 'first', 'update', 'today', 'report', 'reports', 'to', 'in', 'of', 'a', 'on', 'by', 'is', 'it', 'as', 'at', 'an', 'be']);
-  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
-  return new Set(words);
+function buildEventSignature(title: string, excerpt: string): { entities: Set<string>, numbers: Set<string>, actions: Set<string> } {
+  const entities = new Set<string>();
+  const numbers = new Set<string>();
+  const actions = new Set<string>();
+
+  const titleTokens = title.split(/[\s,;:()[\]"']+/);
+  const textTokens = (title + " " + excerpt).split(/[\s,;:()[\]"']+/);
+
+  const stopWordsCaps = new Set(['The', 'A', 'An', 'In', 'On', 'At', 'To', 'For', 'Of', 'With', 'By', 'From', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+  
+  for (const t of titleTokens) {
+    if (/^[A-Z][a-zA-Z0-9.&-]+$/.test(t)) {
+      if (!stopWordsCaps.has(t)) {
+        entities.add(t.toLowerCase());
+      }
+    }
+  }
+
+  for (const t of textTokens) {
+    if (/^\$?\d+(\.\d+)?[bmkBMK%]?$/.test(t)) {
+      numbers.add(t.replace(/\s+/g, '').toUpperCase());
+    }
+  }
+
+  const actionKeywords = new Set([
+    'deal', 'acquire', 'merger', 'lawsuit', 'earnings', 'guidance', 'recall',
+    'partnership', 'launch', 'ban', 'approval', 'downgrade', 'upgrade', 'contract', 'ipo'
+  ]);
+  
+  for (const t of textTokens) {
+    const lower = t.toLowerCase();
+    if (actionKeywords.has(lower)) {
+      actions.add(lower);
+    }
+  }
+
+  return { entities, numbers, actions };
 }
 
-function calculateJaccard(a: string, b: string): number {
-  const setA = getTokens(a);
-  const setB = getTokens(b);
-  if (setA.size === 0 || setB.size === 0) return 0;
-  const intersection = new Set([...setA].filter(x => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  return intersection.size / union.size;
+function sameEvent(sigA: ReturnType<typeof buildEventSignature>, sigB: ReturnType<typeof buildEventSignature>): boolean {
+  const jaccard = (a: Set<string>, b: Set<string>) => {
+    if (a.size === 0 || b.size === 0) return 0;
+    const intersection = new Set([...a].filter(x => b.has(x)));
+    const union = new Set([...a, ...b]);
+    return intersection.size / union.size;
+  };
+
+  const entityOverlap = jaccard(sigA.entities, sigB.entities);
+  
+  let numberMatch = 0;
+  for (const n of sigA.numbers) {
+    if (sigB.numbers.has(n)) {
+      numberMatch = 1;
+      break;
+    }
+  }
+
+  const actionOverlap = jaccard(sigA.actions, sigB.actions);
+
+  return entityOverlap >= 0.5 && (actionOverlap >= 0.5 || numberMatch === 1);
 }
 
 function isHighCollision(ticker: string, company: string): boolean {
@@ -475,13 +522,18 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     const adjacencyList = new Map<string, string[]>();
     for (const f of group) adjacencyList.set(f.id, []);
     
+    // Precompute signatures
+    const signatures = new Map<string, ReturnType<typeof buildEventSignature>>();
+    for (const f of group) {
+      signatures.set(f.id, buildEventSignature(f.article.title, f.article.excerpt || ""));
+    }
+    
     for (let i = 0; i < group.length; i++) {
       for (let j = i + 1; j < group.length; j++) {
-        const textA = group[i].article.title + " " + (group[i].article.excerpt || "");
-        const textB = group[j].article.title + " " + (group[j].article.excerpt || "");
+        const sigA = signatures.get(group[i].id)!;
+        const sigB = signatures.get(group[j].id)!;
         
-        const similarity = calculateJaccard(textA, textB);
-        if (similarity >= 0.15) {
+        if (sameEvent(sigA, sigB)) {
           adjacencyList.get(group[i].id)!.push(group[j].id);
           adjacencyList.get(group[j].id)!.push(group[i].id);
         }
