@@ -18,6 +18,7 @@ import {
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
 import { DashboardShell } from '@/components/DashboardShell'
+import { buildHoldingVerdicts } from '@/lib/verdict'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,6 +99,17 @@ export default async function Page() {
     additionalSources: f.additionalSources,
   }))
 
+  const holdingVerdicts = buildHoldingVerdicts(
+    holdings.map(h => ({
+      id: h.id,
+      ticker: h.ticker,
+      company: h.company,
+      directionLogic: h.directionLogic,
+      thesis: h.thesis || ''
+    })),
+    findings
+  )
+
   const tickerItems = findings
     .filter(f => f.severity >= 3)
     .slice(0, 10)
@@ -137,6 +149,7 @@ export default async function Page() {
     <DashboardShell
       userProfile={userProfile}
       holdings={holdings}
+      holdingVerdicts={holdingVerdicts}
       findings={findings}
       tickerItems={tickerItems}
       lastScanAt={lastScanAt}

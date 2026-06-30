@@ -13,6 +13,7 @@ import { ProfilePanel } from './ProfilePanel'
 import { PolygonMesh } from './PolygonMesh'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
+import type { HoldingVerdict } from '@/lib/verdict'
 
 const containerVariants = {
   hidden: {},
@@ -39,6 +40,7 @@ const itemVariants = {
 
 type DashboardShellProps = {
   holdings: any[] // full holdings for the add-holding panel + nav
+  holdingVerdicts?: HoldingVerdict[]
   findings: FindingData[]
   tickerItems: any[]
   lastScanAt: string | null
