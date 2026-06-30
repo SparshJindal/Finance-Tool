@@ -17,7 +17,7 @@ export type HoldingRunResult = {
 }
 
 function getTokens(text: string): Set<string> {
-  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'have', 'are', 'was', 'were', 'will']);
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'have', 'are', 'was', 'were', 'will', 'say', 'says', 'said', 'has', 'had', 'its', 'their', 'they', 'after', 'over', 'more', 'than', 'which', 'what', 'who', 'when', 'where', 'why', 'how', 'about', 'news', 'stock', 'shares', 'company', 'inc', 'corp', 'new', 'first', 'update', 'today', 'report', 'reports', 'to', 'in', 'of', 'a', 'on', 'by', 'is', 'it', 'as', 'at', 'an', 'be']);
   const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
   return new Set(words);
 }
@@ -435,42 +435,6 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     }
   }
 
-  // Local Clustering (done globally across recent articles) using Jaccard token overlap
-  const recentArticles = await prisma.article.findMany({
-    where: {
-      firstSeen: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
-      clusterId: null
-    },
-    orderBy: { publishedAt: 'desc' }
-  });
-
-  if (recentArticles.length > 1) {
-    const groupedIds = new Set<string>();
-    for (let i = 0; i < recentArticles.length; i++) {
-      const a = recentArticles[i];
-      if (groupedIds.has(a.id)) continue;
-      let hasMatch = false;
-      const matchIds = [a.id];
-      for (let j = i + 1; j < recentArticles.length; j++) {
-        const b = recentArticles[j];
-        if (groupedIds.has(b.id)) continue;
-        const similarity = calculateJaccard(a.title, b.title);
-        if (similarity >= 0.40) {
-          hasMatch = true;
-          matchIds.push(b.id);
-          groupedIds.add(b.id);
-        }
-      }
-      if (hasMatch) {
-        await prisma.article.updateMany({
-          where: { id: { in: matchIds } },
-          data: { clusterId: a.id }
-        });
-        clustersFormed++;
-      }
-    }
-  }
-
   // Deduplication: Per-Holding Event Collapse & Cross-Holding Weaker Attachment Drop
   const recentFindings = await prisma.finding.findMany({
     where: { createdAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) } },
@@ -496,34 +460,86 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     }
   }
 
-  // 2. Per-Holding Event Collapse
+  // 2. Per-Holding Event Collapse (Connected Components via Jaccard 0.15 on Title + Excerpt)
   const validFindings = recentFindings.filter(f => !findingsToDelete.has(f.id));
-  const findingsByHoldingAndEvent = new Map<string, typeof validFindings>();
+  const findingsByHolding = new Map<string, typeof validFindings>();
   
   for (const f of validFindings) {
-    const eventKey = `${f.holdingId}-${f.article.clusterId || f.article.id}`;
-    if (!findingsByHoldingAndEvent.has(eventKey)) findingsByHoldingAndEvent.set(eventKey, []);
-    findingsByHoldingAndEvent.get(eventKey)!.push(f);
+    if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
+    findingsByHolding.get(f.holdingId)!.push(f);
   }
 
-  for (const group of findingsByHoldingAndEvent.values()) {
-    if (group.length > 1) {
-      // Sort by severity desc, then createdAt desc
-      group.sort((a, b) => b.severity !== a.severity ? b.severity - a.severity : b.createdAt.getTime() - a.createdAt.getTime());
-      const representative = group[0];
-      const duplicates = group.slice(1);
-      
-      const extraUrls = duplicates.map(d => d.article.url);
-      const currentExtras = representative.additionalSources || [];
-      const mergedExtras = Array.from(new Set([...currentExtras, ...extraUrls]));
-      
-      await prisma.finding.update({
-        where: { id: representative.id },
-        data: { additionalSources: mergedExtras }
-      });
-      
-      for (const d of duplicates) {
-        findingsToDelete.add(d.id);
+  for (const [holdingId, group] of findingsByHolding.entries()) {
+    if (group.length <= 1) continue;
+
+    const adjacencyList = new Map<string, string[]>();
+    for (const f of group) adjacencyList.set(f.id, []);
+    
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const textA = group[i].article.title + " " + (group[i].article.excerpt || "");
+        const textB = group[j].article.title + " " + (group[j].article.excerpt || "");
+        
+        const similarity = calculateJaccard(textA, textB);
+        if (similarity >= 0.15) {
+          adjacencyList.get(group[i].id)!.push(group[j].id);
+          adjacencyList.get(group[j].id)!.push(group[i].id);
+        }
+      }
+    }
+    
+    const visited = new Set<string>();
+    const clusters: (typeof validFindings)[] = [];
+    
+    for (const f of group) {
+      if (!visited.has(f.id)) {
+        const cluster = [];
+        const queue = [f.id];
+        visited.add(f.id);
+        
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const currentF = group.find(x => x.id === currentId)!;
+          cluster.push(currentF);
+          
+          for (const neighborId of adjacencyList.get(currentId)!) {
+            if (!visited.has(neighborId)) {
+              visited.add(neighborId);
+              queue.push(neighborId);
+            }
+          }
+        }
+        clusters.push(cluster);
+      }
+    }
+
+    for (const cluster of clusters) {
+      if (cluster.length > 1) {
+        // Sort by severity desc, then createdAt desc to pick representative
+        cluster.sort((a, b) => b.severity !== a.severity ? b.severity - a.severity : b.createdAt.getTime() - a.createdAt.getTime());
+        const representative = cluster[0];
+        const duplicates = cluster.slice(1);
+        
+        const extraUrls = duplicates.map(d => d.article.url);
+        // also pull in any existing additionalSources they had
+        let currentExtras = representative.additionalSources || [];
+        for (const d of duplicates) {
+           if (d.additionalSources && Array.isArray(d.additionalSources)) {
+             currentExtras = currentExtras.concat(d.additionalSources);
+           }
+        }
+        const mergedExtras = Array.from(new Set([...currentExtras, ...extraUrls]));
+        
+        await prisma.finding.update({
+          where: { id: representative.id },
+          data: { additionalSources: mergedExtras }
+        });
+        
+        for (const d of duplicates) {
+          findingsToDelete.add(d.id);
+        }
+        
+        clustersFormed += (cluster.length - 1);
       }
     }
   }
