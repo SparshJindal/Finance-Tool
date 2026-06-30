@@ -11,6 +11,7 @@ import { ManagePortfolioPanel } from './ManagePortfolioPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
 import { ProfilePanel } from './ProfilePanel'
 import { PolygonMesh } from './PolygonMesh'
+import { HoldingVerdictCard } from './HoldingVerdictCard'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import type { HoldingVerdict } from '@/lib/verdict'
@@ -76,8 +77,10 @@ export function DashboardShell({
   updateProfileAction,
   controls,
   userProfile,
+  holdingVerdicts = [],
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
+  const [quietExpanded, setQuietExpanded] = useState(false)
   const [holdingRunStatuses, setHoldingRunStatuses] = useState<Record<string, HoldingRunResult>>({})
   const reduced = useReducedMotion()
 
@@ -126,22 +129,20 @@ export function DashboardShell({
     }
   }
 
-  const [displayCount, setDisplayCount] = useState(40)
-
-  // Memoize filter and sort to prevent re-computation on every re-render (e.g. feedback clicks)
-  const filteredFindings = useMemo(() => {
-    const filtered = findings.filter(f => {
-      if (activeHolding && f.holdingId !== activeHolding) return false
-      if (f.direction === 'NEUTRAL' || f.direction === 'Neutral') return false
+  const filteredVerdicts = useMemo(() => {
+    return holdingVerdicts.filter(v => {
+      if (activeHolding && v.holdingId !== activeHolding) return false
       return true
     })
-    // Sort: highest severity first, then newest
-    filtered.sort((a, b) => b.severity - a.severity)
-    return filtered
-  }, [findings, activeHolding])
+  }, [holdingVerdicts, activeHolding])
 
-  const displayedFindings = filteredFindings.slice(0, displayCount)
-  const disableLayout = displayedFindings.length > 25
+  const movers = filteredVerdicts.filter(v => !v.isQuiet)
+  const quiet = filteredVerdicts.filter(v => v.isQuiet)
+
+  // L0 metrics (across entire portfolio, ignoring activeHolding filter)
+  const totalThreatened = holdingVerdicts.filter(v => v.verdict === 'Threatens' || v.verdict === 'Mixed').length
+  const totalSupported = holdingVerdicts.filter(v => v.verdict === 'Supports').length
+  const totalQuietCount = holdingVerdicts.filter(v => v.isQuiet).length
 
   const controlsWithCallback = useMemo(() => {
     if (!controls) return null
@@ -426,43 +427,85 @@ export function DashboardShell({
                   </div>
                 </div>
               </div>
-            ) : filteredFindings.length === 0 ? (
-              <div className="card" style={{ padding: 'var(--sp-12) var(--sp-8)', textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-                  NO THREATS DETECTED — MARKETS QUIET
-                </p>
-              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-                <motion.div
-                  className="findings-feed"
-                  style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}
-                  variants={reduced ? undefined : containerVariants}
-                  initial={reduced ? undefined : 'hidden'}
-                  animate={reduced ? undefined : 'visible'}
-                >
-                  <AnimatePresence mode="popLayout">
-                    {displayedFindings.map((f, i) => (
-                      <FindingCard 
-                        key={f.id} 
-                        finding={f} 
-                        index={i} 
-                        reducedMotion={reduced} 
-                        itemVariants={reduced ? undefined : itemVariants} 
-                        disableLayout={disableLayout}
-                      />
+                {/* L0 Headline */}
+                {!activeHolding && (
+                  <div style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-muted)',
+                    fontWeight: 500,
+                    letterSpacing: '0.02em',
+                    padding: '0 var(--sp-2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--sp-2)'
+                  }}>
+                    <span>{totalThreatened} holdings under pressure</span>
+                    <span>&middot;</span>
+                    <span>{totalSupported} supported</span>
+                    <span>&middot;</span>
+                    <span>{totalQuietCount} quiet</span>
+                  </div>
+                )}
+
+                {/* Movers */}
+                {movers.length === 0 && quiet.length === 0 ? (
+                   <div className="card" style={{ padding: 'var(--sp-12) var(--sp-8)', textAlign: 'center' }}>
+                     <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+                       NO THREATS DETECTED — MARKETS QUIET
+                     </p>
+                   </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {movers.map(v => (
+                      <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
                     ))}
-                  </AnimatePresence>
-                </motion.div>
-                
-                {filteredFindings.length > displayCount && (
-                  <button 
-                    onClick={() => setDisplayCount(prev => prev + 40)}
-                    className="btn btn-secondary"
-                    style={{ alignSelf: 'center', padding: 'var(--sp-2) var(--sp-6)' }}
-                  >
-                    Show more ({filteredFindings.length - displayCount} remaining)
-                  </button>
+                  </div>
+                )}
+
+                {/* Quiet Expandable Section */}
+                {quiet.length > 0 && (
+                  <div style={{ marginTop: 'var(--sp-2)' }}>
+                    <button
+                      onClick={() => setQuietExpanded(e => !e)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        padding: 'var(--sp-3) var(--sp-2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--sp-2)',
+                        width: '100%',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <span style={{ opacity: 0.6, fontSize: '10px', transform: quietExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+                      Quiet ({quiet.length})
+                    </button>
+                    
+                    <AnimatePresence>
+                      {quietExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 'var(--sp-2)' }}>
+                            {quiet.map(v => (
+                              <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
               </div>
             )}
