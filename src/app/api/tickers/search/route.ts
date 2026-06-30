@@ -33,12 +33,12 @@ export async function GET(request: NextRequest) {
           if (data.result && data.result.length > 0) {
             // Filter common stocks and map to our format
             const newTickers = data.result
-              .filter((t: any) => t.type === 'Common Stock' && t.symbol && !t.symbol.includes('.'))
+              .filter((t: any) => t.type === 'Common Stock' && t.symbol)
               .slice(0, 10)
               .map((t: any) => ({
                 symbol: t.symbol,
                 company: t.description || t.symbol,
-                exchange: 'US'
+                exchange: t.symbol.includes('.') ? t.symbol.split('.').pop() : 'US'
               }))
 
             if (newTickers.length > 0) {
