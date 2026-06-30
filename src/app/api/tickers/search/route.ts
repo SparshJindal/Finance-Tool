@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
         if (finnhubRes.ok) {
           const data = await finnhubRes.json()
           if (data.result && data.result.length > 0) {
-            // Filter common stocks and map to our format
+            // Filter out empty symbols and map to our format
             const newTickers = data.result
-              .filter((t: any) => t.type === 'Common Stock' && t.symbol)
+              .filter((t: any) => t.symbol)
               .slice(0, 10)
               .map((t: any) => ({
                 symbol: t.symbol,
