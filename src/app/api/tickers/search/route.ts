@@ -24,20 +24,24 @@ export async function GET(request: NextRequest) {
       orderBy: { symbol: 'asc' }
     })
 
-    // Fallback to Finnhub if not found in local DB (e.g. on fresh Vercel deployment)
-    if (tickers.length === 0 && process.env.FINNHUB_API_KEY) {
+    // Fallback to Yahoo Finance if not found in local DB (e.g. on fresh Vercel deployment)
+    if (tickers.length === 0) {
       try {
-        const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${process.env.FINNHUB_API_KEY}`)
-        if (finnhubRes.ok) {
-          const data = await finnhubRes.json()
-          if (data.result && data.result.length > 0) {
+        const yfRes = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0'
+          }
+        })
+        if (yfRes.ok) {
+          const data = await yfRes.json()
+          if (data.quotes && data.quotes.length > 0) {
             // Filter out empty symbols and map to our format
-            const newTickers = data.result
-              .filter((t: any) => t.symbol)
+            const newTickers = data.quotes
+              .filter((t: any) => t.quoteType === 'EQUITY' && t.symbol)
               .slice(0, 10)
               .map((t: any) => ({
                 symbol: t.symbol,
-                company: t.description || t.symbol,
+                company: t.longname || t.shortname || t.symbol,
                 exchange: t.symbol.includes('.') ? t.symbol.split('.').pop() : 'US'
               }))
 
@@ -63,7 +67,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (err) {
-        console.error('Finnhub fallback error:', err)
+        console.error('Yahoo fallback error:', err)
       }
     }
 
