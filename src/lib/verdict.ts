@@ -15,10 +15,11 @@ export type HoldingVerdict = {
   topFinding: FindingData | null   // highest-severity non-neutral finding
   findings: FindingData[]          // all findings for this holding, sev desc
   isQuiet: boolean                 // true if no material (non-neutral) findings
+  caption?: string | null          // AI-synthesized one-liner caption
 }
 
 export function buildHoldingVerdicts(
-  holdings: { id: string; ticker: string; company: string; directionLogic: string; thesis: string }[],
+  holdings: { id: string; ticker: string; company: string; directionLogic: string; thesis: string; verdictCaption?: string | null }[],
   findings: FindingData[]
 ): HoldingVerdict[] {
   const verdicts: HoldingVerdict[] = []
@@ -98,7 +99,8 @@ export function buildHoldingVerdicts(
       neutralCount,
       topFinding,
       findings: sortedFindings,
-      isQuiet: (supportCount === 0 && threatenCount === 0)
+      isQuiet: (supportCount === 0 && threatenCount === 0),
+      caption: h.verdictCaption ?? null
     })
   }
   

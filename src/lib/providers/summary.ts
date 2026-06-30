@@ -369,3 +369,57 @@ ${contextStr}
   }
   return null;
 }
+
+export async function generateHoldingCaption(
+  holding: { ticker: string; company: string; thesis: string; directionLogic: string },
+  findings: { summary: string; severity: number; direction?: string | null; title?: string }[]
+): Promise<string | null> {
+  if (findings.length === 0) return null;
+
+  const topFindings = findings.slice(0, 6);
+  let contextStr = `Holding: ${holding.company} (${holding.ticker})\nDirection: ${holding.directionLogic}\nThesis: ${holding.thesis}\n\nRecent Findings:\n`;
+  topFindings.forEach((f, i) => {
+    contextStr += `${i + 1}. [Severity ${f.severity}] ${f.summary}\n`;
+  });
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      caption: { type: Type.STRING }
+    },
+    required: ["caption"]
+  };
+
+  const prompt = `
+    You are an expert portfolio manager writing a quick one-liner update for a holding in your portfolio.
+    Review the recent findings and synthesize them into a SINGLE sentence (max ~22 words).
+    
+    RULES:
+    1. Summarize WHAT is happening across the news (synthesize, don't just copy one item).
+    2. State the thesis impact using exactly "supports your thesis", "threatens your thesis", or "pressures your thesis" (or "mixed:" if conflicting).
+    3. NEVER use buy/sell/hold language or price targets.
+    4. Plain English only. No markdown, no quotes.
+    5. Ground only in the provided summaries. Do not invent facts or entities.
+
+    Context:
+    ${contextStr}
+  `;
+
+  try {
+    const aiRes = await askAI({
+      prompt,
+      schema,
+      preferredModel: 'gemini-2.5-flash',
+      temperature: 0.2
+    });
+
+    const parsed = JSON.parse(aiRes);
+    return typeof parsed.caption === 'string' ? parsed.caption : null;
+  } catch (error: any) {
+    if (error instanceof LlmQuotaExhaustedError) {
+      throw error;
+    }
+    console.error(`[generateHoldingCaption] Error for ${holding.ticker}:`, error);
+    return null;
+  }
+}

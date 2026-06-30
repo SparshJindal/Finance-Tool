@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { getNews, markFetched } from "@/lib/providers/news";
 import crypto from "crypto";
 import stringSimilarity from "string-similarity";
-import { judgeHoldingArticles } from "@/lib/providers/summary";
+import { judgeHoldingArticles, generateHoldingCaption } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
 import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
@@ -620,6 +620,54 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     await prisma.finding.deleteMany({
       where: { id: { in: Array.from(findingsToDelete) } }
     });
+  }
+
+  // --- CAPTION PASS ---
+  try {
+    const survivingFindings = await prisma.finding.findMany({
+      where: {
+        holdingId: { in: holdingIds },
+        createdAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) }
+      },
+      include: { article: true },
+      orderBy: { severity: 'desc' }
+    });
+
+    const findingsByHolding = new Map<string, typeof survivingFindings>();
+    survivingFindings.forEach(f => {
+      if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
+      findingsByHolding.get(f.holdingId)!.push(f);
+    });
+
+    for (const h of holdings) {
+      if (!holdingIds.includes(h.id)) continue;
+      const hFindings = findingsByHolding.get(h.id) || [];
+      const nonNeutral = hFindings.filter(f => (f.direction || '').toUpperCase() !== 'NEUTRAL');
+      
+      if (nonNeutral.length === 0) {
+        await prisma.holding.update({
+          where: { id: h.id },
+          data: { verdictCaption: null, verdictCaptionAt: new Date() }
+        });
+      } else {
+        const caption = await generateHoldingCaption(h, nonNeutral.map(f => ({
+          summary: f.summary,
+          severity: f.severity,
+          direction: f.direction,
+          title: f.article.title
+        })));
+        await prisma.holding.update({
+          where: { id: h.id },
+          data: { verdictCaption: caption, verdictCaptionAt: new Date() }
+        });
+      }
+    }
+  } catch (error: any) {
+    if (error instanceof LlmQuotaExhaustedError || error.name === "LlmQuotaExhaustedError") {
+      console.warn("[ingestNews] Quota exhausted during caption pass. Stopping captions but pipeline continues.");
+    } else {
+      console.error("[ingestNews] Error during caption pass:", error);
+    }
   }
 
   const report = {

@@ -118,7 +118,7 @@ export function HoldingVerdictCard({ verdict, reducedMotion = false }: HoldingVe
         </div>
 
         {/* Teaser */}
-        {verdict.topFinding?.summary && !expanded && (
+        {!expanded && (verdict.caption || verdict.topFinding?.summary) && (
            <p style={{
              fontSize: 'var(--text-sm)',
              color: 'var(--text-secondary)',
@@ -128,7 +128,7 @@ export function HoldingVerdictCard({ verdict, reducedMotion = false }: HoldingVe
              WebkitBoxOrient: 'vertical',
              overflow: 'hidden'
            }}>
-             {verdict.topFinding.summary}
+             {verdict.caption || verdict.topFinding?.summary}
            </p>
         )}
 

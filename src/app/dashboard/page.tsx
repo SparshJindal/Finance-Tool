@@ -105,7 +105,8 @@ export default async function Page() {
       ticker: h.ticker,
       company: h.company,
       directionLogic: h.directionLogic,
-      thesis: h.thesis || ''
+      thesis: h.thesis || '',
+      verdictCaption: h.verdictCaption
     })),
     findings
   )

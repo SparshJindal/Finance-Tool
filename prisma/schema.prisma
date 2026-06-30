@@ -85,6 +85,8 @@ model Holding {
   kind            String        @default("PORTFOLIO")
   createdAt       DateTime      @default(now()) @map("created_at")
   lastIngestedAt  DateTime?     @map("last_ingested_at")
+  verdictCaption  String?       @map("verdict_caption")
+  verdictCaptionAt DateTime?    @map("verdict_caption_at")
 
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
