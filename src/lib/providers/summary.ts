@@ -25,22 +25,30 @@ const judgeSchema = {
   required: ["results"]
 };
 
-export function deriveThesisLabel(directionLogic: string, companyImpact: string): string {
-  const isLong = directionLogic.toUpperCase() === 'LONG';
-  const isShort = directionLogic.toUpperCase() === 'SHORT';
-  const impact = companyImpact.toLowerCase();
+export function deriveThesisLabel(direction: string, companyImpact: string): string {
+  if (companyImpact === 'neutral') return 'Neutral';
+  
+  if (direction === 'SHORT') {
+    return companyImpact === 'positive' ? 'Threatens' : 'Supports';
+  } else {
+    return companyImpact === 'positive' ? 'Supports' : 'Threatens';
+  }
+}
 
-  if (impact === 'positive') {
-    return isLong ? 'Supports' : isShort ? 'Threatens' : 'Neutral';
+export function normalizeDirection(directionLogic?: string, kind?: string, direction?: string): 'LONG' | 'SHORT' {
+  const vals = [direction, directionLogic, kind].map(v => (v || '').toString().toUpperCase().trim());
+  
+  for (const v of vals) {
+    if (v === 'SHORT' || v === 'SHORTING' || v === 'FALSE' || v === '0') return 'SHORT';
+    if (v === 'LONG' || v === 'TRUE' || v === '1') return 'LONG';
   }
-  if (impact === 'negative') {
-    return isLong ? 'Threatens' : isShort ? 'Supports' : 'Neutral';
-  }
-  return 'Neutral';
+  
+  console.warn(`[WARNING] Unknown direction value. Defaulting to LONG.`);
+  return 'LONG';
 }
 
 export async function judgeHoldingArticles(
-  holding: { id: string, ticker: string, company: string, thesis: string, directionLogic: string, questions: {id: string, text: string}[] },
+  holding: { id: string, ticker: string, company: string, thesis: string, directionLogic: string, kind?: string, direction?: string, questions: {id: string, text: string}[] },
   articles: { id: string, title: string, excerpt: string, url: string, source: string, matchedQuestionId?: string }[]
 ) {
   if (articles.length === 0) return [];
@@ -58,7 +66,7 @@ export async function judgeHoldingArticles(
 
     let contextStr = `Holding: ${holding.ticker} (${holding.company})\n`;
     contextStr += `Thesis: ${holding.thesis}\n`;
-    contextStr += `Direction Logic: ${holding.directionLogic}\n`;
+    contextStr += `Direction Logic: ${holding.directionLogic || holding.direction || holding.kind}\n`;
     contextStr += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
     
     contextStr += `Articles to evaluate:\n`;
@@ -117,18 +125,28 @@ ${contextStr}
         // Map integer index back to the real DB article.id
         let chunkResults: any[] = [];
         for (const r of rawResults) {
+          const impact = r.companyImpact ? r.companyImpact.toLowerCase() : 'neutral';
+          const direction = normalizeDirection(holding.directionLogic, holding.kind, holding.direction);
+          const derivedLabel = deriveThesisLabel(direction, impact);
+          
+          console.log({
+            ticker: holding.ticker,
+            direction: holding.direction ?? holding.directionLogic,
+            companyImpact: impact,
+            derivedLabel
+          });
+
           if (typeof r.articleIndex === 'number' && r.articleIndex >= 1 && r.articleIndex <= chunk.length) {
             chunkResults.push({
               ...r,
-              direction: deriveThesisLabel(holding.directionLogic, r.companyImpact || 'neutral'),
+              direction: derivedLabel,
               articleId: chunk[r.articleIndex - 1].id
             });
           } else {
-             // Handle cases where the model hallucinates an invalid index or returns articleId directly (if it ignored the schema somehow)
              if (r.articleId) {
                chunkResults.push({
                  ...r,
-                 direction: deriveThesisLabel(holding.directionLogic, r.companyImpact || 'neutral')
+                 direction: derivedLabel
                });
              }
           }
@@ -143,7 +161,7 @@ ${contextStr}
             const rejudgeArticles = chunk.filter(art => needsRejudge.some(r => r.articleId === art.id));
             let tier2Context = `Holding: ${holding.ticker} (${holding.company})\n`;
             tier2Context += `Thesis: ${holding.thesis}\n`;
-            tier2Context += `Direction Logic: ${holding.directionLogic}\n`;
+            tier2Context += `Direction Logic: ${holding.directionLogic || holding.direction || holding.kind}\n`;
             tier2Context += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
             tier2Context += `Articles to evaluate:\n`;
             rejudgeArticles.forEach((art, idx) => {
@@ -179,19 +197,30 @@ ${contextStr}
                 }
 
                 for (const t2r of t2RawResults) {
+                  const t2Impact = t2r.companyImpact ? t2r.companyImpact.toLowerCase() : 'neutral';
+                  const t2Direction = normalizeDirection(holding.directionLogic, holding.kind, holding.direction);
+                  const t2Label = deriveThesisLabel(t2Direction, t2Impact);
+
+                  console.log({
+                    ticker: holding.ticker,
+                    direction: holding.direction ?? holding.directionLogic,
+                    companyImpact: t2Impact,
+                    derivedLabel: t2Label
+                  });
+
                   if (typeof t2r.articleIndex === 'number' && t2r.articleIndex >= 1 && t2r.articleIndex <= rejudgeArticles.length) {
                     const finalId = rejudgeArticles[t2r.articleIndex - 1].id;
                     const originalIdx = chunkResults.findIndex(r => r.articleId === finalId);
                     if (originalIdx !== -1) chunkResults[originalIdx] = {
                       ...t2r,
-                      direction: deriveThesisLabel(holding.directionLogic, t2r.companyImpact || 'neutral'),
+                      direction: t2Label,
                       articleId: finalId
                     };
                   } else if (t2r.articleId) {
                     const originalIdx = chunkResults.findIndex(r => r.articleId === t2r.articleId);
                     if (originalIdx !== -1) chunkResults[originalIdx] = {
                       ...t2r,
-                      direction: deriveThesisLabel(holding.directionLogic, t2r.companyImpact || 'neutral')
+                      direction: t2Label
                     };
                   }
                 }
