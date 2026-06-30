@@ -92,7 +92,15 @@ For each article:
   * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
   * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by ticker, company name, or known alias), return material=false and drop it.
 - Assign a severity score (1-5).
-  * SEVERITY SCALE: Routine-but-relevant fundamentals (e.g., a product price change) should land as low/moderate severity (1-3). Major disruptions, massive earnings beats/misses, or thesis-breaking news are 4-5.
+  * 5 = Thesis-breaking / confirmed, quantified, company-specific event already happening (e.g. earnings miss with numbers, signed M&A, regulatory ban, guidance cut). Must cite a hard number or a definitive verb.
+  * 4 = Major, confirmed, company-specific but not thesis-ending.
+  * 3 = Notable confirmed fundamental development.
+  * 2 = Routine/relevant but minor (single analyst note, small product update).
+  * 1 = Mention / noise / opinion / "could/may/rumored".
+  * Speculative, rumored, hedged ("could", "may", "reportedly", "is said to") news caps severity at 2.
+  * Analyst-opinion / price-target pieces cap at 2.
+  * If the article is not PRIMARILY about the holding, severity caps at 2.
+  * Reserve 4-5 for confirmed, quantified, company-specific events ONLY.
 - Assign a companyImpact ("positive", "negative", or "neutral"). Determine if the news is fundamentally good (positive) or bad (negative) for the company itself, IGNORING whether the holding is LONG or SHORT. Use the holding's thesis to add weight to the severity.
   * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade companyImpact to "neutral".
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
