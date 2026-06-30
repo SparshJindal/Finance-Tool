@@ -1,10 +1,10 @@
 export async function fetchQuote(ticker: string, exchange: string): Promise<{ priceChangePct: number, volumeRatio: number } | null> {
   try {
     let symbol = ticker;
-    if (exchange === "NSE") {
-      symbol = `${ticker}.NS`;
-    } else if (exchange === "BSE") {
-      symbol = `${ticker}.BO`;
+    if (exchange === "NSE" || symbol.endsWith('.NS')) {
+      if (!symbol.endsWith('.NS')) symbol = `${symbol}.NS`;
+    } else if (exchange === "BSE" || symbol.endsWith('.BO')) {
+      if (!symbol.endsWith('.BO')) symbol = `${symbol}.BO`;
     }
 
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
