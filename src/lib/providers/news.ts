@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
-import { fetchTavilyNews, fetchTavilyTopicNews, fetchTavilyQuestionNews } from "./tavily";
+import { fetchTavilyNews, fetchTavilyTopicNews, fetchTavilyQuestionNews, fetchTavilyCatalystNews } from "./tavily";
 
 export interface NormalizedArticle {
   url: string;
@@ -310,7 +310,39 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   console.log(`[getNews] Enabled providers: ${enabledProviders.join(', ')}`);
   console.log(`[getNews] Fetching news for ${uniqueTargets.length} unique tickers...`);
 
-  // --- 0. Fetch Tavily (PRIMARY — one query per holding) ---
+  // --- 0a. Fetch Tavily (CATALYST — explicit high-signal query per holding) ---
+  if (enabledProviders.includes('tavily')) {
+    const catalystQueries = uniqueTargets.map(t => ({ target: t, cacheKey: `${t.symbol}#catalyst` }));
+    const cacheInputs: TickerInput[] = catalystQueries.map(cq => ({ symbol: cq.cacheKey, name: cq.cacheKey, exchange: 'CATALYST' }));
+    const missingInputs = await getMissingTickers(cacheInputs, 'tavily-catalyst');
+    const missingKeys = new Set(missingInputs.map(i => i.symbol));
+    const uncachedQueries = catalystQueries.filter(cq => missingKeys.has(cq.cacheKey));
+
+    console.log(`[Tavily-Catalyst] Needs fetching for ${uncachedQueries.length}/${catalystQueries.length} tickers.`);
+
+    for (let i = 0; i < uncachedQueries.length; i++) {
+      const { target, cacheKey } = uncachedQueries[i];
+
+      const withinCap = await checkTavilyCap(1);
+      if (!withinCap) {
+        console.warn(`[Tavily-Catalyst] Daily cap exceeded. Stopping catalyst fetches.`);
+        break;
+      }
+
+      const res = await fetchTavilyCatalystNews(target);
+      res.forEach(art => art.retrievalSource = 'primary');
+      addArticles(res, target);
+      if (res.length > 0) {
+        cacheStamps.push({ symbol: cacheKey, provider: 'tavily-catalyst' });
+      }
+
+      if (i < uncachedQueries.length - 1) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+  }
+
+  // --- 0b. Fetch Tavily (PRIMARY — one query per holding) ---
   if (enabledProviders.includes('tavily')) {
     const tavilyTargets = await getMissingTickers(uniqueTargets, 'tavily');
     console.log(`[Tavily] Needs fetching for ${tavilyTargets.length}/${uniqueTargets.length} tickers.`);
@@ -339,7 +371,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     }
   }
 
-  // --- 0a. Fetch Tavily QUESTION news (driven by watch-questions) ---
+  // --- 0c. Fetch Tavily QUESTION news (driven by watch-questions) ---
   if (enabledProviders.includes('tavily')) {
     // Only check targets that have questions
     const targetsWithQuestions = uniqueTargets.filter(t => t.questions && t.questions.length > 0);
@@ -380,7 +412,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     }
   }
 
-  // --- 0b. Fetch Tavily TOPIC news (company-anchored, capped at 2 topics per holding) ---
+  // --- 0d. Fetch Tavily TOPIC news (company-anchored, capped at 2 topics per holding) ---
   if (enabledProviders.includes('tavily')) {
     // Build per-holding topic queries: { companyName, topic, holdingId, cacheKey }
     const topicQueries: { companyName: string; topic: string; holdingId: string; cacheKey: string }[] = [];

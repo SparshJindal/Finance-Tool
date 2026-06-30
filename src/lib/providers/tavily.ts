@@ -170,6 +170,23 @@ export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedAr
 }
 
 /**
+ * Fetch top catalyst news (deals, earnings, regulatory) to ensure major events are not missed.
+ */
+export async function fetchTavilyCatalystNews(target: TickerInput): Promise<NormalizedArticle[]> {
+  const cleanName = cleanCompanyName(target.name);
+  const tickerStr = target.symbol.split('.')[0];
+  const exchange = target.exchange?.toUpperCase();
+  
+  const isIndian = exchange === "NSE" || exchange === "BSE" || exchange === "NS" || exchange === "BO";
+  const geoContext = isIndian ? "India " : "";
+  
+  const query = `"${cleanName}" (${tickerStr}) ${geoContext}(deal OR acquisition OR merger OR partnership OR contract OR earnings OR guidance OR IPO OR regulatory OR approval OR lawsuit OR launch)`;
+  
+  // High-signal query, pull top 5
+  return tavilySearch(query, 5, `catalyst:${target.name}`);
+}
+
+/**
  * Fetch industry/sector news for a topic, ANCHORED to a specific company.
  * This ensures topic queries return articles relevant to the holding, not
  * generic industry noise.
