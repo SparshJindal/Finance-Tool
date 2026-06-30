@@ -403,7 +403,11 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
           continue;
         }
 
-        if (j.material === true || j.severity >= pushMinSeverity) {
+        const isNeutral = (j.direction || '').toUpperCase() === 'NEUTRAL';
+        const passesGate = isNeutral
+          ? j.severity >= 4
+          : (j.material === true || j.severity >= pushMinSeverity);
+        if (passesGate) {
           try {
             const quote = await fetchQuote(h.ticker, h.exchange);
             const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
