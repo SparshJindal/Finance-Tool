@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
 import { PipelineControls } from './PipelineControls'
-import { FindingCard, FindingData } from './FindingCard'
+import type { FindingData } from './FindingCard'
 import { AddHoldingPanel } from './AddHoldingPanel'
 import { ManagePortfolioPanel } from './ManagePortfolioPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
@@ -16,28 +16,6 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import type { HoldingVerdict } from '@/lib/verdict'
 
-const containerVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.05,
-    },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 300,
-      damping: 26,
-    },
-  },
-  exit: { opacity: 0, scale: 0.97 },
-}
 
 type DashboardShellProps = {
   holdings: any[] // full holdings for the add-holding panel + nav

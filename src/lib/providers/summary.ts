@@ -16,7 +16,7 @@ const judgeSchema = {
           severity: { type: Type.INTEGER, description: "1 to 5, where 5 is extremely impactful" },
           companyImpact: { type: Type.STRING, description: "positive, negative, or neutral — how this news impacts the company fundamentally, IGNORING the portfolio holding's direction." },
           answeredQuestionId: { type: Type.STRING, description: "The ID of the watch question this article most directly answers. If none, return empty string." },
-          summary: { type: Type.STRING, description: "A concise 1-2 sentence summary of why this is material." }
+          summary: { type: Type.STRING, description: "Two parts: (1) a verbatim quote or hard number from the article in quotes, then (2) one thesis-relative sentence (Supports/Threatens)." }
         },
         required: ["articleIndex", "material", "severity", "companyImpact", "answeredQuestionId", "summary"]
       }
