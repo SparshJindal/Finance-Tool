@@ -35,12 +35,12 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
         items: {
           type: Type.OBJECT,
           properties: {
-            ticker: { type: Type.STRING, description: "The stock ticker symbol if public, omit if private." },
+            ticker: { type: Type.STRING, description: "The stock ticker symbol if public. Omit entirely if you are not confident it is the real exchange symbol (do not guess)." },
             name: { type: Type.STRING, description: "The name of the competitor company." }
           },
           required: ["name"]
         },
-        description: "2-5 direct competitors to the company in its main sectors."
+        description: "2-5 direct competitors to the company in its main sectors. MUST be DIFFERENT companies from the holding itself. NEVER list the holding, its parent, or an alternate listing of the same company."
       },
       thesis: {
         type: Type.STRING,
@@ -66,7 +66,7 @@ export async function generateHoldingProfile(params: HoldingProfileParams): Prom
        GOOD examples: "automotive MCU pricing", "mature node chip shortage", "AI accelerator demand", "cloud infrastructure spending".
        BAD (DO NOT USE): single generic words like "semiconductors" or "technology"; company names or tickers; vague terms like "innovation" or "growth".
        Every theme MUST be at least 2 words and specific enough to retrieve targeted news.
-    3. competitors: 2-5 direct competitors that operate in the same space.
+    3. competitors: 2-5 direct competitors that operate in the same space. MUST be DIFFERENT companies from the holding itself. NEVER list the holding, its parent, or an alternate listing of the same company.
     4. thesis: A concise 2-3 sentence investment thesis for the company. Use the provided thesis if present, otherwise generate a fresh, accurate one based on the company and sector.
     5. directionLogic: Either "LONG" or "SHORT". Use the provided direction if present and valid, otherwise default to "LONG".
   `;

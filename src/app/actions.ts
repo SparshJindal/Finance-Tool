@@ -32,13 +32,36 @@ async function populateHoldingProfile(holdingId: string, ticker: string, company
     });
 
     if (profile.competitors && profile.competitors.length > 0) {
-      const uniqueComps = Array.from(new Map(profile.competitors.filter(c => c.name).map(c => [c.name, c])).values());
+      const cleanHoldingTicker = ticker.split('.')[0].toUpperCase();
+      const cleanHoldingName = company.toLowerCase().replace(/\b(inc|ltd|corp|corporation|llc|plc)\b\.?/gi, '').trim();
+
+      const sanitizedComps = profile.competitors.filter(c => {
+        if (!c.name || !c.name.trim()) return false;
+        
+        const cleanCompTicker = (c.ticker || "").split('.')[0].toUpperCase();
+        const cleanCompName = c.name.toLowerCase().replace(/\b(inc|ltd|corp|corporation|llc|plc)\b\.?/gi, '').trim();
+
+        if (cleanCompTicker && cleanCompTicker === cleanHoldingTicker) return false;
+        if (cleanCompName === cleanHoldingName) return false;
+        if (cleanCompName.includes(cleanHoldingName) || cleanHoldingName.includes(cleanCompName)) return false; // Extra safety
+        
+        return true;
+      }).map(c => {
+        let validTicker = (c.ticker || "").trim().toUpperCase();
+        if (validTicker && !/^[A-Z0-9.\-]{1,12}$/.test(validTicker)) {
+          validTicker = "";
+        }
+        return { name: c.name.trim(), ticker: validTicker };
+      });
+
+      const uniqueComps = Array.from(new Map(sanitizedComps.map(c => [c.name.toLowerCase(), c])).values());
+      
       for (const comp of uniqueComps) {
         await prisma.competitor.create({
           data: {
             holdingId,
             name: comp.name,
-            ticker: comp.ticker || ""
+            ticker: comp.ticker
           }
         });
       }
