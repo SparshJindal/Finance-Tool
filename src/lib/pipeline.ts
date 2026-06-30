@@ -6,6 +6,7 @@ import { judgeHoldingArticles } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
 import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
+import { sourceTier } from "@/lib/providers/sourceQuality";
 import type { NormalizedArticle } from "@/lib/providers/news";
 
 export type HoldingRunResult = {
@@ -193,11 +194,26 @@ function relevanceFilter(
     const bScore = sourceScore(b.retrievalSource);
     if (aScore !== bScore) return bScore - aScore;
 
-    // 3. Fallback to newest first
+    // 3. Source Quality Tier (lower is better, tier 1 > tier 2 > tier 3)
+    const aTier = sourceTier(a.source, a.url);
+    const bTier = sourceTier(b.source, b.url);
+    if (aTier !== bTier) return aTier - bTier;
+
+    // 4. Fallback to newest first
     return b.publishedAt.getTime() - a.publishedAt.getTime();
   });
 
-  return { kept, dropped };
+  // Soft drop: if we have >= 3 tier-1 or tier-2 articles, drop the tier-3 articles.
+  let finalKept: NormalizedArticle[] = [];
+  const goodArticles = kept.filter(a => sourceTier(a.source, a.url) <= 2);
+  if (goodArticles.length >= 3) {
+    finalKept = goodArticles;
+    dropped += kept.length - goodArticles.length;
+  } else {
+    finalKept = kept;
+  }
+
+  return { kept: finalKept, dropped };
 }
 
 export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false) {
