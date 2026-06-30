@@ -97,8 +97,9 @@ For each article:
   * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade companyImpact to "neutral".
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
   * EXPLICIT LINK RULE: Require an EXPLICIT causal link between the article fact and the matched watch-question. Don't bolt a thesis question onto unrelated news.
-- Write a short 1-2 sentence summary of the material information.
-  * SUMMARY GROUNDING RULE: The summary may ONLY name companies/entities that literally appear in the article title or body. NEVER introduce a company name not present in the source (e.g. do not write "Auroactive Pharma" for an Aurobindo holding if it's not in the text).
+- Write a short summary of the material information.
+  * The summary MUST be exactly two parts — (1) a verbatim quote or hard number copied from the article title/excerpt (wrap it in quotes), and (2) ONE sentence explaining what it means relative to THIS holding's thesis and direction (Supports/Threatens), using thesis-relative language only.
+  * SUMMARY GROUNDING RULE: The summary may ONLY name companies/entities that literally appear in the article title or body. NEVER introduce a company name not present in the source. If no verbatim quote/number is available to extract, the article is not material — set material=false.
 
 Data Context:
 ${contextStr}
@@ -326,13 +327,12 @@ You are an expert portfolio manager writing the Daily Disruption Brief for the p
 Your task is to output a JSON object containing a "brief" property. 
 The "brief" MUST be a beautifully formatted markdown report encompassing all the provided findings from the last 24 hours.
 
-The markdown "brief" MUST contain:
-- A clear, engaging Title.
-- **Two Distinct Sections**: You MUST separate findings into "📈 Portfolio" (active investments) and "👀 Watchlist" (what's moving before you buy). For Portfolio items, link the finding back to the thesis.
-- **Industry-Level Rollup**: Group related holdings/events and discuss the macro/sector implications within those sections.
-- **Per-Stock Summary**: For each affected stock, link the finding(s) back to the investment thesis (or 'why watching'). If Market Reaction data is available, render it explicitly under or next to the stock header (e.g. \`AAPL (🟢 🔴🔴🔴⚪⚪) | -2.5%, 1.2x avg vol\`).
-- **Severity & Direction Visuals**: Render a direction icon (🟢 bullish / 🔴 bearish / ⚪ neutral) alongside the exactly 5 severity circles next to the stock headers or key points (e.g. 🟢 🔴🔴🔴⚪⚪ for bullish, severity 3).
-- **Hyperlinks**: You MUST hyperlink all referenced articles back to their original URLs using markdown (e.g. [Article Title](URL)). Do NOT output raw URLs.
+The markdown "brief" MUST follow a thesis-first layered disclosure layout:
+- LEAD with a one-line portfolio headline (L0): how many holdings are threatened / supported / quiet today.
+- **Two Distinct Sections**: You MUST separate holdings into "📈 Portfolio" (active investments) and "👀 Watchlist" (what's moving before you buy).
+- Group BY HOLDING. For each holding with material findings, output an L1 line: <icon> TICKER — <Supports/Threatens/Mixed> your thesis · severity dots · market reaction if present. The icon must be 🟢 Supports / 🔴 Threatens / 🟡 Mixed / ⚪ Neutral (never buy/sell). Render severity as exactly 5 circles (e.g. 🔴🔴🔴⚪⚪).
+- Under each holding, render its findings as L2: output the exact grounded summary provided (the quote + thesis-relative sentence) and hyperlink the article source inline ([Title](URL)). Links are secondary, the summary is primary. Do NOT output raw URLs.
+- Add a short "Quiet today" footer listing tickers with no material findings.
 
 Data Context:
 ${contextStr}
