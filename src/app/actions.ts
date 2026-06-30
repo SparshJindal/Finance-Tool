@@ -21,10 +21,9 @@ async function populateHoldingProfile(holdingId: string, ticker: string, company
       aliases: profile.aliases,
     };
     
-    // Only overwrite thesis/directionLogic if the holding started with an empty thesis
+    // Backfill thesis if it was empty, but NEVER overwrite the user's directionLogic
     if (!thesis || thesis.trim() === '') {
       updateData.thesis = profile.thesis;
-      updateData.directionLogic = profile.directionLogic || 'LONG';
     }
     
     await prisma.holding.update({

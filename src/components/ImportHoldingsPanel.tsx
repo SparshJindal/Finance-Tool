@@ -10,6 +10,8 @@ type ParsedRow = {
   ticker: string
   company: string
   quantity: string
+  thesis: string
+  direction: 'LONG' | 'SHORT'
   selected: boolean
 }
 
@@ -21,6 +23,12 @@ export function ImportHoldingsPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const shouldReduceMotion = useReducedMotion()
 
+  function normalizeDirectionInput(val: string | undefined): 'LONG' | 'SHORT' {
+    const v = (val || '').toString().toUpperCase().trim()
+    if (/\bSHORT\b/.test(v) || /\bSELL\b/.test(v) || /\bBEAR/.test(v)) return 'SHORT'
+    return 'LONG'
+  }
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -31,29 +39,33 @@ export function ImportHoldingsPanel() {
       complete: (results) => {
         if (!results.meta.fields) return
 
-        // Find matching columns case-insensitively
-        const tickerKey = results.meta.fields.find(f => ['symbol', 'instrument', 'ticker', 'stock'].includes(f.toLowerCase().trim()))
-        const companyKey = results.meta.fields.find(f => ['company', 'name', 'company name'].includes(f.toLowerCase().trim()))
-        const qtyKey = results.meta.fields.find(f => ['quantity', 'qty', 'volume'].includes(f.toLowerCase().trim()))
+        const tickerKey = results.meta.fields.find(f => ['ticker', 'symbol'].includes(f.toLowerCase().trim()))
+        const companyKey = results.meta.fields.find(f => ['company', 'name', 'asset'].includes(f.toLowerCase().trim()))
+        const qtyKey = results.meta.fields.find(f => ['quantity', 'qty', 'shares', 'units'].includes(f.toLowerCase().trim()))
+        const directionKey = results.meta.fields.find(f => ['direction', 'side', 'position', 'stance', 'long/short', 'directionlogic', 'direction logic'].includes(f.toLowerCase().trim()))
+        const thesisKey = results.meta.fields.find(f => ['thesis', 'rationale', 'reason', 'notes', 'note', 'why'].includes(f.toLowerCase().trim()))
 
         const parsedRows: ParsedRow[] = []
 
-        for (let i = 0; i < results.data.length; i++) {
-          const row: any = results.data[i]
-          const ticker = tickerKey ? row[tickerKey]?.toString().trim() : ''
+        results.data.forEach((row: any, i) => {
+          if (!tickerKey) return
+          const ticker = row[tickerKey]?.toString().trim()
+          if (!ticker) return
           const company = companyKey ? row[companyKey]?.toString().trim() : ''
           const quantity = qtyKey ? row[qtyKey]?.toString().trim() : ''
+          const directionRaw = directionKey ? row[directionKey]?.toString().trim() : ''
+          const thesis = thesisKey ? row[thesisKey]?.toString().trim() : ''
 
-          if (ticker) {
-            parsedRows.push({
-              id: `${i}-${ticker}`,
-              ticker,
-              company: company || ticker,
-              quantity: quantity || '-',
-              selected: true
-            })
-          }
-        }
+          parsedRows.push({
+            id: `${i}-${ticker}`,
+            ticker,
+            company: company || ticker,
+            quantity: quantity || '-',
+            thesis: thesis || '',
+            direction: normalizeDirectionInput(directionRaw),
+            selected: true
+          })
+        })
 
         setRows(parsedRows)
         setResultMsg(null)
@@ -76,7 +88,12 @@ export function ImportHoldingsPanel() {
 
     setIsImporting(true)
     try {
-      const res = await importHoldings(selected.map(r => ({ ticker: r.ticker, company: r.company })))
+      const res = await importHoldings(selected.map(r => ({ 
+        ticker: r.ticker, 
+        company: r.company,
+        thesis: r.thesis || undefined,
+        directionLogic: r.direction
+      })))
       setResultMsg(`Successfully imported ${res.imported} positions. Skipped ${res.skipped} duplicates.`)
       setRows([])
       if (fileInputRef.current) fileInputRef.current.value = ''

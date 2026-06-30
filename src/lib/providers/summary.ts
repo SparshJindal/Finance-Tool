@@ -37,12 +37,13 @@ export function deriveThesisLabel(direction: string, companyImpact: string): str
 
 export function normalizeDirection(directionLogic?: string, kind?: string, direction?: string): 'LONG' | 'SHORT' {
   const vals = [direction, directionLogic, kind].map(v => (v || '').toString().toUpperCase().trim());
-  
+
   for (const v of vals) {
-    if (v === 'SHORT' || v === 'SHORTING' || v === 'FALSE' || v === '0') return 'SHORT';
-    if (v === 'LONG' || v === 'TRUE' || v === '1') return 'LONG';
+    if (!v) continue;
+    if (/\bSHORT\b/.test(v) || /\bSHORTING\b/.test(v) || /\bSELL\b/.test(v) || /\bBEAR/.test(v) || v === 'FALSE' || v === '0') return 'SHORT';
+    if (/\bLONG\b/.test(v) || /\bBUY\b/.test(v) || /\bBULL/.test(v) || v === 'TRUE' || v === '1') return 'LONG';
   }
-  
+
   console.warn(`[WARNING] Unknown direction value. Defaulting to LONG.`);
   return 'LONG';
 }
