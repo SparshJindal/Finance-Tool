@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useLayoutEffect, useState, useRef, useEffect } from 'react'
-import { motion, MotionValue, useTransform, useReducedMotion, useSpring } from 'framer-motion'
+import { motion, MotionValue, useTransform, useReducedMotion } from 'framer-motion'
 import { useLandingScroll } from './LandingScrollContext'
 
 function buildCatmullRomPath(points: {x: number, y: number}[], tension = 0.5) {
@@ -142,14 +142,23 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     sorted.forEach((item) => {
       if (item.ref.current) {
         const rect = item.ref.current.getBoundingClientRect()
-        // Calculate the SCROLL fraction where the TOP of this element is centered on screen
+        const catchUpDist = 300
+        const slope = 1 + (viewportHeight / 2) / catchUpDist
+        
+        const getScrollForTarget = (target: number) => {
+          const s1 = target / slope
+          if (s1 < catchUpDist) return s1
+          return target - viewportHeight / 2
+        }
+
+        // Calculate the SCROLL fraction where the TOP of this element is hit by the comet
         const anchorTopY = rect.top + window.scrollY
-        let fracTop = (anchorTopY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        let fracTop = getScrollForTarget(anchorTopY) / (totalScrollableHeight - viewportHeight)
         fracTop = Math.max(0, Math.min(1, fracTop))
 
-        // Calculate the SCROLL fraction where the CENTER of this element is centered on screen
+        // Calculate the SCROLL fraction where the CENTER of this element is hit by the comet
         const anchorCenterY = rect.top + window.scrollY + rect.height / 2
-        let scrollFrac = (anchorCenterY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        let scrollFrac = getScrollForTarget(anchorCenterY) / (totalScrollableHeight - viewportHeight)
         scrollFrac = Math.max(0, Math.min(1, scrollFrac))
         
         fractions.set(item.id, { top: fracTop, center: scrollFrac })
@@ -166,8 +175,14 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
       const p = i / 100
       // For a given scroll progress p, the scrollY is:
       const scrollY = p * (totalScrollableHeight - viewportHeight)
-      // We want the comet to be at the center of the viewport vertically:
-      const targetY = scrollY + viewportHeight / 2
+      
+      // Comet starts at corner (offset 0) and catches up to center viewport over 300px of scroll
+      const catchUpDist = 300
+      const viewportOffset = scrollY < catchUpDist 
+        ? (scrollY / catchUpDist) * (viewportHeight / 2)
+        : viewportHeight / 2
+        
+      const targetY = scrollY + viewportOffset
       
       let closestPathFrac = 0
       let minDiff = Infinity
@@ -191,7 +206,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     setMappings({ inputs, outputs })
   }, [pathD, elements, containerRef, setElementFractions])
 
-  const drawRaw = useTransform(progress, v => {
+  const draw = useTransform(progress, v => {
     const { inputs, outputs } = mappingsRef.current
     if (inputs.length < 2) return v
     if (v <= inputs[0]) return outputs[0]
@@ -206,9 +221,6 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     }
     return v
   })
-
-  // Apply a gentle spring to smooth out any tiny mathematical interpolation steps
-  const draw = useSpring(drawRaw, { stiffness: 600, damping: 60, mass: 0.5, restDelta: 0.0001 })
 
   const cx = useTransform(draw, v => {
     if (cometPoints.length === 0) return 0
