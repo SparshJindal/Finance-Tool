@@ -47,8 +47,8 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     
     const points: {x: number, y: number}[] = []
     
-    // Start point at top
-    points.push({ x: isMobile ? 20 : 40, y: 0 })
+    // Start point at top left corner
+    points.push({ x: 0, y: 0 })
 
     sorted.forEach((item) => {
       if (item.ref.current) {
