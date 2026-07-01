@@ -4,29 +4,35 @@ import { motion } from 'framer-motion'
 
 import { ElementIlluminator } from './ElementIlluminator'
 
+const IconTarget = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+const IconSearch = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+const IconFilter = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+const IconActivity = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+const IconMail = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+
 const features = [
   {
-    icon: "🎯",
+    icon: <IconTarget />,
     title: "Thesis-first verdicts",
     body: "Every holding gets one badge: Supports, Threatens, Mixed, or Quiet — judged against your conviction, not generic sentiment."
   },
   {
-    icon: "🔍",
+    icon: <IconSearch />,
     title: "Grounded summaries",
     body: "No hallucinations. Each finding leads with a verbatim quote or hard number pulled straight from the source."
   },
   {
-    icon: "🧬",
+    icon: <IconFilter />,
     title: "Event de-duplication",
     body: "The same story from ten outlets collapses into one finding with its sources attached — no repetitive feed."
   },
   {
-    icon: "📊",
+    icon: <IconActivity />,
     title: "Severity you can trust",
     body: "An anchored 1–5 rubric reserves the top scores for confirmed, quantified events. Rumor and analyst chatter stay low."
   },
   {
-    icon: "📬",
+    icon: <IconMail />,
     title: "Daily brief + alerts",
     body: "A thesis-first digest by email and push — the portfolio headline, movers, then a quiet list — so you can skim in 30 seconds."
   }
@@ -97,8 +103,18 @@ export function FeaturesSection() {
               }}
             >
               <motion.div 
-                style={{ fontSize: '1.5rem', display: 'inline-block' }}
-                variants={{ hover: { scale: 1.15 } }}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  width: '40px', 
+                  height: '40px', 
+                  borderRadius: 'var(--radius)', 
+                  background: 'var(--surface-subtle)', 
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)'
+                }}
+                variants={{ hover: { scale: 1.1, rotate: [-2, 2, 0] } }}
                 transition={{ type: 'spring', stiffness: 400, damping: 10 }}
               >
                 {f.icon}
