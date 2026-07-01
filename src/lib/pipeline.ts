@@ -150,8 +150,8 @@ function relevanceFilter(
     const excerptMatch = mentionsCompany(art.excerpt || '');
     const hasCompanyMention = titleMatch || excerptMatch;
 
-    // Topic-sourced articles MUST mention the company
-    if (art.retrievalSource === 'topic' && !hasCompanyMention) {
+    // The only exception: an article carrying a matchedQuestionId may be kept even without a mention
+    if (!hasCompanyMention && !art.matchedQuestionId) {
       dropped++;
       continue;
     }
@@ -162,18 +162,7 @@ function relevanceFilter(
       continue;
     }
 
-    // For primary/question sources, keep if there's any company mention
-    // or if there's no retrieval source tagged (legacy/fallback)
-    // For low-collision unique names, keep them even without positive anchor hits!
-    if (highCollision) {
-      if (hasCompanyMention || !art.retrievalSource) {
-        kept.push(art);
-      } else {
-        dropped++;
-      }
-    } else {
-      kept.push(art);
-    }
+    kept.push(art);
   }
 
   // Sort kept articles by relevance

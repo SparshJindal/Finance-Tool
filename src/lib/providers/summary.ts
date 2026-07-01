@@ -88,6 +88,8 @@ Your task is to output a JSON object containing a "results" array.
 Evaluate EACH article STRICTLY using the provided excerpt. Do not use outside facts.
 
 For each article:
+- STEP 0 — ENTITY GATE (do this first): Confirm the holding is EXPLICITLY named in the article title or excerpt by ticker, company name, or a listed alias. If it is NOT literally present, immediately return material=false, severity=1, companyImpact=neutral and do not evaluate further. Do NOT infer relevance from a shared industry, sector, or theme keyword. Example: a general 'plastics regulation' story is NOT about a company merely because its name contains 'Plastics'.
+- JURISDICTION RULE: Regulatory, legal, or policy news affects a holding only if the holding demonstrably operates in that jurisdiction OR the article explicitly ties the law to the holding by name. Never assume a US/state law affects a non-US company (e.g. an Indian .BO/.NS listing) absent an explicit link.
 - Decide if the news is "material" (highly relevant and impactful). Set to true or false.
   * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
   * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by ticker, company name, or known alias), return material=false and drop it.
@@ -102,7 +104,7 @@ For each article:
   * If the article is not PRIMARILY about the holding, severity caps at 2.
   * Reserve 4-5 for confirmed, quantified, company-specific events ONLY.
 - Assign a companyImpact ("positive", "negative", or "neutral"). Determine if the news is fundamentally good (positive) or bad (negative) for the company itself, IGNORING whether the holding is LONG or SHORT. Use the holding's thesis to add weight to the severity.
-  * HEDGING RULE: If the impact can only be asserted with hedges like "potentially/if/could", downgrade companyImpact to "neutral".
+  * HEDGING RULE: If the only stated impact is hedged ('may', 'could', 'might', 'potentially', 'if'), companyImpact MUST be neutral and severity MUST be ≤2.
 - Decide if it answers one of the Watch Questions. If so, provide the exact question ID in "answeredQuestionId". If not, leave empty (an empty string). A question match is NOT required for the news to be material.
   * EXPLICIT LINK RULE: Require an EXPLICIT causal link between the article fact and the matched watch-question. Don't bolt a thesis question onto unrelated news.
 - Write a short summary of the material information.
