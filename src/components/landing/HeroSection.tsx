@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { PolygonMesh } from '@/components/PolygonMesh'
-import { CorantoLogo } from '@/components/CorantoLogo'
+import { CorantoWordmark } from '@/components/CorantoWordmark'
 import { useState } from 'react'
 
 import { ElementIlluminator } from './ElementIlluminator'
@@ -54,10 +54,10 @@ export function HeroSection() {
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           style={{ marginBottom: 'var(--sp-6)' }}
         >
-          <CorantoLogo width={72} height={72} />
+          <CorantoWordmark height={72} />
         </motion.div>
 
-        <h1 style={{ 
+        <h1 style={{
           fontFamily: "'Cormorant Garamond', Georgia, serif", 
           fontSize: 'clamp(2.5rem, 5vw, 3.5rem)', 
           fontWeight: 700, 
