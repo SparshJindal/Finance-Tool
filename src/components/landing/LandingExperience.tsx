@@ -10,6 +10,7 @@ import { FeaturesSection } from './FeaturesSection'
 import { LiveVerdictDemo } from './LiveVerdictDemo'
 import { FinalCtaSection } from './FinalCtaSection'
 import { PolygonMesh } from '@/components/PolygonMesh'
+import { LandingScrollProvider } from './LandingScrollContext'
 
 export function LandingExperience() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -20,25 +21,27 @@ export function LandingExperience() {
   })
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', backgroundColor: 'var(--surface)', overflow: 'hidden' }}>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
-        <PolygonMesh />
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at center, transparent 0%, var(--surface) 100%)',
-          pointerEvents: 'none'
-        }} />
-      </div>
+    <LandingScrollProvider progress={scrollYProgress}>
+      <div ref={containerRef} style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+          <PolygonMesh />
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(250,250,250,0.55), rgba(250,250,250,0.75))',
+            pointerEvents: 'none'
+          }} />
+        </div>
 
-      <ScrollProgressBar progress={scrollYProgress} />
-      <SignalLine progress={scrollYProgress} />
-      
-      <HeroSection />
-      <HowItWorksSection />
-      <FeaturesSection />
-      <LiveVerdictDemo />
-      <FinalCtaSection />
-    </div>
+        <ScrollProgressBar progress={scrollYProgress} />
+        <SignalLine progress={scrollYProgress} containerRef={containerRef} />
+        
+        <HeroSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <LiveVerdictDemo />
+        <FinalCtaSection />
+      </div>
+    </LandingScrollProvider>
   )
 }

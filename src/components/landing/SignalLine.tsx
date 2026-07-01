@@ -1,143 +1,212 @@
 'use client'
 
+import React, { useLayoutEffect, useState, useRef, useEffect } from 'react'
 import { motion, MotionValue, useTransform, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useLandingScroll } from './LandingScrollContext'
 
-export function SignalLine({ progress }: { progress: MotionValue<number> }) {
-  const prefersReducedMotion = useReducedMotion()
-  const [isMobile, setIsMobile] = useState(false)
-  const [height, setHeight] = useState(1000)
-  
-  useEffect(() => {
-    const checkSize = () => {
-      setIsMobile(window.innerWidth < 768)
-      setHeight(document.body.scrollHeight)
-    }
-    checkSize()
-    window.addEventListener('resize', checkSize)
-    return () => window.removeEventListener('resize', checkSize)
-  }, [])
-
-  // To prevent circle stretching, we don't use preserveAspectRatio="none".
-  // Instead, we build the path to match the exact document height!
-  // Height is usually ~4000-5000px.
-  // The path starts top-left and steps down and right.
-  const buildPath = (h: number) => {
-    if (isMobile) return `M60,0 L60,${h}`
-    // scale the Y coordinates based on total height
-    const y = (pct: number) => (h * pct).toFixed(0)
-    return `M20,0 L20,${y(0.24)} L45,${y(0.24)} L45,${y(0.44)} L70,${y(0.44)} L70,${y(0.64)} L95,${y(0.64)} L95,${y(0.86)} L60,${y(0.86)} L60,${h}`
+function buildSmoothPath(points: {x: number, y: number}[]) {
+  if (points.length === 0) return "M0,0"
+  let d = `M${points[0].x},${points[0].y} `
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const c1x = prev.x
+    const c1y = prev.y + (curr.y - prev.y) * 0.5
+    const c2x = curr.x
+    const c2y = curr.y - (curr.y - prev.y) * 0.5
+    d += `C${c1x},${c1y} ${c2x},${c2y} ${curr.x},${curr.y} `
   }
+  return d
+}
+
+export function SignalLine({ progress, containerRef }: { progress: MotionValue<number>, containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const prefersReducedMotion = useReducedMotion()
+  const { elements, setElementFractions } = useLandingScroll()
   
-  const pathD = buildPath(height)
-  const cometDistance = useTransform(progress, v => `${v * 100}%`)
-  
-  const nodes = [
-    { t: 0.08, x: isMobile ? 60 : 20 },
-    { t: 0.32, x: isMobile ? 60 : 45 },
-    { t: 0.55, x: isMobile ? 60 : 70 },
-    { t: 0.78, x: isMobile ? 60 : 95 },
-    { t: 0.96, x: isMobile ? 60 : 60 },
-  ]
+  const [pathD, setPathD] = useState("M0,0")
+  const [cometPoints, setCometPoints] = useState<{x: number, y: number}[]>([])
+  const pathRef = useRef<SVGPathElement>(null)
+
+  const recompute = () => {
+    if (!containerRef.current) return
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const isMobile = window.innerWidth <= 768
+    
+    // Convert map to array and sort by order
+    const sorted = Array.from(elements.values()).sort((a, b) => a.order - b.order)
+    
+    const points: {x: number, y: number}[] = []
+    
+    // Start point at top
+    points.push({ x: isMobile ? 20 : 40, y: 0 })
+
+    sorted.forEach((item) => {
+      if (item.ref.current) {
+        const rect = item.ref.current.getBoundingClientRect()
+        // Center relative to container
+        const y = rect.top - containerRect.top + rect.height / 2
+        // X center relative to container
+        let x = rect.left - containerRect.left + rect.width / 2
+        
+        // On mobile, just make it a gentle wave or stick to the left if it's too chaotic
+        if (isMobile) {
+          x = Math.max(20, Math.min(x, 60))
+        }
+        
+        points.push({ x, y })
+      }
+    })
+
+    // End point at bottom
+    points.push({ x: points.length > 0 ? points[points.length - 1].x : 40, y: containerRect.height })
+    
+    const newD = buildSmoothPath(points)
+    setPathD(newD)
+  }
+
+  // Effect to recompute path when elements change or window resizes
+  useEffect(() => {
+    recompute()
+    window.addEventListener('resize', recompute)
+    if (document.fonts) {
+      document.fonts.ready.then(recompute)
+    }
+    
+    const container = containerRef.current
+    if (!container) return
+    const ro = new ResizeObserver(recompute)
+    ro.observe(container)
+    return () => {
+      window.removeEventListener('resize', recompute)
+      ro.disconnect()
+    }
+  }, [elements, containerRef])
+
+  // Effect to sample points and calculate fractions after path changes
+  useLayoutEffect(() => {
+    if (!pathRef.current) return
+    const len = pathRef.current.getTotalLength()
+    if (len === 0) return
+
+    // Sample comet points
+    const samples = 240
+    const pts: {x: number, y: number}[] = []
+    for (let i = 0; i <= samples; i++) {
+      const p = pathRef.current.getPointAtLength((i / samples) * len)
+      pts.push({ x: p.x, y: p.y })
+    }
+    setCometPoints(pts)
+
+    // Calculate element fractions
+    if (!containerRef.current) return
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const sorted = Array.from(elements.values()).sort((a, b) => a.order - b.order)
+    const fractions = new Map<string, number>()
+
+    sorted.forEach((item) => {
+      if (item.ref.current) {
+        const rect = item.ref.current.getBoundingClientRect()
+        const targetY = rect.top - containerRect.top + rect.height / 2
+        
+        // Find approximate point along the path that matches this Y
+        // Binary search or linear scan
+        let closestFrac = 0
+        let minDiff = Infinity
+        for (let i = 0; i <= samples; i++) {
+          const pt = pts[i]
+          const diff = Math.abs(pt.y - targetY)
+          if (diff < minDiff) {
+            minDiff = diff
+            closestFrac = i / samples
+          }
+        }
+        fractions.set(item.id, closestFrac)
+      }
+    })
+
+    setElementFractions(fractions)
+  }, [pathD, elements, containerRef, setElementFractions])
+
+  const cx = useTransform(progress, v => {
+    if (cometPoints.length === 0) return 0
+    return cometPoints[Math.round(v * (cometPoints.length - 1))]?.x ?? 0
+  })
+  const cy = useTransform(progress, v => {
+    if (cometPoints.length === 0) return 0
+    return cometPoints[Math.round(v * (cometPoints.length - 1))]?.y ?? 0
+  })
 
   return (
     <div 
       style={{
         position: 'absolute',
         top: 0,
-        left: isMobile ? '20px' : '40px',
-        width: '120px',
+        left: 0,
+        width: '100%',
         height: '100%',
-        zIndex: 5,
-        pointerEvents: 'none'
+        zIndex: 40,
+        pointerEvents: 'none',
+        willChange: 'transform',
+        contain: 'paint'
       }}
     >
       <svg 
-        width="120" 
-        height={height} 
+        width="100%" 
+        height="100%" 
         style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}
       >
-        <defs>
-          <linearGradient id="signalGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--bullish)" />
-          </linearGradient>
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
+        {/* We keep an invisible path to measure it reliably */}
+        <path ref={pathRef} d={pathD} fill="none" stroke="none" />
 
-        {/* Soft glow path (underneath) */}
-        <motion.path
-          d={pathD}
-          fill="none"
-          stroke="url(#signalGrad)"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 0.4 }}
-          filter="url(#glow)"
-        />
+        <motion.g style={{ filter: 'drop-shadow(0 0 6px rgba(160,132,92,0.65))' }}>
+          {/* Glow halo */}
+          <motion.path
+            d={pathD}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="9"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 0.55 }}
+          />
 
-        {/* Main sharp path */}
-        <motion.path
-          d={pathD}
-          fill="none"
-          stroke="url(#signalGrad)"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          style={{ pathLength: prefersReducedMotion ? 1 : progress }}
-        />
-        
-        {/* Comet dot riding the path */}
-        {!prefersReducedMotion && (
-          <motion.g style={{ offsetPath: `path("${pathD}")`, offsetDistance: cometDistance }}>
-            {/* Halo pulse */}
-            <motion.circle 
-              r="10" 
-              fill="var(--accent)" 
-              opacity="0.25"
-              animate={{ scale: [1, 1.6, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            />
-            {/* Core dot */}
-            <motion.circle r="4" fill="var(--accent)" />
-          </motion.g>
-        )}
+          {/* Mid glow */}
+          <motion.path
+            d={pathD}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 0.85 }}
+          />
+          
+          {/* Hot core */}
+          <motion.path
+            d={pathD}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="2.25"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 1 }}
+          />
 
-        {/* Nodes */}
-        {nodes.map((node, i) => {
-          const threshold = node.t
-          const scale = useTransform(progress, [threshold - 0.04, threshold], [0, 1])
-          const opacity = useTransform(progress, [threshold - 0.04, threshold], [0, 1])
-          const isTerminal = i === nodes.length - 1
-
-          return (
-            <motion.g 
-              key={i} 
-              transform={`translate(${node.x}, ${height * node.t})`}
-              style={prefersReducedMotion ? undefined : { scale, opacity }}
-            >
-              {isTerminal && !prefersReducedMotion && (
-                <motion.circle 
-                  r="12" 
-                  fill="var(--bullish)" 
-                  opacity="0.2"
-                  animate={{ scale: [1, 1.5, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                />
-              )}
+          {/* Comet */}
+          {!prefersReducedMotion && cometPoints.length > 0 && (
+            <motion.g style={{ x: cx, y: cy }}>
+              {/* Halo */}
               <motion.circle 
-                r="6" 
-                fill="var(--surface-elevated)" 
-                stroke={isTerminal ? "var(--bullish)" : "var(--accent)"} 
-                strokeWidth="2" 
+                r="9" 
+                fill="var(--accent)" 
+                opacity="0.3"
+                animate={{ scale: [1, 1.5, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               />
+              <circle r="4" fill="#FFFFFF" />
             </motion.g>
-          )
-        })}
+          )}
+        </motion.g>
       </svg>
     </div>
   )

@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion'
 
+import { ElementIlluminator } from './ElementIlluminator'
+
 const steps = [
   {
     num: "01",
@@ -37,7 +39,7 @@ export function HowItWorksSection() {
         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.875rem' }}>
           HOW IT WORKS
         </span>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2.25rem', color: 'var(--text-primary)', margin: 'var(--sp-2) 0 0 0', fontWeight: 600 }}>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '2.25rem', color: 'var(--text-primary)', margin: 'var(--sp-2) 0 0 0', fontWeight: 700 }}>
           From market noise to a verdict on your thesis.
         </h2>
       </motion.div>
@@ -60,34 +62,35 @@ export function HowItWorksSection() {
           }
 
           return (
-            <motion.div 
-              key={step.num}
-              initial={{ opacity: 0, x: -32 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: '-20% 0px' }}
-              transition={{ type: "spring", stiffness: 120, damping: 20 }}
-              style={{ display: 'flex', gap: 'var(--sp-6)', alignItems: 'flex-start' }}
-            >
-              <div style={{ 
-                fontFamily: "'Cormorant Garamond', serif", 
-                fontSize: '3rem', 
-                color: 'var(--accent)', 
-                opacity: 0.5,
-                lineHeight: 1,
-                fontWeight: 600,
-                marginTop: '-0.2em'
-              }}>
-                {step.num}
-              </div>
-              <div>
-                <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.4rem', color: 'var(--text-primary)', margin: '0 0 var(--sp-2) 0', fontWeight: 600 }}>
-                  {step.title}
-                </h3>
-                <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', maxWidth: '520px', lineHeight: 1.6, margin: 0 }}>
-                  {bodyNode}
-                </p>
-              </div>
-            </motion.div>
+            <ElementIlluminator key={step.num} id={`step-${i}`} order={i + 1} style={{ padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)' }}>
+              <motion.div 
+                initial={{ opacity: 0, x: -32 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: '-20% 0px' }}
+                transition={{ type: "spring", stiffness: 120, damping: 20 }}
+                style={{ display: 'flex', gap: 'var(--sp-6)', alignItems: 'flex-start' }}
+              >
+                <div style={{ 
+                  fontFamily: "'Cormorant Garamond', Georgia, serif", 
+                  fontSize: '3rem', 
+                  color: 'var(--accent)', 
+                  opacity: 0.5,
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  marginTop: '-0.2em'
+                }}>
+                  {step.num}
+                </div>
+                <div>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.4rem', color: 'var(--text-primary)', margin: '0 0 var(--sp-2) 0', fontWeight: 700 }}>
+                    {step.title}
+                  </h3>
+                  <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', maxWidth: '520px', lineHeight: 1.6, margin: 0 }}>
+                    {bodyNode}
+                  </p>
+                </div>
+              </motion.div>
+            </ElementIlluminator>
           )
         })}
       </div>

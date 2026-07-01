@@ -217,9 +217,13 @@ export function PolygonMesh({
 
     rafRef.current = requestAnimationFrame(animate)
 
+    let moveRaf: number | null = null
     const handleMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      if (moveRaf !== null) cancelAnimationFrame(moveRaf)
+      moveRaf = requestAnimationFrame(() => {
+        const rect = canvas.getBoundingClientRect()
+        mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      })
     }
 
     const handleLeave = () => {

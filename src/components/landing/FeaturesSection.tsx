@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion'
 
+import { ElementIlluminator } from './ElementIlluminator'
+
 const features = [
   {
     icon: "🎯",
@@ -45,19 +47,20 @@ const itemVariants = {
 export function FeaturesSection() {
   return (
     <section style={{ padding: '120px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-15% 0px' }}
-        style={{ paddingLeft: 'clamp(20px, 8vw, 140px)', marginBottom: '60px' }}
-      >
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.875rem' }}>
-          WHAT MAKES IT DIFFERENT
-        </span>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2.25rem', color: 'var(--text-primary)', margin: 'var(--sp-2) 0 0 0', fontWeight: 600 }}>
-          Built to earn your trust, not your attention.
-        </h2>
-      </motion.div>
+      <ElementIlluminator id="features-heading" order={5} style={{ display: 'inline-block', padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)', marginLeft: 'clamp(4px, 8vw, 124px)', marginBottom: '60px' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-15% 0px' }}
+        >
+          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.875rem' }}>
+            WHAT MAKES IT DIFFERENT
+          </span>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '2.25rem', color: 'var(--text-primary)', margin: 'var(--sp-2) 0 0 0', fontWeight: 700 }}>
+            Built to earn your trust, not your attention.
+          </h2>
+        </motion.div>
+      </ElementIlluminator>
 
       <motion.div 
         className="features-grid"

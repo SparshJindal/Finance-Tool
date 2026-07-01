@@ -6,6 +6,8 @@ import { PolygonMesh } from '@/components/PolygonMesh'
 import { CorantoLogo } from '@/components/CorantoLogo'
 import { useState } from 'react'
 
+import { ElementIlluminator } from './ElementIlluminator'
+
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion()
   const [btnOffset, setBtnOffset] = useState({ x: 0, y: 0 })
@@ -41,7 +43,11 @@ export function HeroSection() {
       }}
     >
       {/* Content */}
-      <div style={{ position: 'relative', zIndex: 10, maxWidth: '760px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+      <ElementIlluminator 
+        id="hero" 
+        order={0} 
+        style={{ maxWidth: '760px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: 'var(--sp-4)' }}
+      >
         <motion.div
           animate={prefersReducedMotion ? {} : { y: [0, -6, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
@@ -148,7 +154,7 @@ export function HeroSection() {
             See how it works
           </a>
         </motion.div>
-      </div>
+      </ElementIlluminator>
 
       {/* Scroll Cue */}
       <motion.div

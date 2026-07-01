@@ -4,6 +4,8 @@ import { motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { useState } from 'react'
 
+import { ElementIlluminator } from './ElementIlluminator'
+
 export function FinalCtaSection() {
   const prefersReducedMotion = useReducedMotion()
   const [btnOffset, setBtnOffset] = useState({ x: 0, y: 0 })
@@ -22,13 +24,14 @@ export function FinalCtaSection() {
   const handleMouseLeave = () => setBtnOffset({ x: 0, y: 0 })
 
   return (
-    <section style={{ padding: '160px 20px 80px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10, textAlign: 'center' }}>
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-15% 0px' }}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-      >
+    <section style={{ padding: '160px 20px 80px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'center' }}>
+      <ElementIlluminator id="final-cta" order={7} style={{ padding: 'var(--sp-8)', borderRadius: 'var(--radius-lg)' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-15% 0px' }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+        >
         <h2 style={{ 
           fontFamily: "'Cormorant Garamond', Georgia, serif", 
           fontSize: 'clamp(2rem, 5vw, 3rem)', 
@@ -85,15 +88,13 @@ export function FinalCtaSection() {
           </Link>
         </motion.div>
       </motion.div>
+      </ElementIlluminator>
 
       {/* Footer strip */}
       <div style={{ 
-        marginTop: '120px', 
-        paddingTop: 'var(--sp-6)', 
-        borderTop: '1px solid var(--border)',
+        marginTop: '120px',
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        justifyContent: 'center',
         fontFamily: 'var(--font-mono)',
         fontSize: '0.75rem',
         color: 'var(--text-muted)',
