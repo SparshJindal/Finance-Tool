@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="coranto">
+  <defs>
+    <linearGradient id="corantoAmber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#B9975B"/>
+      <stop offset="100%" stop-color="#8C6E45"/>
+    </linearGradient>
+  </defs>
+  <!-- the C / sweep -->
+  <path d="M69.5 22.2 A34 34 0 1 0 69.5 77.8" fill="none"
+        stroke="url(#corantoAmber)" stroke-width="11" stroke-linecap="round"/>
+  <!-- signal blip node at the sweep tip -->
+  <circle cx="69.5" cy="22.2" r="8" fill="url(#corantoAmber)"/>
+</svg>
