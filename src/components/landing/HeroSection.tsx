@@ -40,18 +40,6 @@ export function HeroSection() {
         overflow: 'hidden'
       }}
     >
-      {/* Background Mesh */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-        <PolygonMesh />
-        {/* Subtle radial vignette */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at center, transparent 0%, var(--surface) 100%)',
-          pointerEvents: 'none'
-        }} />
-      </div>
-
       {/* Content */}
       <div style={{ position: 'relative', zIndex: 10, maxWidth: '760px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
         <motion.div
@@ -63,11 +51,13 @@ export function HeroSection() {
         </motion.div>
 
         <h1 style={{ 
-          fontFamily: "'Cormorant Garamond', serif", 
-          fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', 
-          fontWeight: 600, 
+          fontFamily: "'Cormorant Garamond', Georgia, serif", 
+          fontSize: 'clamp(2.5rem, 5vw, 3.5rem)', 
+          fontWeight: 700, 
+          fontStyle: 'italic',
           color: 'var(--text-primary)', 
-          lineHeight: 1.05,
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
           margin: 0
         }}>
           {titleWords.map((line, i) => (
@@ -126,7 +116,23 @@ export function HeroSection() {
               className="btn btn-primary"
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
-              style={{ fontSize: '1rem', padding: '0.75rem 1.5rem', display: 'inline-block' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '48px',
+                padding: '0 var(--sp-8)',
+                background: 'linear-gradient(135deg, var(--accent), #8A6D46)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: 'var(--text-md)',
+                fontWeight: 700,
+                borderRadius: 'var(--radius-sm)',
+                textDecoration: 'none',
+                letterSpacing: '0.02em',
+                boxShadow: '0 4px 14px rgba(160, 132, 92, 0.4)'
+              }}
             >
               <motion.span
                 whileHover={prefersReducedMotion ? {} : { scale: 1.03 }}

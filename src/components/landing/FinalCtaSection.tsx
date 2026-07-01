@@ -29,7 +29,17 @@ export function FinalCtaSection() {
         viewport={{ once: true, margin: '-15% 0px' }}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(2rem, 5vw, 3rem)', color: 'var(--text-primary)', margin: '0 0 var(--sp-4) 0', fontWeight: 600, maxWidth: '720px', lineHeight: 1.1 }}>
+        <h2 style={{ 
+          fontFamily: "'Cormorant Garamond', Georgia, serif", 
+          fontSize: 'clamp(2rem, 5vw, 3rem)', 
+          fontWeight: 700, 
+          fontStyle: 'italic',
+          color: 'var(--text-primary)', 
+          margin: '0 0 var(--sp-4) 0', 
+          maxWidth: '720px', 
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em'
+        }}>
           See your portfolio through the lens of your own thesis.
         </h2>
         
@@ -47,7 +57,23 @@ export function FinalCtaSection() {
             className="btn btn-primary"
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
-            style={{ fontSize: '1.125rem', padding: '1rem 2rem', display: 'inline-block' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '48px',
+              padding: '0 var(--sp-8)',
+              background: 'linear-gradient(135deg, var(--accent), #8A6D46)',
+              color: '#FFFFFF',
+              border: 'none',
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: 'var(--text-md)',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-sm)',
+              textDecoration: 'none',
+              letterSpacing: '0.02em',
+              boxShadow: '0 4px 14px rgba(160, 132, 92, 0.4)'
+            }}
           >
             <motion.span
               whileHover={prefersReducedMotion ? {} : { scale: 1.03 }}
