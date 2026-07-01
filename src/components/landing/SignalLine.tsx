@@ -142,14 +142,14 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     sorted.forEach((item) => {
       if (item.ref.current) {
         const rect = item.ref.current.getBoundingClientRect()
-        // Calculate the SCROLL fraction where the TOP of this element is centered on screen
+        // The comet hits the element's top when targetY == anchorTopY
         const anchorTopY = rect.top + window.scrollY
-        let fracTop = (anchorTopY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        let fracTop = anchorTopY / totalScrollableHeight
         fracTop = Math.max(0, Math.min(1, fracTop))
 
-        // Calculate the SCROLL fraction where the CENTER of this element is centered on screen
+        // The comet hits the element's center when targetY == anchorCenterY
         const anchorCenterY = rect.top + window.scrollY + rect.height / 2
-        let scrollFrac = (anchorCenterY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        let scrollFrac = anchorCenterY / totalScrollableHeight
         scrollFrac = Math.max(0, Math.min(1, scrollFrac))
         
         fractions.set(item.id, { top: fracTop, center: scrollFrac })
@@ -164,10 +164,8 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     
     for (let i = 0; i <= 100; i++) {
       const p = i / 100
-      // For a given scroll progress p, the scrollY is:
-      const scrollY = p * (totalScrollableHeight - viewportHeight)
-      // We want the comet to be at the center of the viewport vertically:
-      const targetY = scrollY + viewportHeight / 2
+      // Map the comet's target Y from 0 (top of page) to the bottom of the page based on scroll progress
+      const targetY = p * totalScrollableHeight
       
       let closestPathFrac = 0
       let minDiff = Infinity
