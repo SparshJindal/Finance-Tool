@@ -35,9 +35,10 @@ export function ElementIlluminator({
     if (!ref.current) return
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
+        const r = entry.target.getBoundingClientRect()
         setSize({ 
-          width: entry.contentRect.width, 
-          height: entry.contentRect.height 
+          width: r.width, 
+          height: r.height 
         })
       }
     })
@@ -45,16 +46,16 @@ export function ElementIlluminator({
     return () => resizeObserver.disconnect()
   }, [])
 
-  const frac = elementFractions.get(id) || 0
+  const fracData = elementFractions.get(id) || { top: 0, center: 1 }
 
-  // Only animate if frac is > 0 and we are not in reduced motion
-  const active = frac > 0 && !prefersReducedMotion
+  // Only animate if center is > 0 and we are not in reduced motion
+  const active = fracData.center > 0 && !prefersReducedMotion
 
-  // act ramps from 0 to 1 and stays 1
-  const act = useTransform(progress, [Math.max(0, frac - 0.04), frac], [0, 1], { clamp: true })
+  // act ramps from 0 to 1 as the comet travels from the top to the center of the element
+  const act = useTransform(progress, [Math.max(0, fracData.top - 0.01), fracData.center], [0, 1], { clamp: true })
   
-  // pulse peaks at 1 and settles at 0.35
-  const pulse = useTransform(progress, [Math.max(0, frac - 0.04), frac, Math.min(1, frac + 0.06)], [0, 1, 0.35])
+  // pulse peaks at 1 when comet hits center, then settles at 0.35
+  const pulse = useTransform(progress, [Math.max(0, fracData.top - 0.01), fracData.center, Math.min(1, fracData.center + 0.06)], [0, 1, 0.35])
 
   const y = useTransform(act, [0, 1], [0, -6])
   const scale = useTransform(act, [0, 1], [1, 1.02])

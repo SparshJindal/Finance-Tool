@@ -32,7 +32,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
   
   const [pathD, setPathD] = useState("M0,0")
   const [cometPoints, setCometPoints] = useState<{x: number, y: number}[]>([])
-  const [firstFrac, setFirstFrac] = useState(0)
+  const [mappings, setMappings] = useState({ inputs: [0, 1], outputs: [0, 1] })
   const pathRef = useRef<SVGPathElement>(null)
 
   const recompute = () => {
@@ -128,31 +128,83 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     
     const totalScrollableHeight = document.documentElement.scrollHeight
     const viewportHeight = window.innerHeight
+    const containerRect = containerRef.current.getBoundingClientRect()
     
     const sorted = Array.from(elements.values()).sort((a, b) => a.order - b.order)
-    const fractions = new Map<string, number>()
-    
-    let earliestFrac = 1
+    const fractions = new Map<string, { top: number, center: number }>()
+    const rawMappings: { s: number, p: number }[] = []
 
     sorted.forEach((item) => {
       if (item.ref.current) {
         const rect = item.ref.current.getBoundingClientRect()
+        // Calculate the SCROLL fraction where the TOP of this element is centered on screen
+        const anchorTopY = rect.top + window.scrollY
+        let fracTop = (anchorTopY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        fracTop = Math.max(0, Math.min(1, fracTop))
+
+        // Calculate the SCROLL fraction where the CENTER of this element is centered on screen
         const anchorCenterY = rect.top + window.scrollY + rect.height / 2
-        let frac = (anchorCenterY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
-        frac = Math.max(0, Math.min(1, frac))
+        let scrollFrac = (anchorCenterY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        scrollFrac = Math.max(0, Math.min(1, scrollFrac))
         
-        fractions.set(item.id, frac)
-        if (item.waypointType === 'step' && frac < earliestFrac) {
-            earliestFrac = frac
+        fractions.set(item.id, { top: fracTop, center: scrollFrac })
+        
+        // 2. Calculate the GEOMETRIC path fraction for this element
+        const targetY = rect.top - containerRect.top + rect.height / 2
+        let closestPathFrac = 0
+        let minDiff = Infinity
+        for (let i = 0; i <= samples; i++) {
+          const pt = pts[i]
+          const diff = Math.abs(pt.y - targetY)
+          if (diff < minDiff) {
+            minDiff = diff
+            closestPathFrac = i / samples
+          }
         }
+        
+        rawMappings.push({ s: scrollFrac, p: closestPathFrac })
       }
     })
 
     setElementFractions(fractions)
-    if (earliestFrac < 1) setFirstFrac(earliestFrac)
+    
+    // Build monotonic mapping arrays
+    const inputs = [0]
+    const outputs = [0]
+    
+    // Sort by scroll fraction
+    rawMappings.sort((a, b) => a.s - b.s)
+    
+    for (const m of rawMappings) {
+      if (m.s > inputs[inputs.length - 1] && m.p > outputs[outputs.length - 1]) {
+        inputs.push(m.s)
+        outputs.push(m.p)
+      }
+    }
+    
+    if (inputs[inputs.length - 1] < 1) {
+      inputs.push(1)
+      outputs.push(1)
+    }
+    
+    setMappings({ inputs, outputs })
   }, [pathD, elements, containerRef, setElementFractions])
 
-  const draw = useTransform(progress, [Math.max(0, firstFrac - 0.02), 1], [0, 1], { clamp: true })
+  const draw = useTransform(progress, v => {
+    const { inputs, outputs } = mappings
+    if (inputs.length < 2) return v
+    if (v <= inputs[0]) return outputs[0]
+    if (v >= inputs[inputs.length - 1]) return outputs[outputs.length - 1]
+    
+    for (let i = 0; i < inputs.length - 1; i++) {
+      if (v >= inputs[i] && v <= inputs[i+1]) {
+        const range = inputs[i+1] - inputs[i]
+        const pct = (v - inputs[i]) / range
+        return outputs[i] + pct * (outputs[i+1] - outputs[i])
+      }
+    }
+    return v
+  })
 
   const cx = useTransform(draw, v => {
     if (cometPoints.length === 0) return 0

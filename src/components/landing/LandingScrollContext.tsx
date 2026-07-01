@@ -15,8 +15,8 @@ type ScrollContextType = {
   register: (id: string, ref: React.RefObject<HTMLElement | null>, order: number, waypointType?: WaypointType) => void
   unregister: (id: string) => void
   elements: Map<string, ElementRegistration>
-  elementFractions: Map<string, number>
-  setElementFractions: (fractions: Map<string, number>) => void
+  elementFractions: Map<string, { top: number, center: number }>
+  setElementFractions: (fractions: Map<string, { top: number, center: number }>) => void
   progress: import('framer-motion').MotionValue<number>
 }
 
@@ -25,7 +25,7 @@ const LandingScrollContext = createContext<ScrollContextType | null>(null)
 export function LandingScrollProvider({ children, progress }: { children: React.ReactNode, progress: import('framer-motion').MotionValue<number> }) {
   const elementsRef = useRef<Map<string, ElementRegistration>>(new Map())
   const [updateTick, setUpdateTick] = useState(0)
-  const [elementFractions, setFractions] = useState<Map<string, number>>(new Map())
+  const [elementFractions, setFractions] = useState<Map<string, { top: number, center: number }>>(new Map())
 
   const register = useCallback((id: string, ref: React.RefObject<HTMLElement | null>, order: number, waypointType: WaypointType = 'default') => {
     elementsRef.current.set(id, { id, ref, order, waypointType })
@@ -37,7 +37,7 @@ export function LandingScrollProvider({ children, progress }: { children: React.
     setUpdateTick(t => t + 1)
   }, [])
 
-  const setElementFractions = useCallback((fractions: Map<string, number>) => {
+  const setElementFractions = useCallback((fractions: Map<string, { top: number, center: number }>) => {
     setFractions(fractions)
   }, [])
 
