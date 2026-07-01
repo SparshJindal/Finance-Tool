@@ -64,11 +64,19 @@ export function HowItWorksSection() {
           return (
             <ElementIlluminator key={step.num} id={`step-${i}`} order={i + 1} waypointType="step" style={{ padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)' }}>
               <motion.div 
-                initial={{ opacity: 0, x: -32 }}
+                className="card"
+                initial={{ opacity: 0, x: i % 2 !== 0 ? 32 : -32 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: '-20% 0px' }}
                 transition={{ type: "spring", stiffness: 120, damping: 20 }}
-                style={{ display: 'flex', gap: 'var(--sp-6)', alignItems: 'flex-start' }}
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: i % 2 !== 0 ? 'row-reverse' : 'row',
+                  gap: 'var(--sp-6)', 
+                  alignItems: 'flex-start', 
+                  padding: 'var(--sp-6)',
+                  textAlign: i % 2 !== 0 ? 'right' : 'left'
+                }}
               >
                 <div style={{ 
                   fontFamily: "'Cormorant Garamond', Georgia, serif", 

@@ -33,6 +33,8 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
   const [pathD, setPathD] = useState("M0,0")
   const [cometPoints, setCometPoints] = useState<{x: number, y: number}[]>([])
   const [mappings, setMappings] = useState({ inputs: [0, 1], outputs: [0, 1] })
+  const mappingsRef = useRef(mappings)
+  mappingsRef.current = mappings
   const pathRef = useRef<SVGPathElement>(null)
 
   const recompute = () => {
@@ -55,7 +57,8 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
         let y = rect.top - containerRect.top + rect.height / 2
         
         if (item.waypointType === 'step') {
-            x = (rect.left - containerRect.left) + 56
+            const isEven = item.order % 2 === 0
+            x = isEven ? (rect.right - containerRect.left) - 40 : (rect.left - containerRect.left) + 40
         } else if (item.waypointType === 'feature-heading') {
             points.push({
                 x: (rect.left - containerRect.left) + 22,
@@ -130,9 +133,9 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     const viewportHeight = window.innerHeight
     const containerRect = containerRef.current.getBoundingClientRect()
     
+    // 1. Calculate element fractions for Illuminator
     const sorted = Array.from(elements.values()).sort((a, b) => a.order - b.order)
     const fractions = new Map<string, { top: number, center: number }>()
-    const rawMappings: { s: number, p: number }[] = []
 
     sorted.forEach((item) => {
       if (item.ref.current) {
@@ -148,50 +151,46 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
         scrollFrac = Math.max(0, Math.min(1, scrollFrac))
         
         fractions.set(item.id, { top: fracTop, center: scrollFrac })
-        
-        // 2. Calculate the GEOMETRIC path fraction for this element
-        const targetY = rect.top - containerRect.top + rect.height / 2
-        let closestPathFrac = 0
-        let minDiff = Infinity
-        for (let i = 0; i <= samples; i++) {
-          const pt = pts[i]
-          const diff = Math.abs(pt.y - targetY)
-          if (diff < minDiff) {
-            minDiff = diff
-            closestPathFrac = i / samples
-          }
-        }
-        
-        rawMappings.push({ s: scrollFrac, p: closestPathFrac })
       }
     })
 
     setElementFractions(fractions)
     
-    // Build monotonic mapping arrays
-    const inputs = [0]
-    const outputs = [0]
+    // 2. Build 100-point interpolation array to keep comet vertically centered
+    const inputs: number[] = []
+    const outputs: number[] = []
     
-    // Sort by scroll fraction
-    rawMappings.sort((a, b) => a.s - b.s)
-    
-    for (const m of rawMappings) {
-      if (m.s > inputs[inputs.length - 1] && m.p > outputs[outputs.length - 1]) {
-        inputs.push(m.s)
-        outputs.push(m.p)
+    for (let i = 0; i <= 100; i++) {
+      const p = i / 100
+      // For a given scroll progress p, the scrollY is:
+      const scrollY = p * (totalScrollableHeight - viewportHeight)
+      // We want the comet to be at the center of the viewport vertically:
+      const targetY = scrollY + viewportHeight / 2
+      
+      let closestPathFrac = 0
+      let minDiff = Infinity
+      for (let j = 0; j <= samples; j++) {
+        const diff = Math.abs(pts[j].y - targetY)
+        if (diff < minDiff) {
+          minDiff = diff
+          closestPathFrac = j / samples
+        }
       }
-    }
-    
-    if (inputs[inputs.length - 1] < 1) {
-      inputs.push(1)
-      outputs.push(1)
+      
+      // Ensure monotonicity for Framer Motion
+      if (outputs.length > 0 && closestPathFrac < outputs[outputs.length - 1]) {
+        closestPathFrac = outputs[outputs.length - 1]
+      }
+      
+      inputs.push(p)
+      outputs.push(closestPathFrac)
     }
     
     setMappings({ inputs, outputs })
   }, [pathD, elements, containerRef, setElementFractions])
 
   const draw = useTransform(progress, v => {
-    const { inputs, outputs } = mappings
+    const { inputs, outputs } = mappingsRef.current
     if (inputs.length < 2) return v
     if (v <= inputs[0]) return outputs[0]
     if (v >= inputs[inputs.length - 1]) return outputs[outputs.length - 1]

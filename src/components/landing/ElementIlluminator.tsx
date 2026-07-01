@@ -52,10 +52,10 @@ export function ElementIlluminator({
   const active = fracData.center > 0 && !prefersReducedMotion
 
   // act ramps from 0 to 1 as the comet travels from the top to the center of the element
-  const act = useTransform(progress, [Math.max(0, fracData.top - 0.01), fracData.center], [0, 1], { clamp: true })
+  const act = useTransform(progress, [fracData.top, fracData.center], [0, 1], { clamp: true })
   
   // pulse peaks at 1 when comet hits center, then settles at 0.35
-  const pulse = useTransform(progress, [Math.max(0, fracData.top - 0.01), fracData.center, Math.min(1, fracData.center + 0.06)], [0, 1, 0.35])
+  const pulse = useTransform(progress, [fracData.top, fracData.center, Math.min(1, fracData.center + 0.06)], [0, 1, 0.35])
 
   const y = useTransform(act, [0, 1], [0, -6])
   const scale = useTransform(act, [0, 1], [1, 1.02])
