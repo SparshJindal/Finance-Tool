@@ -55,8 +55,10 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
         const rect = item.ref.current.getBoundingClientRect()
         let x = rect.left - containerRect.left + rect.width / 2
         let y = rect.top - containerRect.top + rect.height / 2
-        
-        if (item.waypointType === 'step') {
+        if (item.waypointType === 'hero') {
+            x = (rect.left - containerRect.left) + 24
+            y = rect.top - containerRect.top
+        } else if (item.waypointType === 'step') {
             const isEven = item.order % 2 === 0
             x = isEven ? (rect.right - containerRect.left) - 40 : (rect.left - containerRect.left) + 40
         } else if (item.waypointType === 'feature-heading') {

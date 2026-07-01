@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react'
 
-export type WaypointType = 'step' | 'feature-heading' | 'feature-left' | 'feature-right' | 'demo' | 'cta' | 'default'
+export type WaypointType = 'step' | 'feature-heading' | 'feature-left' | 'feature-right' | 'demo' | 'cta' | 'hero' | 'default'
 
 export type ElementRegistration = {
   id: string

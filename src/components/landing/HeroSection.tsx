@@ -46,7 +46,8 @@ export function HeroSection() {
       {/* Content */}
       <ElementIlluminator 
         id="hero" 
-        order={0} 
+        order={0}
+        waypointType="hero"
         style={{ maxWidth: '760px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: 'var(--sp-4)' }}
       >
         <motion.div
