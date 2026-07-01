@@ -4,17 +4,24 @@ import React, { useLayoutEffect, useState, useRef, useEffect } from 'react'
 import { motion, MotionValue, useTransform, useReducedMotion } from 'framer-motion'
 import { useLandingScroll } from './LandingScrollContext'
 
-function buildSmoothPath(points: {x: number, y: number}[]) {
+function buildCatmullRomPath(points: {x: number, y: number}[], tension = 0.5) {
   if (points.length === 0) return "M0,0"
+  if (points.length === 1) return `M${points[0].x},${points[0].y}`
+  
   let d = `M${points[0].x},${points[0].y} `
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1]
-    const curr = points[i]
-    const c1x = prev.x
-    const c1y = prev.y + (curr.y - prev.y) * 0.5
-    const c2x = curr.x
-    const c2y = curr.y - (curr.y - prev.y) * 0.5
-    d += `C${c1x},${c1y} ${c2x},${c2y} ${curr.x},${curr.y} `
+  
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = i > 0 ? points[i - 1] : points[0]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = i < points.length - 2 ? points[i + 2] : p2
+
+    const cp1x = p1.x + (p2.x - p0.x) * tension / 6
+    const cp1y = p1.y + (p2.y - p0.y) * tension / 6
+    const cp2x = p2.x - (p3.x - p1.x) * tension / 6
+    const cp2y = p2.y - (p3.y - p1.y) * tension / 6
+
+    d += `C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y} `
   }
   return d
 }
@@ -25,6 +32,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
   
   const [pathD, setPathD] = useState("M0,0")
   const [cometPoints, setCometPoints] = useState<{x: number, y: number}[]>([])
+  const [firstFrac, setFirstFrac] = useState(0)
   const pathRef = useRef<SVGPathElement>(null)
 
   const recompute = () => {
@@ -43,24 +51,42 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     sorted.forEach((item) => {
       if (item.ref.current) {
         const rect = item.ref.current.getBoundingClientRect()
-        // Center relative to container
-        const y = rect.top - containerRect.top + rect.height / 2
-        // X center relative to container
         let x = rect.left - containerRect.left + rect.width / 2
+        let y = rect.top - containerRect.top + rect.height / 2
         
-        // On mobile, just make it a gentle wave or stick to the left if it's too chaotic
+        if (item.waypointType === 'step') {
+            x = (rect.left - containerRect.left) + 56
+        } else if (item.waypointType === 'feature-heading') {
+            points.push({
+                x: (rect.left - containerRect.left) + 22,
+                y: (rect.top - containerRect.top) + 8
+            })
+            x = (rect.left - containerRect.left) + 22
+            y = (rect.bottom - containerRect.top) - 8
+        } else if (item.waypointType === 'feature-left') {
+            x = (rect.right - containerRect.left) - 40
+        } else if (item.waypointType === 'feature-right') {
+            x = (rect.left - containerRect.left) + 40
+        } else if (item.waypointType === 'demo') {
+            x = rect.left - containerRect.left + rect.width / 2
+            y = (rect.top - containerRect.top) + 60
+        } else if (item.waypointType === 'cta') {
+            // use center
+        }
+
         if (isMobile) {
           x = Math.max(20, Math.min(x, 60))
         }
         
+        x = Math.max(16, Math.min(x, containerRect.width - 16))
+
         points.push({ x, y })
       }
     })
 
-    // End point at bottom
     points.push({ x: points.length > 0 ? points[points.length - 1].x : 40, y: containerRect.height })
     
-    const newD = buildSmoothPath(points)
+    const newD = buildCatmullRomPath(points, 0.5)
     setPathD(newD)
   }
 
@@ -97,41 +123,42 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     }
     setCometPoints(pts)
 
-    // Calculate element fractions
+    // Calculate element fractions based on actual scroll position
     if (!containerRef.current) return
-    const containerRect = containerRef.current.getBoundingClientRect()
+    
+    const totalScrollableHeight = document.documentElement.scrollHeight
+    const viewportHeight = window.innerHeight
+    
     const sorted = Array.from(elements.values()).sort((a, b) => a.order - b.order)
     const fractions = new Map<string, number>()
+    
+    let earliestFrac = 1
 
     sorted.forEach((item) => {
       if (item.ref.current) {
         const rect = item.ref.current.getBoundingClientRect()
-        const targetY = rect.top - containerRect.top + rect.height / 2
+        const anchorCenterY = rect.top + window.scrollY + rect.height / 2
+        let frac = (anchorCenterY - viewportHeight / 2) / (totalScrollableHeight - viewportHeight)
+        frac = Math.max(0, Math.min(1, frac))
         
-        // Find approximate point along the path that matches this Y
-        // Binary search or linear scan
-        let closestFrac = 0
-        let minDiff = Infinity
-        for (let i = 0; i <= samples; i++) {
-          const pt = pts[i]
-          const diff = Math.abs(pt.y - targetY)
-          if (diff < minDiff) {
-            minDiff = diff
-            closestFrac = i / samples
-          }
+        fractions.set(item.id, frac)
+        if (item.waypointType === 'step' && frac < earliestFrac) {
+            earliestFrac = frac
         }
-        fractions.set(item.id, closestFrac)
       }
     })
 
     setElementFractions(fractions)
+    if (earliestFrac < 1) setFirstFrac(earliestFrac)
   }, [pathD, elements, containerRef, setElementFractions])
 
-  const cx = useTransform(progress, v => {
+  const draw = useTransform(progress, [Math.max(0, firstFrac - 0.02), 1], [0, 1], { clamp: true })
+
+  const cx = useTransform(draw, v => {
     if (cometPoints.length === 0) return 0
     return cometPoints[Math.round(v * (cometPoints.length - 1))]?.x ?? 0
   })
-  const cy = useTransform(progress, v => {
+  const cy = useTransform(draw, v => {
     if (cometPoints.length === 0) return 0
     return cometPoints[Math.round(v * (cometPoints.length - 1))]?.y ?? 0
   })
@@ -167,7 +194,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
             strokeWidth="9"
             strokeLinejoin="round"
             strokeLinecap="round"
-            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 0.55 }}
+            style={{ pathLength: prefersReducedMotion ? 1 : draw, opacity: 0.55 }}
           />
 
           {/* Mid glow */}
@@ -178,7 +205,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
             strokeWidth="5"
             strokeLinejoin="round"
             strokeLinecap="round"
-            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 0.85 }}
+            style={{ pathLength: prefersReducedMotion ? 1 : draw, opacity: 0.85 }}
           />
           
           {/* Hot core */}
@@ -189,7 +216,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
             strokeWidth="2.25"
             strokeLinejoin="round"
             strokeLinecap="round"
-            style={{ pathLength: prefersReducedMotion ? 1 : progress, opacity: 1 }}
+            style={{ pathLength: prefersReducedMotion ? 1 : draw, opacity: 1 }}
           />
 
           {/* Comet */}

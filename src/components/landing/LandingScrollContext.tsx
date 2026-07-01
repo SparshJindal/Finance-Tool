@@ -2,14 +2,17 @@
 
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react'
 
+export type WaypointType = 'step' | 'feature-heading' | 'feature-left' | 'feature-right' | 'demo' | 'cta' | 'default'
+
 export type ElementRegistration = {
   id: string
   ref: React.RefObject<HTMLElement | null>
   order: number
+  waypointType: WaypointType
 }
 
 type ScrollContextType = {
-  register: (id: string, ref: React.RefObject<HTMLElement | null>, order: number) => void
+  register: (id: string, ref: React.RefObject<HTMLElement | null>, order: number, waypointType?: WaypointType) => void
   unregister: (id: string) => void
   elements: Map<string, ElementRegistration>
   elementFractions: Map<string, number>
@@ -24,8 +27,8 @@ export function LandingScrollProvider({ children, progress }: { children: React.
   const [updateTick, setUpdateTick] = useState(0)
   const [elementFractions, setFractions] = useState<Map<string, number>>(new Map())
 
-  const register = useCallback((id: string, ref: React.RefObject<HTMLElement | null>, order: number) => {
-    elementsRef.current.set(id, { id, ref, order })
+  const register = useCallback((id: string, ref: React.RefObject<HTMLElement | null>, order: number, waypointType: WaypointType = 'default') => {
+    elementsRef.current.set(id, { id, ref, order, waypointType })
     setUpdateTick(t => t + 1)
   }, [])
 

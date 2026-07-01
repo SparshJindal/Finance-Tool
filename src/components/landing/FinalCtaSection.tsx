@@ -25,7 +25,7 @@ export function FinalCtaSection() {
 
   return (
     <section style={{ padding: '160px 20px 80px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'center' }}>
-      <ElementIlluminator id="final-cta" order={7} style={{ padding: 'var(--sp-8)', borderRadius: 'var(--radius-lg)' }}>
+      <ElementIlluminator id="final-cta" order={12} waypointType="cta" style={{ padding: 'var(--sp-8)', borderRadius: 'var(--radius-lg)' }}>
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}

@@ -2,17 +2,19 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { motion, useTransform, useReducedMotion, useMotionTemplate } from 'framer-motion'
-import { useLandingScroll } from './LandingScrollContext'
+import { useLandingScroll, WaypointType } from './LandingScrollContext'
 
 export function ElementIlluminator({ 
   id, 
   order, 
+  waypointType = 'default',
   children,
   className = '',
   style = {}
 }: { 
   id: string
   order: number
+  waypointType?: WaypointType
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
@@ -25,9 +27,9 @@ export function ElementIlluminator({
   const [size, setSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
-    register(id, ref, order)
+    register(id, ref, order, waypointType)
     return () => unregister(id)
-  }, [id, order, register, unregister])
+  }, [id, order, waypointType, register, unregister])
 
   useEffect(() => {
     if (!ref.current) return
@@ -59,7 +61,8 @@ export function ElementIlluminator({
   
   const filter = useMotionTemplate`brightness(${useTransform(pulse, p => 1 + p * 0.08)})`
   
-  const boxShadow = useMotionTemplate`0 0 0 1px rgba(160,132,92,${useTransform(pulse, p => 0.2 + p * 0.5)}), 0 0 ${useTransform(pulse, p => 18 * p + 6)}px rgba(160,132,92,${useTransform(pulse, p => 0.15 + p * 0.45)})`
+  // Removed the 1px hard border from box-shadow since the SVG handles it. Just the outer glow.
+  const boxShadow = useMotionTemplate`0 0 ${useTransform(pulse, p => 18 * p + 6)}px rgba(160,132,92,${useTransform(pulse, p => 0.1 + p * 0.3)})`
 
   return (
     <motion.div
@@ -81,22 +84,24 @@ export function ElementIlluminator({
         >
           {/* Inner faint white trace */}
           <motion.rect 
-            x={1} y={1} 
-            width={size.width - 2} 
-            height={size.height - 2} 
+            x={1.5} y={1.5} 
+            width={size.width - 3} 
+            height={size.height - 3} 
             rx={12} 
+            ry={12}
             fill="none" 
             stroke="#FFFFFF" 
-            strokeWidth="1.5" 
+            strokeWidth="0.75" 
             opacity="0.6"
             style={{ pathLength: act }}
           />
           {/* Outer glowing trace */}
           <motion.rect 
-            x={1} y={1} 
-            width={size.width - 2} 
-            height={size.height - 2} 
+            x={1.5} y={1.5} 
+            width={size.width - 3} 
+            height={size.height - 3} 
             rx={12} 
+            ry={12}
             fill="none" 
             stroke="var(--accent)" 
             strokeWidth="1.5"

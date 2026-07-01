@@ -62,7 +62,7 @@ export function HowItWorksSection() {
           }
 
           return (
-            <ElementIlluminator key={step.num} id={`step-${i}`} order={i + 1} style={{ padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)' }}>
+            <ElementIlluminator key={step.num} id={`step-${i}`} order={i + 1} waypointType="step" style={{ padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)' }}>
               <motion.div 
                 initial={{ opacity: 0, x: -32 }}
                 whileInView={{ opacity: 1, x: 0 }}

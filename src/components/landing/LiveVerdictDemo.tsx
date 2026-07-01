@@ -26,7 +26,7 @@ export function LiveVerdictDemo() {
       </motion.div>
 
       <div style={{ paddingLeft: 'clamp(20px, 8vw, 140px)', display: 'flex', justifyContent: 'flex-start' }}>
-        <ElementIlluminator id="demo-card" order={6} style={{ width: '100%', maxWidth: '560px', borderRadius: 'var(--radius-lg)' }}>
+        <ElementIlluminator id="demo-card" order={11} waypointType="demo" style={{ width: '100%', maxWidth: '560px', borderRadius: 'var(--radius-lg)' }}>
           <motion.div 
             className="card" 
             style={{ padding: 'var(--sp-5)', position: 'relative', overflow: 'hidden' }}

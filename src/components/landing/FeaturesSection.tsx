@@ -47,7 +47,7 @@ const itemVariants = {
 export function FeaturesSection() {
   return (
     <section style={{ padding: '120px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
-      <ElementIlluminator id="features-heading" order={5} style={{ display: 'inline-block', padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)', marginLeft: 'clamp(4px, 8vw, 124px)', marginBottom: '60px' }}>
+      <ElementIlluminator id="features-heading" order={5} waypointType="feature-heading" style={{ display: 'inline-block', padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)', marginLeft: 'clamp(4px, 8vw, 124px)', marginBottom: '60px' }}>
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -76,33 +76,41 @@ export function FeaturesSection() {
         }}
       >
         {features.map((f, i) => (
-          <motion.div 
+          <ElementIlluminator 
             key={i} 
-            variants={itemVariants}
-            className="card card-lift"
-            whileHover="hover"
-            style={{ 
-              padding: 'var(--sp-5)', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: 'var(--sp-3)',
-              willChange: 'transform'
-            }}
+            id={`feature-${i}`} 
+            order={6 + i} 
+            waypointType={i % 2 === 0 ? 'feature-left' : 'feature-right'}
+            style={{ display: 'flex' }}
           >
             <motion.div 
-              style={{ fontSize: '1.5rem', display: 'inline-block' }}
-              variants={{ hover: { scale: 1.15 } }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+              variants={itemVariants}
+              className="card card-lift"
+              whileHover="hover"
+              style={{ 
+                padding: 'var(--sp-5)', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 'var(--sp-3)',
+                willChange: 'transform',
+                width: '100%'
+              }}
             >
-              {f.icon}
+              <motion.div 
+                style={{ fontSize: '1.5rem', display: 'inline-block' }}
+                variants={{ hover: { scale: 1.15 } }}
+                transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+              >
+                {f.icon}
+              </motion.div>
+              <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
+                {f.title}
+              </h3>
+              <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5, margin: 0 }}>
+                {f.body}
+              </p>
             </motion.div>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontWeight: 600 }}>
-              {f.title}
-            </h3>
-            <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5, margin: 0 }}>
-              {f.body}
-            </p>
-          </motion.div>
+          </ElementIlluminator>
         ))}
       </motion.div>
     </section>
