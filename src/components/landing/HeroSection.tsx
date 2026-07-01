@@ -39,7 +39,8 @@ export function HeroSection() {
         alignItems: 'center', 
         justifyContent: 'center',
         padding: '0 20px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        zIndex: 10
       }}
     >
       {/* Content */}
