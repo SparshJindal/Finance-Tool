@@ -25,13 +25,14 @@ export function LandingExperience() {
       <div ref={containerRef} style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
         <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
           <PolygonMesh />
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(180deg, rgba(250,250,250,0.55), rgba(250,250,250,0.75))',
-            pointerEvents: 'none'
-          }} />
         </div>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1,
+          background: 'linear-gradient(180deg, rgba(250,250,250,0.55), rgba(250,250,250,0.75))',
+          pointerEvents: 'none'
+        }} />
 
         <ScrollProgressBar progress={scrollYProgress} />
         <SignalLine progress={scrollYProgress} containerRef={containerRef} />

@@ -171,7 +171,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
         left: 0,
         width: '100%',
         height: '100%',
-        zIndex: 40,
+        zIndex: 5,
         pointerEvents: 'none',
         willChange: 'transform',
         contain: 'paint'
