@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useLayoutEffect, useState, useRef, useEffect } from 'react'
-import { motion, MotionValue, useTransform, useReducedMotion } from 'framer-motion'
+import { motion, MotionValue, useTransform, useReducedMotion, useSpring } from 'framer-motion'
 import { useLandingScroll } from './LandingScrollContext'
 
 function buildCatmullRomPath(points: {x: number, y: number}[], tension = 0.5) {
@@ -119,8 +119,8 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     const len = pathRef.current.getTotalLength()
     if (len === 0) return
 
-    // Sample comet points
-    const samples = 240
+    // Sample comet points with much higher resolution to prevent blocky mapping
+    const samples = 1500
     const pts: {x: number, y: number}[] = []
     for (let i = 0; i <= samples; i++) {
       const p = pathRef.current.getPointAtLength((i / samples) * len)
@@ -189,7 +189,7 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     setMappings({ inputs, outputs })
   }, [pathD, elements, containerRef, setElementFractions])
 
-  const draw = useTransform(progress, v => {
+  const drawRaw = useTransform(progress, v => {
     const { inputs, outputs } = mappingsRef.current
     if (inputs.length < 2) return v
     if (v <= inputs[0]) return outputs[0]
@@ -204,6 +204,9 @@ export function SignalLine({ progress, containerRef }: { progress: MotionValue<n
     }
     return v
   })
+
+  // Apply a gentle spring to smooth out any tiny mathematical interpolation steps
+  const draw = useSpring(drawRaw, { stiffness: 600, damping: 60, mass: 0.5, restDelta: 0.0001 })
 
   const cx = useTransform(draw, v => {
     if (cometPoints.length === 0) return 0
