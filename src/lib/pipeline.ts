@@ -6,8 +6,10 @@ import { judgeHoldingArticles, generateHoldingCaption } from "@/lib/providers/su
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
 import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
+import { evaluateFalsifiers } from "@/lib/providers/falsifiers";
 import { sourceTier } from "@/lib/providers/sourceQuality";
 import type { NormalizedArticle } from "@/lib/providers/news";
+import { fetchEarningsForHolding, judgeEarningsVsThesis } from "@/lib/providers/earnings";
 
 export type HoldingRunResult = {
   holdingId: string
@@ -670,6 +672,80 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     }
   }
 
+  // --- FALSIFIER PASS ---
+  try {
+    const holdingsWithFalsifiers = await prisma.holding.findMany({
+      where: { id: { in: holdingIds } },
+      include: { falsifiers: true }
+    });
+    
+    // We can reuse the same nonNeutral logic. Let's fetch findings for these holdings:
+    const recentFindingsForFalsifiers = await prisma.finding.findMany({
+      where: {
+        holdingId: { in: holdingIds },
+        createdAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) }
+      },
+      include: { article: true },
+      orderBy: { severity: 'desc' }
+    });
+
+    const findingsByHolding = new Map<string, typeof recentFindingsForFalsifiers>();
+    recentFindingsForFalsifiers.forEach(f => {
+      if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
+      findingsByHolding.get(f.holdingId)!.push(f);
+    });
+
+    for (const h of holdingsWithFalsifiers) {
+      if (h.falsifiers.length === 0) continue;
+      const hFindings = findingsByHolding.get(h.id) || [];
+      const nonNeutral = hFindings.filter(f => (f.direction || '').toUpperCase() !== 'NEUTRAL');
+      
+      if (nonNeutral.length > 0) {
+        const findingsForEval = nonNeutral.map(f => ({
+          id: f.id,
+          summary: f.summary,
+          direction: f.direction as any,
+          severity: f.severity,
+          sourceTitle: f.article.title
+        }));
+        
+        const evalResults = await evaluateFalsifiers(h, h.falsifiers, findingsForEval);
+        
+        for (const res of evalResults.results) {
+          const targetFalsifier = h.falsifiers[res.index];
+          if (!targetFalsifier) continue;
+          
+          const matchedIds = res.matchedFindingIndices
+            .map(i => findingsForEval[i]?.id)
+            .filter(Boolean) as string[];
+            
+          const isTriggering = res.status === 'TRIGGERED' && targetFalsifier.status !== 'TRIGGERED';
+          
+          await prisma.falsifier.update({
+            where: { id: targetFalsifier.id },
+            data: {
+              status: res.status,
+              evidenceFindingIds: matchedIds,
+              lastEvaluatedAt: new Date(),
+              triggeredAt: isTriggering ? new Date() : (res.status === 'TRIGGERED' ? targetFalsifier.triggeredAt : null)
+            }
+          });
+        }
+      }
+    }
+  } catch (error: any) {
+    if (error instanceof LlmQuotaExhaustedError || error.name === "LlmQuotaExhaustedError") {
+      console.warn("[ingestNews] Quota exhausted during falsifier pass. Stopping but pipeline continues.");
+    } else {
+      console.error("[ingestNews] Error during falsifier pass:", error);
+    }
+  }
+
+  // --- EARNINGS PASS ---
+  if (!skipHeavyApis) {
+    await refreshEarnings(undefined, holdingIds);
+  }
+
   const report = {
     totalHoldingsProcessed: holdings.length,
     newUpserted: upsertedCount,
@@ -681,4 +757,89 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
 
   console.log("[ingestNews] Pipeline Fully Complete.", report);
   return { report };
+}
+
+export async function refreshEarnings(userId?: string, targetHoldingIds?: string[]) {
+  const whereClause: any = {};
+  if (userId) whereClause.userId = userId;
+  if (targetHoldingIds && targetHoldingIds.length > 0) {
+    whereClause.id = { in: targetHoldingIds };
+  }
+  
+  const holdings = await prisma.holding.findMany({ where: whereClause });
+  
+  for (const h of holdings) {
+    try {
+      const events = await fetchEarningsForHolding(h);
+      
+      for (const e of events) {
+        if (!e.reportDate) continue;
+        
+        let verdict = undefined;
+        let summary = undefined;
+        
+        if (e.status === "REPORTED" && (e.epsActual != null || e.revenueActual != null)) {
+          // Check if we already have this event with a verdict
+          const existing = await prisma.earningsEvent.findUnique({
+            where: {
+              holdingId_reportDate: { holdingId: h.id, reportDate: e.reportDate }
+            }
+          });
+          
+          if (!existing || !existing.thesisVerdict) {
+            const judgment = await judgeEarningsVsThesis(h, e);
+            verdict = judgment.verdict;
+            summary = judgment.summary;
+          } else {
+            verdict = existing.thesisVerdict;
+            summary = existing.thesisSummary;
+          }
+        }
+        
+        await prisma.earningsEvent.upsert({
+          where: {
+            holdingId_reportDate: { holdingId: h.id, reportDate: e.reportDate }
+          },
+          update: {
+            status: e.status,
+            epsEstimate: e.epsEstimate,
+            epsActual: e.epsActual,
+            epsSurprisePct: e.epsSurprisePct,
+            revenueEstimate: e.revenueEstimate,
+            revenueActual: e.revenueActual,
+            revenueSurprisePct: e.revenueSurprisePct,
+            guidance: e.guidance,
+            source: e.source,
+            fiscalPeriod: e.fiscalPeriod,
+            reportWhen: e.reportWhen,
+            ...(verdict ? { thesisVerdict: verdict } : {}),
+            ...(summary ? { thesisSummary: summary } : {})
+          },
+          create: {
+            holdingId: h.id,
+            reportDate: e.reportDate,
+            status: e.status,
+            epsEstimate: e.epsEstimate,
+            epsActual: e.epsActual,
+            epsSurprisePct: e.epsSurprisePct,
+            revenueEstimate: e.revenueEstimate,
+            revenueActual: e.revenueActual,
+            revenueSurprisePct: e.revenueSurprisePct,
+            guidance: e.guidance,
+            source: e.source,
+            fiscalPeriod: e.fiscalPeriod,
+            reportWhen: e.reportWhen,
+            thesisVerdict: verdict,
+            thesisSummary: summary
+          }
+        });
+      }
+    } catch (error: any) {
+      if (error instanceof LlmQuotaExhaustedError || error.name === "LlmQuotaExhaustedError") {
+        console.warn(`[refreshEarnings] Quota exhausted for ${h.ticker}. Stopping earnings pass.`);
+        break; // Stop pass on quota exhaustion, but don't crash the pipeline
+      }
+      console.error(`[refreshEarnings] Error processing ${h.ticker}:`, error);
+    }
+  }
 }

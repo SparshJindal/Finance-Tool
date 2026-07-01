@@ -22,6 +22,8 @@ export function PipelineControls({
   sendDigestAction,
   deleteAllHoldingsAction,
   logOutAction,
+  refreshEarningsAction,
+  backfillFalsifiersAction,
   onRunComplete,
 }: {
   holdings: { id: string, ticker: string }[]
@@ -32,15 +34,19 @@ export function PipelineControls({
   sendDigestAction: (fd: FormData) => void | Promise<void>
   deleteAllHoldingsAction: (fd?: FormData) => Promise<{success?: boolean, error?: string}>
   logOutAction: (fd: FormData) => void | Promise<void>
+  refreshEarningsAction: (ids?: string[]) => Promise<void>
+  backfillFalsifiersAction: () => Promise<any>
   onRunComplete?: (results: HoldingRunResult[]) => void
 }) {
   const [isPendingDigest, startTransitionDigest] = useTransition()
+  const [isPendingEarnings, startTransitionEarnings] = useTransition()
+  const [isPendingFalsifiers, startTransitionFalsifiers] = useTransition()
   const router = useRouter()
   
   const [pipelineState, setPipelineState] = useState<{ active: boolean, text: string, percent: number }>({ active: false, text: '', percent: 0 })
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null)
 
-  const isAnyPending = pipelineState.active || isPendingDigest
+  const isAnyPending = pipelineState.active || isPendingDigest || isPendingEarnings || isPendingFalsifiers
 
   const handleStudyAll = async () => {
     if (holdings.length === 0) return
@@ -305,6 +311,24 @@ export function PipelineControls({
             {isPendingDigest ? 'Sending...' : 'Send Digest'}
           </button>
         </form>
+
+        <button 
+          onClick={() => startTransitionEarnings(() => refreshEarningsAction())}
+          className="btn btn-secondary" 
+          style={{ width: '100%', justifyContent: 'center' }}
+          disabled={isAnyPending}
+        >
+          {isPendingEarnings ? 'Refreshing...' : 'Refresh Earnings'}
+        </button>
+
+        <button 
+          onClick={() => startTransitionFalsifiers(() => backfillFalsifiersAction())}
+          className="btn btn-secondary" 
+          style={{ width: '100%', justifyContent: 'center' }}
+          disabled={isAnyPending}
+        >
+          {isPendingFalsifiers ? 'Generating...' : 'Generate Falsifiers'}
+        </button>
 
         <form action={logOutAction}>
           <button 

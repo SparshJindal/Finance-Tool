@@ -7,10 +7,11 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { getCompanyProfile, getPeers } from '@/lib/providers/finnhub'
 import { generateWatchQuestions, batchGenerateWatchQuestions } from '@/lib/providers/gemini'
-import { ingestNews } from '@/lib/pipeline'
+import { ingestNews, refreshEarnings } from '@/lib/pipeline'
 import { askAI } from '@/lib/providers/ai'
 import { Type } from '@google/genai'
 import { generateHoldingProfile } from '@/lib/providers/profile'
+import { generateThesisFalsifiers } from '@/lib/providers/falsifiers'
 
 async function populateHoldingProfile(holdingId: string, ticker: string, company: string, thesis: string, directionLogic: string) {
   try {
@@ -65,6 +66,24 @@ async function populateHoldingProfile(holdingId: string, ticker: string, company
           }
         });
       }
+    }
+
+    // Generate falsifiers
+    try {
+      const generatedFalsifiers = await generateThesisFalsifiers({ company, ticker, thesis: updateData.thesis || thesis, directionLogic });
+      if (generatedFalsifiers && generatedFalsifiers.length > 0) {
+        for (const f of generatedFalsifiers) {
+          await prisma.falsifier.create({
+            data: {
+              holdingId,
+              text: f.text,
+              rationale: f.rationale
+            }
+          });
+        }
+      }
+    } catch (falsifierError) {
+      console.error(`[populateHoldingProfile] Failed to generate falsifiers for ${ticker}:`, falsifierError);
     }
   } catch (e) {
     console.error(`[populateHoldingProfile] Failed for ${ticker}:`, e);
@@ -744,3 +763,46 @@ export async function importHoldings(holdings: { ticker: string, company: string
   return { imported, skipped }
 }
 
+export async function backfillFalsifiersAction() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  const userId = session.user.id;
+
+  const holdings = await prisma.holding.findMany({
+    where: { userId },
+    include: { falsifiers: true }
+  });
+
+  const toBackfill = holdings.filter(h => h.falsifiers.length === 0 && h.thesis && h.thesis.trim() !== "");
+  
+  let count = 0;
+  for (const h of toBackfill) {
+    try {
+      const generatedFalsifiers = await generateThesisFalsifiers(h);
+      if (generatedFalsifiers && generatedFalsifiers.length > 0) {
+        for (const f of generatedFalsifiers) {
+          await prisma.falsifier.create({
+            data: {
+              holdingId: h.id,
+              text: f.text,
+              rationale: f.rationale
+            }
+          });
+        }
+        count++;
+      }
+    } catch (e) {
+      console.error(`[backfillFalsifiersAction] Error for ${h.ticker}:`, e);
+    }
+  }
+
+  revalidatePath('/dashboard');
+  return { success: true, count };
+}
+
+export async function refreshEarningsAction(holdingIds?: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  await refreshEarnings(session.user.id, holdingIds);
+  revalidatePath('/dashboard');
+}

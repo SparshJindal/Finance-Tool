@@ -16,10 +16,13 @@ export type HoldingVerdict = {
   findings: FindingData[]          // all findings for this holding, sev desc
   isQuiet: boolean                 // true if no material (non-neutral) findings
   caption?: string | null          // AI-synthesized one-liner caption
+  earningsEvents?: any[]
+  falsifiers?: any[]
+  thesisHealth?: { score: number, label: string, triggeredCount: number, watchCount: number }
 }
 
 export function buildHoldingVerdicts(
-  holdings: { id: string; ticker: string; company: string; directionLogic: string; thesis: string; verdictCaption?: string | null }[],
+  holdings: { id: string; ticker: string; company: string; directionLogic: string; thesis: string; verdictCaption?: string | null; earningsEvents?: any[]; falsifiers?: any[] }[],
   findings: FindingData[]
 ): HoldingVerdict[] {
   const verdicts: HoldingVerdict[] = []
@@ -85,6 +88,11 @@ export function buildHoldingVerdicts(
         verdict = 'Mixed'
       }
     }
+
+    let thesisHealth;
+    if (h.falsifiers) {
+      thesisHealth = computeThesisHealth(h.falsifiers, verdict);
+    }
     
     verdicts.push({
       holdingId: h.id,
@@ -100,7 +108,10 @@ export function buildHoldingVerdicts(
       topFinding,
       findings: sortedFindings,
       isQuiet: (supportCount === 0 && threatenCount === 0),
-      caption: h.verdictCaption ?? null
+      caption: h.verdictCaption ?? null,
+      earningsEvents: h.earningsEvents,
+      falsifiers: h.falsifiers,
+      thesisHealth
     })
   }
   
@@ -125,4 +136,32 @@ export function buildHoldingVerdicts(
   })
   
   return verdicts
+}
+
+export function computeThesisHealth(falsifiers: any[], verdict: HoldingVerdict['verdict']) {
+  let score = 100;
+  let triggeredCount = 0;
+  let watchCount = 0;
+
+  for (const f of falsifiers) {
+    if (f.status === 'TRIGGERED') {
+      score -= 25;
+      triggeredCount++;
+    } else if (f.status === 'WATCH') {
+      score -= 10;
+      watchCount++;
+    }
+  }
+
+  if (verdict === 'Threatens') score -= 10;
+  else if (verdict === 'Mixed') score -= 5;
+
+  score = Math.max(0, Math.min(100, score));
+
+  let label = "Intact";
+  if (score < 25) label = "Broken";
+  else if (score < 50) label = "Cracking";
+  else if (score < 75) label = "Under pressure";
+
+  return { score, label, triggeredCount, watchCount };
 }

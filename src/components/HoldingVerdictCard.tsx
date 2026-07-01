@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { HoldingVerdict } from '@/lib/verdict'
 import { FindingCard } from './FindingCard'
+import { EarningsCard } from './EarningsCard'
+import { ThesisHealthPanel } from './ThesisHealthPanel'
 import { Severity } from './Severity'
 
 type HoldingVerdictCardProps = {
@@ -145,6 +147,28 @@ export function HoldingVerdictCard({ verdict, reducedMotion = false }: HoldingVe
             style={{ overflow: 'hidden' }}
           >
             <div style={{ marginTop: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', borderTop: '1px solid var(--border)', paddingTop: 'var(--sp-4)' }}>
+              
+              {verdict.earningsEvents && verdict.earningsEvents.length > 0 && (
+                <div onClick={e => e.stopPropagation()}>
+                  <EarningsCard ticker={verdict.ticker} event={
+                    // Prefer upcoming, otherwise latest reported
+                    verdict.earningsEvents.filter((e: any) => e.status === "UPCOMING").sort((a: any, b: any) => new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime())[0] ||
+                    verdict.earningsEvents.filter((e: any) => e.status === "REPORTED").sort((a: any, b: any) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime())[0]
+                  } />
+                </div>
+              )}
+
+              {verdict.thesisHealth && verdict.falsifiers && verdict.falsifiers.length > 0 && (
+                <div onClick={e => e.stopPropagation()}>
+                  <ThesisHealthPanel 
+                    ticker={verdict.ticker}
+                    health={verdict.thesisHealth}
+                    falsifiers={verdict.falsifiers}
+                    allFindings={verdict.findings}
+                  />
+                </div>
+              )}
+
               {verdict.findings.length > 0 ? (
                 verdict.findings.map((f, i) => (
                   // Stop propagation so clicking inside a card doesn't toggle the parent

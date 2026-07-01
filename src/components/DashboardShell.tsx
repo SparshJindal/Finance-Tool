@@ -10,8 +10,11 @@ import { AddHoldingPanel } from './AddHoldingPanel'
 import { ManagePortfolioPanel } from './ManagePortfolioPanel'
 import { ImportHoldingsPanel } from './ImportHoldingsPanel'
 import { ProfilePanel } from './ProfilePanel'
+
 import { PolygonMesh } from './PolygonMesh'
 import { HoldingVerdictCard } from './HoldingVerdictCard'
+import { EarningsCard } from './EarningsCard'
+import { ThesisHealthPanel } from './ThesisHealthPanel'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import type { HoldingVerdict } from '@/lib/verdict'
@@ -19,6 +22,7 @@ import type { HoldingVerdict } from '@/lib/verdict'
 
 type DashboardShellProps = {
   holdings: any[] // full holdings for the add-holding panel + nav
+  holdingsRaw?: any[]
   holdingVerdicts?: HoldingVerdict[]
   findings: FindingData[]
   tickerItems: any[]
@@ -44,6 +48,7 @@ type DashboardShellProps = {
 
 export function DashboardShell({
   holdings,
+  holdingsRaw = [],
   findings,
   tickerItems,
   lastScanAt,
@@ -121,6 +126,46 @@ export function DashboardShell({
   const totalThreatened = holdingVerdicts.filter(v => v.verdict === 'Threatens' || v.verdict === 'Mixed').length
   const totalSupported = holdingVerdicts.filter(v => v.verdict === 'Supports').length
   const totalQuietCount = holdingVerdicts.filter(v => v.isQuiet).length
+
+  const earningsCardsData = useMemo(() => {
+    const cards: { ticker: string; event: any }[] = []
+    if (!holdingsRaw) return cards
+
+    for (const h of holdingsRaw) {
+      if (activeHolding && h.id !== activeHolding) continue
+      if (h.earningsEvents && h.earningsEvents.length > 0) {
+        // We only want to show the single most relevant event per holding:
+        // Either the closest UPCOMING, or if none, the latest REPORTED.
+        const upcoming = h.earningsEvents.filter((e: any) => e.status === "UPCOMING").sort((a: any, b: any) => new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime())[0]
+        const reported = h.earningsEvents.filter((e: any) => e.status === "REPORTED").sort((a: any, b: any) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime())[0]
+        
+        if (upcoming) cards.push({ ticker: h.ticker, event: upcoming })
+        else if (reported) cards.push({ ticker: h.ticker, event: reported })
+      }
+    }
+
+    // Sort cards: UPCOMING first (soonest), then REPORTED (latest)
+    cards.sort((a, b) => {
+      if (a.event.status === "UPCOMING" && b.event.status === "REPORTED") return -1
+      if (a.event.status === "REPORTED" && b.event.status === "UPCOMING") return 1
+      if (a.event.status === "UPCOMING") {
+        return new Date(a.event.reportDate).getTime() - new Date(b.event.reportDate).getTime()
+      } else {
+        return new Date(b.event.reportDate).getTime() - new Date(a.event.reportDate).getTime()
+      }
+    })
+
+    return cards
+  }, [holdingsRaw, activeHolding])
+
+  const healthCardsData = useMemo(() => {
+    return holdingVerdicts
+      .filter(v => {
+        if (activeHolding && v.holdingId !== activeHolding) return false
+        return v.thesisHealth && v.falsifiers && v.falsifiers.length > 0
+      })
+      .sort((a, b) => (a.thesisHealth?.score || 100) - (b.thesisHealth?.score || 100))
+  }, [holdingVerdicts, activeHolding])
 
   const controlsWithCallback = useMemo(() => {
     if (!controls) return null
@@ -424,6 +469,42 @@ export function DashboardShell({
                     <span>{totalSupported} supported</span>
                     <span>&middot;</span>
                     <span>{totalQuietCount} quiet</span>
+                  </div>
+                )}
+
+                {/* Earnings Radar */}
+                {earningsCardsData.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
+                      Earnings Radar
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--sp-4)', overflowX: 'auto', paddingBottom: 'var(--sp-2)', scrollSnapType: 'x mandatory' }}>
+                      {earningsCardsData.map(c => (
+                        <div key={`${c.ticker}-${c.event.id}`} style={{ flex: '0 0 auto', minWidth: '280px', scrollSnapAlign: 'start' }}>
+                          <EarningsCard ticker={c.ticker} event={c.event} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Thesis Health Radar */}
+                {healthCardsData.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
+                      Thesis Health
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--sp-4)' }}>
+                      {healthCardsData.map(v => (
+                        <ThesisHealthPanel 
+                          key={`health-${v.holdingId}`} 
+                          ticker={v.ticker} 
+                          health={v.thesisHealth!} 
+                          falsifiers={v.falsifiers!} 
+                          allFindings={v.findings} 
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
 

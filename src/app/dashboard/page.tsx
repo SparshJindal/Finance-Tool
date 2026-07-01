@@ -14,6 +14,8 @@ import {
   triggerSendDigest,
   logOut,
   updateProfile,
+  refreshEarningsAction,
+  backfillFalsifiersAction,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
@@ -60,6 +62,13 @@ export default async function Page() {
       include: {
         questions: {
           select: { id: true }
+        },
+        earningsEvents: {
+          orderBy: { reportDate: 'desc' },
+          take: 5
+        },
+        falsifiers: {
+          orderBy: { createdAt: 'desc' }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -106,7 +115,8 @@ export default async function Page() {
       company: h.company,
       directionLogic: h.directionLogic,
       thesis: h.thesis || '',
-      verdictCaption: h.verdictCaption
+      verdictCaption: h.verdictCaption,
+      earningsEvents: h.earningsEvents,
     })),
     findings
   )
@@ -142,6 +152,8 @@ export default async function Page() {
         sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
         deleteAllHoldingsAction={deleteAllHoldings as unknown as (fd?: FormData) => Promise<{success?: boolean, error?: string}>}
         logOutAction={logOut as unknown as (fd: FormData) => void}
+        refreshEarningsAction={refreshEarningsAction as unknown as (ids?: string[]) => Promise<void>}
+        backfillFalsifiersAction={backfillFalsifiersAction as unknown as () => Promise<any>}
       />
     </div>
   )
@@ -151,6 +163,7 @@ export default async function Page() {
       userProfile={userProfile}
       holdings={holdings}
       holdingVerdicts={holdingVerdicts}
+      holdingsRaw={holdings}
       findings={findings}
       tickerItems={tickerItems}
       lastScanAt={lastScanAt}
