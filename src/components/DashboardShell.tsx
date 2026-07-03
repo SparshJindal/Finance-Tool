@@ -208,7 +208,7 @@ export function DashboardShell({
         />
         
         <main style={{ flex: 1, padding: 'var(--sp-8) var(--sp-4)', paddingBottom: 'var(--sp-16)' }} className="md:ml-[220px]">
-          <div style={{ maxWidth: '840px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
+          <div style={{ maxWidth: '1300px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
             
             {/* Top controls area for the dashboard */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-2)', gap: 'var(--sp-4)', flexWrap: 'wrap' }}>
@@ -451,10 +451,10 @@ export function DashboardShell({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
                 
                 {/* LEFT COLUMN: Holdings News */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+                <div className="lg:h-[calc(100vh-160px)] lg:overflow-y-auto lg:pr-4" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
                   {/* L0 Headline */}
                   {!activeHolding && (
                     <div style={{
@@ -536,7 +536,7 @@ export function DashboardShell({
                 </div>
 
                 {/* RIGHT COLUMN: Radars */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
+                <div className="lg:h-[calc(100vh-160px)] lg:overflow-y-auto lg:pr-4" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
                   
                   {/* Earnings Radar */}
                   {earningsCardsData.length > 0 && (
