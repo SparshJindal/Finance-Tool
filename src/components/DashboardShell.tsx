@@ -451,121 +451,128 @@ export function DashboardShell({
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-                {/* L0 Headline */}
-                {!activeHolding && (
-                  <div style={{
-                    fontSize: 'var(--text-sm)',
-                    color: 'var(--text-muted)',
-                    fontWeight: 500,
-                    letterSpacing: '0.02em',
-                    padding: '0 var(--sp-2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--sp-2)'
-                  }}>
-                    <span>{totalThreatened} holdings under pressure</span>
-                    <span>&middot;</span>
-                    <span>{totalSupported} supported</span>
-                    <span>&middot;</span>
-                    <span>{totalQuietCount} quiet</span>
-                  </div>
-                )}
-
-                {/* Earnings Radar */}
-                {earningsCardsData.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
-                      Earnings Radar
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+                
+                {/* LEFT COLUMN: Holdings News */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+                  {/* L0 Headline */}
+                  {!activeHolding && (
+                    <div style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-muted)',
+                      fontWeight: 500,
+                      letterSpacing: '0.02em',
+                      padding: '0 var(--sp-2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--sp-2)'
+                    }}>
+                      <span>{totalThreatened} holdings under pressure</span>
+                      <span>&middot;</span>
+                      <span>{totalSupported} supported</span>
+                      <span>&middot;</span>
+                      <span>{totalQuietCount} quiet</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 'var(--sp-4)', overflowX: 'auto', paddingBottom: 'var(--sp-2)', scrollSnapType: 'x mandatory' }}>
-                      {earningsCardsData.map(c => (
-                        <div key={`${c.ticker}-${c.event.id}`} style={{ flex: '0 0 auto', minWidth: '280px', scrollSnapAlign: 'start' }}>
-                          <EarningsCard ticker={c.ticker} event={c.event} />
-                        </div>
+                  )}
+
+                  {/* Movers */}
+                  {movers.length === 0 && quiet.length === 0 ? (
+                     <div className="card" style={{ padding: 'var(--sp-12) var(--sp-8)', textAlign: 'center' }}>
+                       <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+                         NO THREATS DETECTED — MARKETS QUIET
+                       </p>
+                     </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {movers.map(v => (
+                        <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Thesis Health Radar */}
-                {healthCardsData.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
-                      Thesis Health
+                  {/* Quiet Expandable Section */}
+                  {quiet.length > 0 && (
+                    <div style={{ marginTop: 'var(--sp-2)' }}>
+                      <button
+                        onClick={() => setQuietExpanded(e => !e)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          padding: 'var(--sp-3) var(--sp-2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--sp-2)',
+                          width: '100%',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <span style={{ opacity: 0.6, fontSize: '10px', transform: quietExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+                        Quiet ({quiet.length})
+                      </button>
+                      
+                      <AnimatePresence>
+                        {quietExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 'var(--sp-2)' }}>
+                              {quiet.map(v => (
+                                <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--sp-4)' }}>
-                      {healthCardsData.map(v => (
-                        <ThesisHealthPanel 
-                          key={`health-${v.holdingId}`} 
-                          ticker={v.ticker} 
-                          health={v.thesisHealth!} 
-                          falsifiers={v.falsifiers!} 
-                          allFindings={v.findings} 
-                        />
-                      ))}
+                  )}
+                </div>
+
+                {/* RIGHT COLUMN: Radars */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
+                  
+                  {/* Earnings Radar */}
+                  {earningsCardsData.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
+                        Earnings Radar
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+                        {earningsCardsData.map(c => (
+                          <EarningsCard key={`${c.ticker}-${c.event.id}`} ticker={c.ticker} event={c.event} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Movers */}
-                {movers.length === 0 && quiet.length === 0 ? (
-                   <div className="card" style={{ padding: 'var(--sp-12) var(--sp-8)', textAlign: 'center' }}>
-                     <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-                       NO THREATS DETECTED — MARKETS QUIET
-                     </p>
-                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {movers.map(v => (
-                      <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
-                    ))}
-                  </div>
-                )}
+                  {/* Thesis Health Radar */}
+                  {healthCardsData.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 'var(--sp-2)' }}>
+                        Thesis Health
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+                        {healthCardsData.map(v => (
+                          <ThesisHealthPanel 
+                            key={`health-${v.holdingId}`} 
+                            ticker={v.ticker} 
+                            health={v.thesisHealth!} 
+                            falsifiers={v.falsifiers!} 
+                            allFindings={v.findings} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                {/* Quiet Expandable Section */}
-                {quiet.length > 0 && (
-                  <div style={{ marginTop: 'var(--sp-2)' }}>
-                    <button
-                      onClick={() => setQuietExpanded(e => !e)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-secondary)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        padding: 'var(--sp-3) var(--sp-2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--sp-2)',
-                        width: '100%',
-                        textAlign: 'left'
-                      }}
-                    >
-                      <span style={{ opacity: 0.6, fontSize: '10px', transform: quietExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
-                      Quiet ({quiet.length})
-                    </button>
-                    
-                    <AnimatePresence>
-                      {quietExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 'var(--sp-2)' }}>
-                            {quiet.map(v => (
-                              <HoldingVerdictCard key={v.holdingId} verdict={v} reducedMotion={reduced} />
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
+                </div>
               </div>
             )}
 
