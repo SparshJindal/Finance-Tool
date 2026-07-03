@@ -15,6 +15,7 @@ import { PolygonMesh } from './PolygonMesh'
 import { HoldingVerdictCard } from './HoldingVerdictCard'
 import { EarningsCard } from './EarningsCard'
 import { ThesisHealthPanel } from './ThesisHealthPanel'
+import { WeeklyFeed } from './WeeklyFeed'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import type { HoldingVerdict } from '@/lib/verdict'
@@ -44,6 +45,7 @@ type DashboardShellProps = {
     nationality: string | null
     image: string | null
   }
+  weeklyFeedData?: any[]
 }
 
 export function DashboardShell({
@@ -61,6 +63,7 @@ export function DashboardShell({
   controls,
   userProfile,
   holdingVerdicts = [],
+  weeklyFeedData = [],
 }: DashboardShellProps) {
   const [activeHolding, setActiveHolding] = useState<string | null>(null)
   const [quietExpanded, setQuietExpanded] = useState(false)
@@ -473,6 +476,11 @@ export function DashboardShell({
                       <span>&middot;</span>
                       <span>{totalQuietCount} quiet</span>
                     </div>
+                  )}
+                  
+                  {/* This Week */}
+                  {!activeHolding && (
+                    <WeeklyFeed days={weeklyFeedData} />
                   )}
 
                   {/* Movers */}

@@ -806,3 +806,140 @@ export async function refreshEarningsAction(holdingIds?: string[]) {
   await refreshEarnings(session.user.id, holdingIds);
   revalidatePath('/dashboard');
 }
+
+export async function getWeeklyFeed(userId?: string) {
+  const session = await auth();
+  const resolvedUserId = userId || session?.user?.id;
+  if (!resolvedUserId) throw new Error("Unauthorized");
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const findings = await prisma.finding.findMany({
+    where: {
+      holding: { userId: resolvedUserId },
+      createdAt: { gte: sevenDaysAgo }
+    },
+    include: {
+      article: true,
+      holding: true
+    }
+  });
+
+  const falsifiers = await prisma.falsifier.findMany({
+    where: {
+      holding: { userId: resolvedUserId },
+      status: 'TRIGGERED'
+    }
+  });
+
+  const falsifierBoostIds = new Set<string>();
+  for (const f of falsifiers) {
+    if (f.evidenceFindingIds && Array.isArray(f.evidenceFindingIds)) {
+      for (const fid of f.evidenceFindingIds) {
+        falsifierBoostIds.add(fid);
+      }
+    }
+  }
+
+  const validFindings = findings.filter(f => {
+    const dir = (f.direction || '').toUpperCase();
+    const nonNeutral = dir !== 'NEUTRAL';
+    return (nonNeutral && f.severity >= 3) || (f.severity >= 4);
+  });
+
+  const scored = validFindings.map(f => {
+    const dir = (f.direction || '').toUpperCase();
+    const nonNeutral = dir !== 'NEUTRAL';
+    let score = f.severity * 100;
+    score += nonNeutral ? 25 : 0;
+    score += Math.min(Math.abs(f.priceChangePct || 0), 15) * 2;
+    score += Math.min(f.volumeRatio || 0, 5) * 3;
+    if (falsifierBoostIds.has(f.id)) {
+      score += 30;
+    }
+    return { ...f, score, nonNeutral };
+  });
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+
+  const selected = [];
+  const dayCounts = new Map<string, number>();
+  for (const item of scored) {
+    if (selected.length >= 12) break;
+    const dateStr = item.createdAt.toISOString().split('T')[0];
+    const count = dayCounts.get(dateStr) || 0;
+    if (count < 3) {
+      dayCounts.set(dateStr, count + 1);
+      selected.push(item);
+    }
+  }
+
+  const activityPerDay = new Map<string, Set<string>>();
+  for (const f of findings) {
+    const dateStr = f.createdAt.toISOString().split('T')[0];
+    if (!activityPerDay.has(dateStr)) activityPerDay.set(dateStr, new Set());
+    activityPerDay.get(dateStr)!.add(f.holding.ticker);
+  }
+
+  const days: any[] = [];
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayDateStr = yesterdayDate.toISOString().split('T')[0];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    
+    let label = "";
+    if (dateStr === todayDateStr) label = "Today";
+    else if (dateStr === yesterdayDateStr) label = "Yesterday";
+    else label = d.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const dayItems = selected
+      .filter(s => s.createdAt.toISOString().split('T')[0] === dateStr)
+      .map(s => ({
+        id: s.id,
+        ticker: s.holding.ticker,
+        company: s.holding.company,
+        direction: s.direction,
+        severity: s.severity,
+        summary: s.summary,
+        article: {
+          title: s.article.title,
+          url: s.article.url,
+          source: s.article.source
+        },
+        priceChangePct: s.priceChangePct,
+        volumeRatio: s.volumeRatio,
+        createdAt: s.createdAt.toISOString()
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (dayItems.length === 0) {
+      if (activityPerDay.has(dateStr)) {
+        days.push({
+          label,
+          dateISO: dateStr,
+          items: [],
+          quiet: true,
+          quietTickers: Array.from(activityPerDay.get(dateStr)!)
+        });
+      }
+    } else {
+      days.push({
+        label,
+        dateISO: dateStr,
+        items: dayItems,
+        quiet: false
+      });
+    }
+  }
+
+  return days;
+}

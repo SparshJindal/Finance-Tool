@@ -16,6 +16,7 @@ import {
   updateProfile,
   refreshEarningsAction,
   backfillFalsifiersAction,
+  getWeeklyFeed,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
@@ -73,6 +74,8 @@ export default async function Page() {
       },
       orderBy: { createdAt: 'desc' },
     })
+
+  const weeklyFeedData = await getWeeklyFeed(userId);
 
   const twoWeeksAgo = new Date()
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
@@ -174,6 +177,7 @@ export default async function Page() {
       deleteHoldingAction={deleteHolding as unknown as (fd: FormData) => void}
       updateProfileAction={updateProfile as unknown as (fd: FormData) => Promise<any>}
       controls={controls}
+      weeklyFeedData={weeklyFeedData}
     />
   )
   } catch (error: any) {
