@@ -427,7 +427,7 @@ select.input option {
 
 .ticker-tape-track {
   display: flex;
-  animation: ticker-scroll 45s linear infinite;
+  animation: ticker-scroll 120s linear infinite;
   will-change: transform;
 }
 

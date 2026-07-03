@@ -28,12 +28,12 @@ type WeeklyFeedProps = {
   days: DayGroup[]
 }
 
-function getVerdictIcon(direction: string | null) {
+function getVerdictColor(direction: string | null) {
   const d = (direction || '').toUpperCase()
-  if (d === 'SUPPORTS' || d === 'BULLISH') return '🟢'
-  if (d === 'THREATENS' || d === 'BEARISH') return '🔴'
-  if (d === 'MIXED') return '🟡'
-  return '⚪'
+  if (d === 'SUPPORTS' || d === 'BULLISH') return 'var(--bullish)'
+  if (d === 'THREATENS' || d === 'BEARISH') return 'var(--bearish)'
+  if (d === 'MIXED') return 'var(--warning)'
+  return 'var(--text-secondary)'
 }
 
 export function WeeklyFeed({ days }: WeeklyFeedProps) {
@@ -73,7 +73,7 @@ export function WeeklyFeed({ days }: WeeklyFeedProps) {
                 paddingLeft: 'var(--sp-3)',
                 borderLeft: '2px solid var(--border)'
               }}>
-                ⚪ {day.quietTickers?.join(', ')} — quiet
+                {day.quietTickers?.join(', ')} — quiet
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
@@ -83,11 +83,10 @@ export function WeeklyFeed({ days }: WeeklyFeedProps) {
                     flexDirection: 'column',
                     gap: 'var(--sp-2)',
                     paddingLeft: 'var(--sp-3)',
-                    borderLeft: '2px solid var(--border-hi)'
+                    borderLeft: `2px solid ${getVerdictColor(item.direction)}`
                   }}>
                     {/* Header Row */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '12px' }}>{getVerdictIcon(item.direction)}</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
                         {item.ticker}
                       </span>
