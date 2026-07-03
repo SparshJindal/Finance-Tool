@@ -866,11 +866,25 @@ export async function getWeeklyFeed(userId?: string) {
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
+  const getISTDateStr = (date: Date) => {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Calcutta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(date);
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const year = parts.find(p => p.type === 'year')?.value;
+    return `${year}-${month}-${day}`;
+  };
+
   const selected = [];
   const dayCounts = new Map<string, number>();
   for (const item of scored) {
     if (selected.length >= 12) break;
-    const dateStr = item.createdAt.toISOString().split('T')[0];
+    const dateStr = getISTDateStr(item.createdAt);
     const count = dayCounts.get(dateStr) || 0;
     if (count < 3) {
       dayCounts.set(dateStr, count + 1);
@@ -880,29 +894,33 @@ export async function getWeeklyFeed(userId?: string) {
 
   const activityPerDay = new Map<string, Set<string>>();
   for (const f of findings) {
-    const dateStr = f.createdAt.toISOString().split('T')[0];
+    const dateStr = getISTDateStr(f.createdAt);
     if (!activityPerDay.has(dateStr)) activityPerDay.set(dateStr, new Set());
     activityPerDay.get(dateStr)!.add(f.holding.ticker);
   }
 
   const days: any[] = [];
-  const todayDateStr = new Date().toISOString().split('T')[0];
+  const todayDate = new Date();
+  const todayDateStr = getISTDateStr(todayDate);
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayDateStr = yesterdayDate.toISOString().split('T')[0];
+  const yesterdayDateStr = getISTDateStr(yesterdayDate);
 
   for (let i = 0; i < 7; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getISTDateStr(d);
     
     let label = "";
     if (dateStr === todayDateStr) label = "Today";
     else if (dateStr === yesterdayDateStr) label = "Yesterday";
-    else label = d.toLocaleDateString('en-US', { weekday: 'long' });
+    else {
+      // Format weekday in IST
+      label = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Calcutta', weekday: 'long' }).format(d);
+    }
 
     const dayItems = selected
-      .filter(s => s.createdAt.toISOString().split('T')[0] === dateStr)
+      .filter(s => getISTDateStr(s.createdAt) === dateStr)
       .map(s => ({
         id: s.id,
         ticker: s.holding.ticker,
