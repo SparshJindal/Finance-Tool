@@ -76,11 +76,11 @@ export function EarningsCard({ ticker, event }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 'var(--sp-2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
           <div style={{
-            background: isUpcoming ? 'var(--surface-highlight)' : 'var(--accent)',
-            color: isUpcoming ? 'var(--text-secondary)' : 'var(--bg)',
+            background: 'var(--surface-subtle)',
+            color: 'var(--text-primary)',
             fontSize: '11px',
             fontWeight: 700,
-            padding: '2px 6px',
+            padding: '4px 8px',
             borderRadius: '4px',
             textTransform: 'uppercase',
             letterSpacing: '0.05em'
