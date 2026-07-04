@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { HoldingRunResult } from '@/lib/pipeline'
@@ -25,6 +25,15 @@ export function PipelineControls({
   refreshEarningsAction,
   backfillFalsifiersAction,
   onRunComplete,
+  userProfile,
+  totalThreatened,
+  totalSupported,
+  totalQuietCount,
+  profilePanel,
+  managePortfolioPanel,
+  addHoldingPanel,
+  importHoldingsPanel,
+  pushManager,
 }: {
   holdings: { id: string, ticker: string }[]
   runIngestPhase1: (fd?: FormData) => Promise<{ success?: boolean, report?: any, error?: string }>
@@ -37,6 +46,15 @@ export function PipelineControls({
   refreshEarningsAction: (ids?: string[]) => Promise<void>
   backfillFalsifiersAction: () => Promise<any>
   onRunComplete?: (results: HoldingRunResult[]) => void
+  userProfile?: any
+  totalThreatened?: number
+  totalSupported?: number
+  totalQuietCount?: number
+  profilePanel?: React.ReactNode
+  managePortfolioPanel?: React.ReactNode
+  addHoldingPanel?: React.ReactNode
+  importHoldingsPanel?: React.ReactNode
+  pushManager?: React.ReactNode
 }) {
   const [isPendingDigest, startTransitionDigest] = useTransition()
   const [isPendingEarnings, startTransitionEarnings] = useTransition()
@@ -45,6 +63,18 @@ export function PipelineControls({
   
   const [pipelineState, setPipelineState] = useState<{ active: boolean, text: string, percent: number }>({ active: false, text: '', percent: 0 })
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null)
+  
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setToolsOpen(false)
+      setAccountOpen(false)
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   const isAnyPending = pipelineState.active || isPendingDigest || isPendingEarnings || isPendingFalsifiers
 
@@ -220,137 +250,151 @@ export function PipelineControls({
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+      {/* Top Command Bar */}
+      <div style={{ 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 40, 
+        background: 'rgba(255, 255, 255, 0.8)', 
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)', 
+        padding: 'var(--sp-4) var(--sp-6)', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        margin: '0 calc(-1 * var(--sp-4)) var(--sp-4) calc(-1 * var(--sp-4))'
+      }}>
+        {/* Left: Pulse Stats */}
+        <div style={{ display: 'flex', gap: 'var(--sp-4)', fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)' }}>
+          {(totalThreatened || 0) > 0 && <span style={{ color: 'var(--bearish)' }}>{(totalThreatened || 0)} under pressure</span>}
+          {(totalThreatened || 0) > 0 && ((totalSupported || 0) > 0 || (totalQuietCount || 0) > 0) && <span style={{ color: 'var(--text-muted)' }}>·</span>}
+          {(totalSupported || 0) > 0 && <span style={{ color: 'var(--bullish)' }}>{(totalSupported || 0)} supported</span>}
+          {(totalSupported || 0) > 0 && (totalQuietCount || 0) > 0 && <span style={{ color: 'var(--text-muted)' }}>·</span>}
+          {(totalQuietCount || 0) > 0 && <span style={{ color: 'var(--text-secondary)' }}>{(totalQuietCount || 0)} quiet</span>}
+          {(totalThreatened || 0) === 0 && (totalSupported || 0) === 0 && (totalQuietCount || 0) === 0 && <span style={{ color: 'var(--text-secondary)' }}>Portfolio quiet</span>}
+        </div>
 
-        {/* Dismissible results banner */}
-        <AnimatePresence>
-          {runSummary && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div style={{
-                background: 'var(--surface)',
-                border: `1px solid ${bannerColor}`,
-                borderRadius: 'var(--radius-sm)',
-                padding: 'var(--sp-3)',
-                marginBottom: 'var(--sp-2)',
-                fontSize: 'var(--text-xs)',
-                fontFamily: 'var(--font-mono)',
-                position: 'relative',
-              }}>
-                <button
-                  onClick={() => setRunSummary(null)}
-                  style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, padding: 0 }}
-                  aria-label="Dismiss"
-                >×</button>
+        {/* Right: Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }} onClick={e => e.stopPropagation()}>
+          <button onClick={handleIngest} className="btn btn-primary" disabled={isAnyPending}>
+            {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Scan...' : 'Run Scan'}
+          </button>
 
-                {/* Updated */}
-                {runSummary.updated.length > 0 && (
-                  <div style={{ color: 'var(--bullish)', marginBottom: 'var(--sp-1)' }}>
-                    ✓ {runSummary.updated.length} updated ({runSummary.updated.length <= 4 ? runSummary.updated.join(', ') : `${runSummary.updated.slice(0, 4).join(', ')} and ${runSummary.updated.length - 4} others`}) · +{runSummary.findingsAdded} finding{runSummary.findingsAdded !== 1 ? 's' : ''}
-                  </div>
-                )}
-                {/* Quiet */}
-                {runSummary.quiet.length > 0 && (
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: 'var(--sp-1)' }}>
-                    ○ {runSummary.quiet.length} quiet ({runSummary.quiet.length <= 4 ? runSummary.quiet.join(', ') : `${runSummary.quiet.slice(0, 4).join(', ')} and ${runSummary.quiet.length - 4} others`})
-                  </div>
-                )}
-                {/* Cached */}
-                {runSummary.cached.length > 0 && (
-                  <div style={{ color: 'var(--text-muted)', marginBottom: 'var(--sp-1)' }}>
-                    ⏸ {runSummary.cached.length} cached ({runSummary.cached.length <= 4 ? runSummary.cached.join(', ') : `${runSummary.cached.slice(0, 4).join(', ')} and ${runSummary.cached.length - 4} others`})
-                  </div>
-                )}
-                {/* Failed */}
-                {runSummary.failed.length > 0 && (
-                  <div style={{ color: 'var(--bearish)' }}>
-                    ✕ {runSummary.failed.length} failed ({runSummary.failed.map(f => f.ticker).join(', ')})
-                    {runSummary.failed[0]?.reason && (
-                      <span style={{ opacity: 0.8 }}> · {runSummary.failed[0].reason.replace(/_/g, ' ')}</span>
-                    )}
-                  </div>
-                )}
-                {/* All quiet */}
-                {runSummary.updated.length === 0 && runSummary.failed.length === 0 && runSummary.quiet.length === 0 && runSummary.cached.length === 0 && (
-                  <div style={{ color: 'var(--text-muted)' }}>No holdings processed.</div>
-                )}
+          {addHoldingPanel}
+
+          {/* Tools Menu */}
+          <div style={{ position: 'relative' }}>
+            <button className="btn btn-secondary" onClick={() => { setToolsOpen(!toolsOpen); setAccountOpen(false) }}>Tools ▾</button>
+            {toolsOpen && (
+              <div className="dropdown-menu">
+                <button className="dropdown-item" onClick={handleStudyAll} disabled={isAnyPending || holdings.length === 0}>Study All</button>
+                <form action={fd => startTransitionDigest(() => sendDigestAction(fd))}>
+                  <button type="submit" className="dropdown-item" disabled={isAnyPending}>Send Digest</button>
+                </form>
+                <button className="dropdown-item" onClick={() => startTransitionEarnings(() => refreshEarningsAction())} disabled={isAnyPending}>Refresh Earnings</button>
+                <button className="dropdown-item" onClick={() => startTransitionFalsifiers(() => backfillFalsifiersAction())} disabled={isAnyPending}>Generate Falsifiers</button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </div>
 
-        <button 
-          onClick={handleIngest}
-          className="btn btn-secondary" 
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={isAnyPending}
-        >
-          {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Pipeline...' : 'Run Ingest'}
-        </button>
-        
-        <button 
-          onClick={handleStudyAll}
-          className="btn btn-secondary" 
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={isAnyPending || holdings.length === 0}
-        >
-          {pipelineState.active && pipelineState.text.includes('Studying') ? 'Studying...' : 'Study All'}
-        </button>
-
-        <form action={fd => startTransitionDigest(() => sendDigestAction(fd))}>
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            style={{ width: '100%', justifyContent: 'center' }}
-            disabled={isAnyPending}
-          >
-            {isPendingDigest ? 'Sending...' : 'Send Digest'}
-          </button>
-        </form>
-
-        <button 
-          onClick={() => startTransitionEarnings(() => refreshEarningsAction())}
-          className="btn btn-secondary" 
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={isAnyPending}
-        >
-          {isPendingEarnings ? 'Refreshing...' : 'Refresh Earnings'}
-        </button>
-
-        <button 
-          onClick={() => startTransitionFalsifiers(() => backfillFalsifiersAction())}
-          className="btn btn-secondary" 
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={isAnyPending}
-        >
-          {isPendingFalsifiers ? 'Generating...' : 'Generate Falsifiers'}
-        </button>
-
-        <form action={logOutAction}>
-          <button 
-            type="submit" 
-            className="btn" 
-            style={{ width: '100%', justifyContent: 'center', color: 'var(--text-secondary)', marginTop: 'var(--sp-4)' }}
-            disabled={isAnyPending}
-          >
-            Log Out
-          </button>
-        </form>
-
-        <button 
-          type="button" 
-          onClick={handleDeleteAll}
-          className="btn" 
-          style={{ width: '100%', justifyContent: 'center', color: 'var(--bearish)', marginTop: 'var(--sp-2)' }}
-          disabled={isAnyPending || holdings.length === 0}
-        >
-          Delete Entire Portfolio
-        </button>
+          {/* Account Menu */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #8A6D46)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', border: 'none', cursor: 'pointer' }}
+              onClick={() => { setAccountOpen(!accountOpen); setToolsOpen(false) }}
+            >
+              {userProfile?.name?.charAt(0).toUpperCase() || 'U'}
+            </button>
+            {accountOpen && (
+              <div className="dropdown-menu">
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{userProfile?.name || 'Investor'}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{userProfile?.email}</div>
+                </div>
+                
+                <div style={{ padding: '4px 8px' }}>{profilePanel}</div>
+                <div style={{ padding: '4px 8px' }}>{managePortfolioPanel}</div>
+                <div style={{ padding: '4px 8px' }}>{importHoldingsPanel}</div>
+                <div style={{ padding: '4px 12px' }}>{pushManager}</div>
+                
+                <div className="dropdown-divider" />
+                
+                <form action={logOutAction}>
+                  <button type="submit" className="dropdown-item" disabled={isAnyPending}>Log Out</button>
+                </form>
+                
+                <div className="dropdown-divider" />
+                
+                <button className="dropdown-item dropdown-danger" onClick={handleDeleteAll} disabled={isAnyPending || holdings.length === 0}>
+                  Delete Entire Portfolio
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Dismissible results banner (moved right under the command bar) */}
+      <AnimatePresence>
+        {runSummary && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              background: 'var(--surface)',
+              border: `1px solid ${bannerColor}`,
+              borderRadius: 'var(--radius-sm)',
+              padding: 'var(--sp-3)',
+              marginBottom: 'var(--sp-4)',
+              fontSize: 'var(--text-xs)',
+              fontFamily: 'var(--font-mono)',
+              position: 'relative',
+            }}>
+              <button
+                onClick={() => setRunSummary(null)}
+                style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, padding: 0 }}
+                aria-label="Dismiss"
+              >×</button>
+
+              {/* Updated */}
+              {runSummary.updated.length > 0 && (
+                <div style={{ color: 'var(--bullish)', marginBottom: 'var(--sp-1)' }}>
+                  ✓ {runSummary.updated.length} updated ({runSummary.updated.length <= 4 ? runSummary.updated.join(', ') : `${runSummary.updated.slice(0, 4).join(', ')} and ${runSummary.updated.length - 4} others`}) · +{runSummary.findingsAdded} finding{runSummary.findingsAdded !== 1 ? 's' : ''}
+                </div>
+              )}
+              {/* Quiet */}
+              {runSummary.quiet.length > 0 && (
+                <div style={{ color: 'var(--text-secondary)', marginBottom: 'var(--sp-1)' }}>
+                  ○ {runSummary.quiet.length} quiet ({runSummary.quiet.length <= 4 ? runSummary.quiet.join(', ') : `${runSummary.quiet.slice(0, 4).join(', ')} and ${runSummary.quiet.length - 4} others`})
+                </div>
+              )}
+              {/* Cached */}
+              {runSummary.cached.length > 0 && (
+                <div style={{ color: 'var(--text-muted)', marginBottom: 'var(--sp-1)' }}>
+                  ⏸ {runSummary.cached.length} cached ({runSummary.cached.length <= 4 ? runSummary.cached.join(', ') : `${runSummary.cached.slice(0, 4).join(', ')} and ${runSummary.cached.length - 4} others`})
+                </div>
+              )}
+              {/* Failed */}
+              {runSummary.failed.length > 0 && (
+                <div style={{ color: 'var(--bearish)' }}>
+                  ✕ {runSummary.failed.length} failed ({runSummary.failed.map(f => f.ticker).join(', ')})
+                  {runSummary.failed[0]?.reason && (
+                    <span style={{ opacity: 0.8 }}> · {runSummary.failed[0].reason.replace(/_/g, ' ')}</span>
+                  )}
+                </div>
+              )}
+              {/* All quiet */}
+              {runSummary.updated.length === 0 && runSummary.failed.length === 0 && runSummary.quiet.length === 0 && runSummary.cached.length === 0 && (
+                <div style={{ color: 'var(--text-muted)' }}>No holdings processed.</div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

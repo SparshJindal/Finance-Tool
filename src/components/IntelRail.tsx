@@ -33,7 +33,6 @@ export function IntelRail({
   maxPortfolioSeverity,
   activeHolding,
   onHoldingClick,
-  controls,
 }: {
   holdings: HoldingNav[]
   lastScanAt: string | null
@@ -41,7 +40,6 @@ export function IntelRail({
   maxPortfolioSeverity: number
   activeHolding: string | null
   onHoldingClick: (id: string | null) => void
-  controls?: React.ReactNode
 }) {
   const [clock, setClock] = useState('')
   const [syncAgo, setSyncAgo] = useState('')
@@ -107,7 +105,6 @@ export function IntelRail({
           holdings={holdings}
           activeHolding={activeHolding}
           onHoldingClick={onHoldingClick}
-          controls={controls}
         />
       </aside>
 
@@ -144,7 +141,6 @@ function RailContent({
   holdings,
   activeHolding,
   onHoldingClick,
-  controls,
 }: {
   clock: string
   syncAgo: string
@@ -153,7 +149,6 @@ function RailContent({
   holdings: HoldingNav[]
   activeHolding: string | null
   onHoldingClick: (id: string | null) => void
-  controls?: React.ReactNode
 }) {
   const reduced = useReducedMotion()
 
@@ -379,12 +374,6 @@ function RailContent({
           </motion.button>
         ))}
       </motion.div>
-
-      {controls && (
-        <div style={{ padding: 'var(--sp-4)', borderTop: '1px solid var(--border)' }}>
-          {controls}
-        </div>
-      )}
     </>
   )
 }

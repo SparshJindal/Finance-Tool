@@ -143,22 +143,19 @@ export default async function Page() {
 
   // Build the pipeline controls
   const controls = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
-      <PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />
-      
-      <PipelineControls 
-        holdings={holdings}
-        runIngestPhase1={triggerNewsIngestionPhase1 as unknown as () => Promise<any>}
-        runIngestPhase2={triggerNewsIngestionPhase2 as unknown as (fd: FormData) => Promise<any>}
-        studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
-        studyBatchHoldingsAction={studyBatchHoldings as unknown as (fd: FormData) => Promise<any>}
-        sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
-        deleteAllHoldingsAction={deleteAllHoldings as unknown as (fd?: FormData) => Promise<{success?: boolean, error?: string}>}
-        logOutAction={logOut as unknown as (fd: FormData) => void}
-        refreshEarningsAction={refreshEarningsAction as unknown as (ids?: string[]) => Promise<void>}
-        backfillFalsifiersAction={backfillFalsifiersAction as unknown as () => Promise<any>}
-      />
-    </div>
+    <PipelineControls 
+      holdings={holdings}
+      runIngestPhase1={triggerNewsIngestionPhase1 as unknown as () => Promise<any>}
+      runIngestPhase2={triggerNewsIngestionPhase2 as unknown as (fd: FormData) => Promise<any>}
+      studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
+      studyBatchHoldingsAction={studyBatchHoldings as unknown as (fd: FormData) => Promise<any>}
+      sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
+      deleteAllHoldingsAction={deleteAllHoldings as unknown as (fd?: FormData) => Promise<{success?: boolean, error?: string}>}
+      logOutAction={logOut as unknown as (fd: FormData) => void}
+      refreshEarningsAction={refreshEarningsAction as unknown as (ids?: string[]) => Promise<void>}
+      backfillFalsifiersAction={backfillFalsifiersAction as unknown as () => Promise<any>}
+      pushManager={<PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />}
+    />
   )
 
   return (

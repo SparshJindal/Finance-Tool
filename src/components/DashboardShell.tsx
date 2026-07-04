@@ -173,18 +173,25 @@ export function DashboardShell({
   const controlsWithCallback = useMemo(() => {
     if (!controls) return null
     try {
-      const children = React.Children.map((controls as any).props.children, child => {
-        if (child && child.type === PipelineControls) {
-          return React.cloneElement(child, { onRunComplete: handleRunComplete })
-        }
-        return child
-      })
-      return React.cloneElement(controls as any, {}, children)
+      if ((controls as any).type?.name === 'PipelineControls' || (controls as any).type === PipelineControls) {
+        return React.cloneElement(controls as any, {
+          onRunComplete: handleRunComplete,
+          userProfile,
+          totalThreatened,
+          totalSupported,
+          totalQuietCount,
+          profilePanel: userProfile ? <ProfilePanel userProfile={userProfile} updateAction={updateProfileAction} /> : null,
+          managePortfolioPanel: <ManagePortfolioPanel holdings={holdings} updateAction={updateHoldingAction} deleteAction={deleteHoldingAction} />,
+          addHoldingPanel: <AddHoldingPanel action={addHoldingAction} />,
+          importHoldingsPanel: <ImportHoldingsPanel />
+        })
+      }
+      return controls
     } catch (e) {
-      console.error("Failed to inject onRunComplete", e)
+      console.error("Failed to inject props", e)
       return controls
     }
-  }, [controls, handleRunComplete])
+  }, [controls, handleRunComplete, userProfile, totalThreatened, totalSupported, totalQuietCount, holdings, updateProfileAction, updateHoldingAction, deleteHoldingAction, addHoldingAction])
 
   return (
     <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -207,216 +214,13 @@ export function DashboardShell({
           maxPortfolioSeverity={maxPortfolioSeverity}
           activeHolding={activeHolding}
           onHoldingClick={setActiveHolding}
-          controls={controlsWithCallback}
         />
         
         <main style={{ flex: 1, padding: 'var(--sp-8) var(--sp-4)', paddingBottom: 'var(--sp-16)' }} className="md:ml-[220px]">
           <div style={{ maxWidth: '1300px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
             
-            {/* Top controls area for the dashboard */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-2)', gap: 'var(--sp-4)', flexWrap: 'wrap' }}>
-              
-              {/* Identity Badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #8A6D46)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)' }}>
-                  {userProfile?.name?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                <div>
-                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>{userProfile?.name || 'Investor'}</div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{userProfile?.email}</div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
-                {userProfile && <ProfilePanel userProfile={userProfile} updateAction={updateProfileAction} />}
-                <ManagePortfolioPanel 
-                  holdings={holdings}
-                  updateAction={updateHoldingAction}
-                  deleteAction={deleteHoldingAction}
-                />
-                <AddHoldingPanel action={addHoldingAction} />
-                <ImportHoldingsPanel />
-              </div>
-            </div>
-
-            {/* Getting Started Guide */}
-            {!allStepsDone && !guideDismissed && (
-              <div style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(var(--glass-blur))',
-                WebkitBackdropFilter: 'blur(var(--glass-blur))',
-                border: '1px solid var(--border)',
-                borderLeft: '4px solid var(--accent)',
-                borderRadius: 'var(--radius-md)',
-                padding: 'var(--sp-4) var(--sp-5)',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--sp-4)',
-                boxShadow: 'var(--shadow-sm)',
-              }}>
-                <button
-                  onClick={handleDismissGuide}
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '16px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    fontSize: '16px',
-                    padding: 0,
-                  }}
-                  aria-label="Dismiss guide"
-                >
-                  ×
-                </button>
-
-                <div>
-                  <h2 style={{
-                    fontFamily: "'Cormorant Garamond', Georgia, serif",
-                    fontSize: 'var(--text-md)',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    margin: 0,
-                    marginBottom: '4px',
-                  }}>
-                    Getting Started Guide
-                  </h2>
-                  <p style={{
-                    fontSize: 'var(--text-xs)',
-                    color: 'var(--text-secondary)',
-                    margin: 0,
-                  }}>
-                    Follow these three steps to configure and start your autonomous market monitor.
-                  </p>
-                </div>
-
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 'var(--sp-4)',
-                }}>
-                  {/* Step 1 */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 'var(--sp-3)',
-                    opacity: step1Done ? 0.7 : 1,
-                    transition: 'opacity 0.2s',
-                  }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      background: step1Done ? 'var(--bullish-dim)' : 'var(--surface-overlay)',
-                      border: `1px solid ${step1Done ? 'var(--bullish-border)' : 'var(--border)'}`,
-                      color: step1Done ? 'var(--bullish)' : 'var(--text-muted)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}>
-                      {step1Done ? '✓' : '1'}
-                    </span>
-                    <div>
-                      <div style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        textDecoration: step1Done ? 'line-through' : 'none',
-                      }}>
-                        Add holdings
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Add stocks you own or want to watch.
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 'var(--sp-3)',
-                    opacity: step2Done ? 0.7 : step1Done ? 1 : 0.5,
-                    transition: 'opacity 0.2s',
-                  }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      background: step2Done ? 'var(--bullish-dim)' : 'var(--surface-overlay)',
-                      border: `1px solid ${step2Done ? 'var(--bullish-border)' : 'var(--border)'}`,
-                      color: step2Done ? 'var(--bullish)' : 'var(--text-muted)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}>
-                      {step2Done ? '✓' : '2'}
-                    </span>
-                    <div>
-                      <div style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        textDecoration: step2Done ? 'line-through' : 'none',
-                      }}>
-                        Study holdings
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Click &quot;Study All&quot; or study individual stocks to generate questions.
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 'var(--sp-3)',
-                    opacity: step3Done ? 0.7 : step2Done ? 1 : 0.5,
-                    transition: 'opacity 0.2s',
-                  }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      background: step3Done ? 'var(--bullish-dim)' : 'var(--surface-overlay)',
-                      border: `1px solid ${step3Done ? 'var(--bullish-border)' : 'var(--border)'}`,
-                      color: step3Done ? 'var(--bullish)' : 'var(--text-muted)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}>
-                      {step3Done ? '✓' : '3'}
-                    </span>
-                    <div>
-                      <div style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        textDecoration: step3Done ? 'line-through' : 'none',
-                      }}>
-                        Run scan
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Click &quot;Run Ingest&quot; to scan for market moving news.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Top controls area for the dashboard (Now replaced by Command Bar) */}
+            {controlsWithCallback}
 
             {/* Findings Feed / Empty State */}
             {holdings.length === 0 ? (
@@ -458,23 +262,33 @@ export function DashboardShell({
                 
                 {/* LEFT COLUMN: Holdings News */}
                 <div className="lg:h-[calc(100vh-160px)] lg:overflow-y-auto lg:pr-4" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-                  {/* L0 Headline */}
-                  {!activeHolding && (
+                  
+                  {/* Slim Getting Started Guide */}
+                  {!allStepsDone && !guideDismissed && (
                     <div style={{
-                      fontSize: 'var(--text-sm)',
-                      color: 'var(--text-muted)',
-                      fontWeight: 500,
-                      letterSpacing: '0.02em',
-                      padding: '0 var(--sp-2)',
+                      background: 'var(--glass-bg)',
+                      backdropFilter: 'blur(var(--glass-blur))',
+                      WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                      border: '1px solid var(--border)',
+                      borderLeft: '4px solid var(--accent)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--sp-4)',
+                      boxShadow: 'var(--shadow-sm)',
+                      position: 'relative',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 'var(--sp-2)'
+                      gap: 'var(--sp-6)'
                     }}>
-                      <span>{totalThreatened} holdings under pressure</span>
-                      <span>&middot;</span>
-                      <span>{totalSupported} supported</span>
-                      <span>&middot;</span>
-                      <span>{totalQuietCount} quiet</span>
+                      <div style={{ flex: 1, display: 'flex', gap: 'var(--sp-4)' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', opacity: step1Done ? 0.5 : 1 }}>1. Add Holdings</div>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', opacity: step2Done ? 0.5 : (step1Done ? 1 : 0.5) }}>2. Study All</div>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', opacity: step3Done ? 0.5 : (step2Done ? 1 : 0.5) }}>3. Run Scan</div>
+                      </div>
+                      <button
+                        onClick={handleDismissGuide}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px', padding: 0 }}
+                        aria-label="Dismiss guide"
+                      >×</button>
                     </div>
                   )}
                   
