@@ -173,7 +173,7 @@ export function DashboardShell({
   const controlsWithCallback = useMemo(() => {
     if (!controls) return null
     try {
-      if ((controls as any).type?.name === 'PipelineControls' || (controls as any).type === PipelineControls) {
+      if (React.isValidElement(controls)) {
         return React.cloneElement(controls as any, {
           onRunComplete: handleRunComplete,
           userProfile,
