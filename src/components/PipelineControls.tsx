@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect } from 'react'
+import { useTransition, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { HoldingRunResult } from '@/lib/pipeline'
@@ -66,14 +66,20 @@ export function PipelineControls({
   
   const [toolsOpen, setToolsOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const toolsRef = useRef<HTMLDivElement>(null)
+  const accountRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = () => {
-      setToolsOpen(false)
-      setAccountOpen(false)
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) {
+        setToolsOpen(false)
+      }
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false)
+      }
     }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const isAnyPending = pipelineState.active || isPendingDigest || isPendingEarnings || isPendingFalsifiers
@@ -276,7 +282,7 @@ export function PipelineControls({
         </div>
 
         {/* Right: Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
           <button onClick={handleIngest} className="btn btn-primary" disabled={isAnyPending}>
             {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Scan...' : 'Run Scan'}
           </button>
@@ -284,7 +290,7 @@ export function PipelineControls({
           {addHoldingPanel}
 
           {/* Tools Menu */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} ref={toolsRef}>
             <button className="btn btn-secondary" onClick={() => { setToolsOpen(!toolsOpen); setAccountOpen(false) }}>Tools ▾</button>
             {toolsOpen && (
               <div className="dropdown-menu">
@@ -299,7 +305,7 @@ export function PipelineControls({
           </div>
 
           {/* Account Menu */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} ref={accountRef}>
             <button 
               style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #8A6D46)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', border: 'none', cursor: 'pointer' }}
               onClick={() => { setAccountOpen(!accountOpen); setToolsOpen(false) }}
