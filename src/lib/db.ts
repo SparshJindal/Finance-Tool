@@ -12,7 +12,23 @@ const createPrismaClient = () => {
     ssl: { rejectUnauthorized: false } 
   })
   const adapter = new PrismaPg(pool)
-  return new PrismaClient({ adapter })
+  const client = new PrismaClient({ 
+    adapter,
+    log: [
+      { emit: 'event', level: 'query' },
+      { emit: 'stdout', level: 'error' },
+      { emit: 'stdout', level: 'warn' }
+    ]
+  })
+
+  // Log slow queries (> 50ms)
+  client.$on('query', (e: any) => {
+    if (e.duration >= 50) {
+      console.log(`[SLOW QUERY] ${e.duration}ms - ${e.query}`);
+    }
+  });
+
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()

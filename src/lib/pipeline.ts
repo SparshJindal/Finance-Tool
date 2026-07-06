@@ -403,7 +403,7 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
         await prisma.holding.update({ where: { id: h.id }, data: { lastIngestedAt: new Date() }});
         if (cacheStamps.length > 0) await markFetched(cacheStamps);
         holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'cached', findingsAdded: 0, reason: 'NO_NEW_ARTICLES' });
-        continue;
+        return;
       }
 
       const judgments = await withTiming('judge', () => llmLimiter(() => judgeHoldingArticles(h, dbArticles.map(a => {
@@ -420,79 +420,93 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
 
       const validArticleIds = new Set(dbArticles.map(a => a.id));
 
-      for (const j of judgments) {
+      const passedJudgments = judgments.filter(j => {
         if (!j.articleId || !validArticleIds.has(j.articleId)) {
           console.warn(`[ingestNews] Invalid or hallucinated articleId ${j.articleId} for holding ${h.ticker}. Skipping finding.`);
-          continue;
+          return false;
         }
-
         const isNeutral = (j.direction || '').toUpperCase() === 'NEUTRAL';
-        const passesGate = isNeutral
+        return isNeutral
           ? j.severity >= 4
           : (j.material === true || j.severity >= pushMinSeverity);
-        if (passesGate) {
-          try {
-            const quote = await fetchQuote(h.ticker, h.exchange);
-            const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
-              ? j.answeredQuestionId 
-              : null;
+      });
 
-            const existingFinding = await prisma.finding.findFirst({
-              where: {
-                articleId: j.articleId,
-                holdingId: h.id
-              }
-            });
+      if (passedJudgments.length > 0) {
+        let quote: any = null;
+        try {
+          quote = await fetchQuote(h.ticker, h.exchange);
+        } catch (e) {
+          console.error(`[ingestNews] fetchQuote failed for ${h.ticker}`, e);
+        }
 
-            let isNewOrUpgraded = false;
-
-            if (existingFinding) {
-              await prisma.finding.update({
-                where: { id: existingFinding.id },
-                data: {
-                  severity: j.severity,
-                  direction: j.direction || "NEUTRAL",
-                  summary: j.summary,
-                  questionId: validQuestionId,
-                  priceChangePct: quote?.priceChangePct ?? null,
-                  volumeRatio: quote?.volumeRatio ?? null,
-                }
-              });
-              if (j.severity > existingFinding.severity) {
-                isNewOrUpgraded = true;
-              }
-            } else {
-              await prisma.finding.create({
-                data: {
-                  articleId: j.articleId,
-                  holdingId: h.id,
-                  severity: j.severity,
-                  direction: j.direction || "NEUTRAL",
-                  summary: j.summary,
-                  questionId: validQuestionId,
-                  priceChangePct: quote?.priceChangePct ?? null,
-                  volumeRatio: quote?.volumeRatio ?? null,
-                }
-              });
-              isNewOrUpgraded = true;
-            }
-            
-            if (isNewOrUpgraded) {
-              try {
-                const { sendPushAlert } = await import('@/lib/push');
-                await sendPushAlert(h.userId, {
-                  title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
-                  body: j.summary,
-                });
-              } catch (pushErr) {
-                console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
-              }
-            }
-            totalFindingsSaved++;
-            holdingFindingsAdded++;
-          } catch (findingErr) {
-            console.error(`[ingestNews] Failed to process finding for article ${j.articleId} on holding ${h.ticker}. Skipping. Error:`, findingErr);
+        const existingFindings = await prisma.finding.findMany({
+          where: {
+            holdingId: h.id,
+            articleId: { in: passedJudgments.map(j => j.articleId) }
           }
+        });
+        const existingMap = new Map(existingFindings.map(f => [f.articleId, f]));
+
+        const updates: any[] = [];
+        const creations: any[] = [];
+        const pushAlerts: any[] = [];
+
+        for (const j of passedJudgments) {
+          const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
+            ? j.answeredQuestionId 
+            : null;
+          
+          const existing = existingMap.get(j.articleId);
+          let isNewOrUpgraded = false;
+
+          const data = {
+            severity: j.severity,
+            direction: j.direction || "NEUTRAL",
+            summary: j.summary,
+            questionId: validQuestionId,
+            priceChangePct: quote?.priceChangePct ?? null,
+            volumeRatio: quote?.volumeRatio ?? null,
+          };
+
+          if (existing) {
+            updates.push({ where: { id: existing.id }, data });
+            if (j.severity > existing.severity) isNewOrUpgraded = true;
+          } else {
+            creations.push({
+              articleId: j.articleId,
+              holdingId: h.id,
+              ...data
+            });
+            isNewOrUpgraded = true;
+          }
+
+          if (isNewOrUpgraded) {
+            pushAlerts.push({
+              title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
+              body: j.summary,
+            });
+          }
+        }
+
+        try {
+          await prisma.$transaction([
+            ...updates.map(u => prisma.finding.update(u)),
+            ...(creations.length > 0 ? [prisma.finding.createMany({ data: creations })] : [])
+          ]);
+          
+          totalFindingsSaved += passedJudgments.length;
+          holdingFindingsAdded += passedJudgments.length;
+
+          if (pushAlerts.length > 0) {
+            try {
+              const { sendPushAlert } = await import('@/lib/push');
+              await Promise.allSettled(pushAlerts.map(alert => sendPushAlert(h.userId, alert)));
+            } catch (pushErr) {
+              console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
+            }
+          }
+        } catch (findingErr) {
+          console.error(`[ingestNews] Failed to process findings batch for holding ${h.ticker}. Error:`, findingErr);
         }
       }
 

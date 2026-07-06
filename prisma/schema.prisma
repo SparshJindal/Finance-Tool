@@ -160,6 +160,10 @@ model Finding {
   question    Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
 
   @@index([holdingId])
+  @@index([articleId])
+  @@index([questionId])
+  @@index([createdAt])
+  @@index([holdingId, createdAt])
   @@map("findings")
 }
 
@@ -200,6 +204,20 @@ model MarketTicker {
   @@map("market_tickers")
 }
 
+model PipelineRun {
+  id               String   @id @default(uuid())
+  userId           String?  @map("user_id") // Nullable if triggered by cron without specific user
+  startedAt        DateTime @map("started_at")
+  durationMs       Int      @map("duration_ms")
+  holdingsProcessed Int     @map("holdings_processed")
+  findingsSaved    Int      @map("findings_saved")
+  errorsJson       Json     @map("errors_json")
+  stageTimingsJson Json     @map("stage_timings_json")
+  p95Json          Json     @map("p95_json")
+  costJson         Json     @map("cost_json")
+  
+  @@map("pipeline_runs")
+}
 model NewsFetchLog {
   id        String   @id @default(uuid())
   ticker    String

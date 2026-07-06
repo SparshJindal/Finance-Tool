@@ -389,7 +389,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         const normalized = topic.trim().toLowerCase();
         if (!normalized || normalized === 'unknown' || normalized.split(/\s+/).length < 2) return;
         const cacheKey = `${t.symbol}#${normalized}`;
-        topicQueries.push({ companyName: t.name, topic: normalized, holdingId: t.holdingId, cacheKey });
+        topicQueries.push({ companyName: t.name, topic: normalized, holdingId: t.holdingId as string, cacheKey });
       });
     });
 

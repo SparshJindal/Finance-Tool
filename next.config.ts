@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -17,4 +18,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default process.env.SENTRY_DSN ? withSentryConfig(nextConfig, {
+  silent: true,
+  org: "portfolio-disruption-radar",
+  project: "portfolio-disruption-radar",
+}) : nextConfig;
