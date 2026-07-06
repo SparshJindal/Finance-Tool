@@ -119,60 +119,34 @@ export function PipelineControls({
     setRunSummary(null)
     setPipelineState({ active: true, text: 'Fetching live news & gating...', percent: 5 })
     
-    const CHUNK_SIZE = 3
-    const chunks = []
-    for (let i = 0; i < holdings.length; i += CHUNK_SIZE) {
-      chunks.push(holdings.slice(i, i + CHUNK_SIZE))
-    }
-
-    // Accumulate results across all chunks
     const allHoldingResults: HoldingRunResult[] = []
-    let totalProcessed = 0
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]
-      setPipelineState({
-        active: true,
-        text: `Ingesting Batch ${i + 1}/${chunks.length} (${totalProcessed + chunk.length}/${holdings.length})`,
-        percent: Math.round((totalProcessed / holdings.length) * 100)
-      })
-      
-      const fd = new FormData()
-      fd.append('ids', JSON.stringify(chunk.map(h => h.id)))
-      if (holdings.length > 10) {
-        fd.append('skipHeavyApis', 'true')
+    const fd = new FormData()
+    fd.append('ids', JSON.stringify(holdings.map(h => h.id)))
+    if (holdings.length > 10) {
+      fd.append('skipHeavyApis', 'true')
+    }
+
+    const phase1 = await runIngestPhase1(fd)
+    
+    if (phase1.error) {
+      console.error("Ingest error:", phase1.error)
+      if (phase1.error === 'LLM_QUOTA_EXHAUSTED') {
+        holdings.forEach(h => allHoldingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' }))
       }
-      const phase1 = await runIngestPhase1(fd)
-      
-      if (phase1.error) {
-        console.error("Ingest chunk error:", phase1.error)
-        // Mark all holdings in this chunk as failed if we have a hard error
-        if (phase1.error === 'LLM_QUOTA_EXHAUSTED') {
-          chunk.forEach(h => allHoldingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' }))
-        }
-      } else {
-        router.refresh()
-        // Use server-reported results; fall back to optimistic if not present
-        const serverResults: HoldingRunResult[] = phase1.report?.holdingResults || []
-        if (serverResults.length > 0) {
-          allHoldingResults.push(...serverResults)
-          // Use actual processed count from server report for accurate progress
-          totalProcessed += phase1.report?.totalHoldingsProcessed ?? chunk.length
-        } else {
-          totalProcessed += chunk.length
-        }
-      }
-      
-      setPipelineState({
-        active: true,
-        text: `Ingesting Batch ${i + 1}/${chunks.length} (${totalProcessed}/${holdings.length})`,
-        percent: Math.round((totalProcessed / holdings.length) * 100)
-      })
-      
-      if (i < chunks.length - 1) {
-        await new Promise(r => setTimeout(r, 1000))
+    } else {
+      router.refresh()
+      const serverResults: HoldingRunResult[] = phase1.report?.holdingResults || []
+      if (serverResults.length > 0) {
+        allHoldingResults.push(...serverResults)
       }
     }
+    
+    setPipelineState({
+      active: true,
+      text: `Ingesting complete`,
+      percent: 100
+    })
 
     setPipelineState({ active: false, text: '', percent: 0 })
 

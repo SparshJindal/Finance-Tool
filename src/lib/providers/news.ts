@@ -310,7 +310,11 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
   console.log(`[getNews] Enabled providers: ${enabledProviders.join(', ')}`);
   console.log(`[getNews] Fetching news for ${uniqueTargets.length} unique tickers...`);
 
-  // --- 0a. Fetch Tavily (CATALYST — explicit high-signal query per holding) ---
+  const { newsLimiter } = await import('@/lib/limiters');
+
+  const fetchTasks: Promise<void>[] = [];
+
+  // --- 0a. Fetch Tavily (CATALYST) ---
   if (enabledProviders.includes('tavily')) {
     const catalystQueries = uniqueTargets.map(t => ({ target: t, cacheKey: `${t.symbol}#catalyst` }));
     const cacheInputs: TickerInput[] = catalystQueries.map(cq => ({ symbol: cq.cacheKey, name: cq.cacheKey, exchange: 'CATALYST' }));
@@ -318,254 +322,158 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
     const missingKeys = new Set(missingInputs.map(i => i.symbol));
     const uncachedQueries = catalystQueries.filter(cq => missingKeys.has(cq.cacheKey));
 
-    console.log(`[Tavily-Catalyst] Needs fetching for ${uncachedQueries.length}/${catalystQueries.length} tickers.`);
-
-    for (let i = 0; i < uncachedQueries.length; i++) {
-      const { target, cacheKey } = uncachedQueries[i];
-
-      const withinCap = await checkTavilyCap(1);
-      if (!withinCap) {
-        console.warn(`[Tavily-Catalyst] Daily cap exceeded. Stopping catalyst fetches.`);
-        break;
-      }
-
-      const res = await fetchTavilyCatalystNews(target);
-      res.forEach(art => art.retrievalSource = 'primary');
-      addArticles(res, target);
-      if (res.length > 0) {
-        cacheStamps.push({ symbol: cacheKey, provider: 'tavily-catalyst' });
-      }
-
-      if (i < uncachedQueries.length - 1) {
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
+    uncachedQueries.forEach(({ target, cacheKey }) => {
+      fetchTasks.push(newsLimiter(async () => {
+        const withinCap = await checkTavilyCap(1);
+        if (!withinCap) return;
+        const res = await fetchTavilyCatalystNews(target);
+        res.forEach(art => art.retrievalSource = 'primary');
+        addArticles(res, target);
+        if (res.length > 0) cacheStamps.push({ symbol: cacheKey, provider: 'tavily-catalyst' });
+      }));
+    });
   }
 
-  // --- 0b. Fetch Tavily (PRIMARY — one query per holding) ---
+  // --- 0b. Fetch Tavily (PRIMARY) ---
   if (enabledProviders.includes('tavily')) {
     const tavilyTargets = await getMissingTickers(uniqueTargets, 'tavily');
-    console.log(`[Tavily] Needs fetching for ${tavilyTargets.length}/${uniqueTargets.length} tickers.`);
-
-    for (let i = 0; i < tavilyTargets.length; i++) {
-      const target = tavilyTargets[i];
-
-      // Check daily cap before each call
-      const withinCap = await checkTavilyCap(1);
-      if (!withinCap) {
-        console.warn(`[Tavily] Daily cap exceeded (${process.env.TAVILY_DAILY_CAP || 500}). Stopping Tavily fetches.`);
-        break;
-      }
-
-      const res = await fetchTavilyNews(target);
-      res.forEach(art => art.retrievalSource = 'primary');
-      addArticles(res, target);
-      if (res.length > 0) {
-        cacheStamps.push({ symbol: target.symbol, provider: 'tavily' });
-      }
-
-      // 300ms delay between queries to be polite to the API
-      if (i < tavilyTargets.length - 1) {
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
+    tavilyTargets.forEach(target => {
+      fetchTasks.push(newsLimiter(async () => {
+        const withinCap = await checkTavilyCap(1);
+        if (!withinCap) return;
+        const res = await fetchTavilyNews(target);
+        res.forEach(art => art.retrievalSource = 'primary');
+        addArticles(res, target);
+        if (res.length > 0) cacheStamps.push({ symbol: target.symbol, provider: 'tavily' });
+      }));
+    });
   }
 
-  // --- 0c. Fetch Tavily QUESTION news (driven by watch-questions) ---
+  // --- 0c. Fetch Tavily (QUESTION) ---
   if (enabledProviders.includes('tavily')) {
-    // Only check targets that have questions
     const targetsWithQuestions = uniqueTargets.filter(t => t.questions && t.questions.length > 0);
     const maxQuestionsPerHolding = parseInt(process.env.TAVILY_QUESTIONS_PER_HOLDING || "3", 10);
     
-    for (const target of targetsWithQuestions) {
+    targetsWithQuestions.forEach(target => {
       const questionsToRun = target.questions!.slice(0, maxQuestionsPerHolding);
-      
-      for (const q of questionsToRun) {
+      questionsToRun.forEach(q => {
         const cacheKey = `${target.symbol}#${q.id}`;
-        // Create a dummy TickerInput for the cache check
-        const qTarget: TickerInput = { ...target, symbol: cacheKey };
-        const missing = await getMissingTickers([qTarget], 'tavily-q');
-        
-        if (missing.length === 0) continue;
+        fetchTasks.push(newsLimiter(async () => {
+          const qTarget: TickerInput = { ...target, symbol: cacheKey };
+          const missing = await getMissingTickers([qTarget], 'tavily-q');
+          if (missing.length === 0) return;
+          const withinCap = await checkTavilyCap(1);
+          if (!withinCap) return;
 
-        const withinCap = await checkTavilyCap(1);
-        if (!withinCap) {
-          console.warn(`[Tavily-Q] Daily cap exceeded. Stopping question fetches.`);
-          break;
-        }
-
-        const res = await fetchTavilyQuestionNews(target, q);
-        // Tag with the question ID and retrieval source
-        res.forEach(art => {
-          art.matchedQuestionId = q.id;
-          art.retrievalSource = 'question';
-        });
-        
-        addArticles(res, target);
-        
-        if (res.length > 0) {
-          cacheStamps.push({ symbol: cacheKey, provider: 'tavily-q' });
-        }
-
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
+          const res = await fetchTavilyQuestionNews(target, q);
+          res.forEach(art => {
+            art.matchedQuestionId = q.id;
+            art.retrievalSource = 'question';
+          });
+          addArticles(res, target);
+          if (res.length > 0) cacheStamps.push({ symbol: cacheKey, provider: 'tavily-q' });
+        }));
+      });
+    });
   }
 
-  // --- 0d. Fetch Tavily TOPIC news (company-anchored, capped at 2 topics per holding) ---
+  // --- 0d. Fetch Tavily (TOPIC) ---
   if (enabledProviders.includes('tavily')) {
-    // Build per-holding topic queries: { companyName, topic, holdingId, cacheKey }
     const topicQueries: { companyName: string; topic: string; holdingId: string; cacheKey: string }[] = [];
     const MAX_TOPICS_PER_HOLDING = 2;
 
-    for (const t of uniqueTargets) {
-      if (!t.holdingId) continue;
+    uniqueTargets.forEach(t => {
+      if (!t.holdingId) return;
       const topics = (t.themes || []).slice(0, MAX_TOPICS_PER_HOLDING);
-      for (const topic of topics) {
+      topics.forEach(topic => {
         const normalized = topic.trim().toLowerCase();
-        if (!normalized || normalized === 'unknown' || normalized.split(/\s+/).length < 2) continue;
+        if (!normalized || normalized === 'unknown' || normalized.split(/\s+/).length < 2) return;
         const cacheKey = `${t.symbol}#${normalized}`;
         topicQueries.push({ companyName: t.name, topic: normalized, holdingId: t.holdingId, cacheKey });
-      }
-    }
+      });
+    });
 
     if (topicQueries.length > 0) {
-      // Check cache
-      const cacheInputs: TickerInput[] = topicQueries.map(tq => ({
-        symbol: tq.cacheKey,
-        name: tq.cacheKey,
-        exchange: 'TOPIC',
-      }));
+      const cacheInputs: TickerInput[] = topicQueries.map(tq => ({ symbol: tq.cacheKey, name: tq.cacheKey, exchange: 'TOPIC' }));
       const missingInputs = await getMissingTickers(cacheInputs, 'tavily-topic');
       const missingKeys = new Set(missingInputs.map(i => i.symbol));
       const uncachedQueries = topicQueries.filter(tq => missingKeys.has(tq.cacheKey));
-      console.log(`[Tavily-Topic] Needs fetching for ${uncachedQueries.length}/${topicQueries.length} topic queries.`);
 
-      for (let i = 0; i < uncachedQueries.length; i++) {
-        const tq = uncachedQueries[i];
-
-        const withinCap = await checkTavilyCap(1);
-        if (!withinCap) {
-          console.warn(`[Tavily-Topic] Daily cap exceeded. Stopping topic fetches.`);
-          break;
-        }
-
-        const res = await fetchTavilyTopicNews(tq.companyName, tq.topic);
-        // Tag as topic-sourced
-        res.forEach(art => art.retrievalSource = 'topic');
-
-        for (const art of res) {
-          let existing = allArticles.find(a => a.url === art.url);
-          if (!existing) {
-            art.matchedHoldingIds = [tq.holdingId];
-            allArticles.push(art);
-          } else {
-            if (!existing.matchedHoldingIds) existing.matchedHoldingIds = [];
-            if (!existing.matchedHoldingIds.includes(tq.holdingId)) {
-              existing.matchedHoldingIds.push(tq.holdingId);
+      uncachedQueries.forEach(tq => {
+        fetchTasks.push(newsLimiter(async () => {
+          const withinCap = await checkTavilyCap(1);
+          if (!withinCap) return;
+          const res = await fetchTavilyTopicNews(tq.companyName, tq.topic);
+          res.forEach(art => art.retrievalSource = 'topic');
+          for (const art of res) {
+            let existing = allArticles.find(a => a.url === art.url);
+            if (!existing) {
+              art.matchedHoldingIds = [tq.holdingId];
+              allArticles.push(art);
+            } else {
+              if (!existing.matchedHoldingIds) existing.matchedHoldingIds = [];
+              if (!existing.matchedHoldingIds.includes(tq.holdingId)) {
+                existing.matchedHoldingIds.push(tq.holdingId);
+              }
             }
           }
-        }
-
-        if (res.length > 0) {
-          cacheStamps.push({ symbol: tq.cacheKey, provider: 'tavily-topic' });
-        }
-
-        if (i < uncachedQueries.length - 1) {
-          await new Promise(r => setTimeout(r, 300));
-        }
-      }
+          if (res.length > 0) cacheStamps.push({ symbol: tq.cacheKey, provider: 'tavily-topic' });
+        }));
+      });
     }
   }
 
-  // --- 1. Fetch GDELT (Fallback — batched) ---
+  // --- 1. Fetch GDELT ---
   if (enabledProviders.includes('gdelt') && !skipHeavyApis) {
     const gdeltTargets = await getMissingTickers(uniqueTargets, 'gdelt');
-    console.log(`[GDELT] Needs fetching for ${gdeltTargets.length}/${uniqueTargets.length} tickers.`);
-    
     if (gdeltTargets.length > 0) {
       const chunkSize = 10;
-      const chunks = [];
       for (let i = 0; i < gdeltTargets.length; i += chunkSize) {
-        chunks.push(gdeltTargets.slice(i, i + chunkSize));
-      }
-
-      const baseDelay = parseInt(process.env.GDELT_DELAY_MS || '5000', 10);
-
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const { articles: baseArticles } = await fetchGDELTChunk(chunk);
-        const { articles: themeArticles } = await fetchGDELTThemeChunk(chunk);
-        
-        // Pass undefined as target for GDELT chunks since it's a batch query.
-        // We will rely on string matching later if GDELT returns articles.
-        addArticles(baseArticles);
-        addArticles(themeArticles);
-        if ((baseArticles.length + themeArticles.length) > 0) {
-          chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'gdelt' }));
-        }
-
-        if (i < chunks.length - 1) {
-          const jitter = Math.floor(Math.random() * 1000) - 500;
-          await new Promise(r => setTimeout(r, Math.max(0, baseDelay + jitter)));
-        }
+        const chunk = gdeltTargets.slice(i, i + chunkSize);
+        fetchTasks.push(newsLimiter(async () => {
+          const { articles: baseArticles } = await fetchGDELTChunk(chunk);
+          const { articles: themeArticles } = await fetchGDELTThemeChunk(chunk);
+          addArticles(baseArticles);
+          addArticles(themeArticles);
+          if ((baseArticles.length + themeArticles.length) > 0) {
+            chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'gdelt' }));
+          }
+        }));
       }
     }
   }
 
-  // --- 2. Determine Enrichment Targets ---
-  // Only call Marketaux/Finnhub for tickers where Tavily+GDELT returned zero articles
-  const enrichmentTargets = uniqueTargets.filter(t => {
-    const hasArticle = allArticles.some(a => 
-      a.title.toLowerCase().includes(t.symbol.toLowerCase()) || 
-      a.title.toLowerCase().includes(t.name.toLowerCase())
-    );
-    return !hasArticle;
-  });
-
-  if (enrichmentTargets.length > 0 && !skipHeavyApis) {
-    console.log(`[Enrichment] ${enrichmentTargets.length} tickers lacked Tavily/GDELT results. Proceeding with heavy APIs...`);
-    
-    // --- 3. Fetch Finnhub (US Only) ---
-    if (enabledProviders.includes('finnhub')) {
-      const finnhubTargets = await getMissingTickers(enrichmentTargets, 'finnhub');
-      for (const target of finnhubTargets) {
-        if (target.exchange === "US") {
+  // --- 2. Fetch Finnhub (US Only) ---
+  if (enabledProviders.includes('finnhub') && !skipHeavyApis) {
+    const finnhubTargets = await getMissingTickers(uniqueTargets, 'finnhub');
+    finnhubTargets.forEach(target => {
+      if (target.exchange === "US") {
+        fetchTasks.push(newsLimiter(async () => {
           const res = await fetchFinnhubNews(target);
           addArticles(res, target);
-          if (res.length > 0) {
-            cacheStamps.push({ symbol: target.symbol, provider: 'finnhub' });
-          }
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
+          if (res.length > 0) cacheStamps.push({ symbol: target.symbol, provider: 'finnhub' });
+        }));
       }
-    }
-
-    // --- 4. Fetch Marketaux (Batched) ---
-    if (enabledProviders.includes('marketaux')) {
-      const marketauxTargets = await getMissingTickers(enrichmentTargets, 'marketaux');
-      if (marketauxTargets.length > 0) {
-        const chunkSize = parseInt(process.env.MARKETAUX_SYMBOLS_PER_REQUEST || "3", 10);
-        console.log(`[Marketaux] Batching ${marketauxTargets.length} tickers into chunks of ${chunkSize}.`);
-        
-        for (let i = 0; i < marketauxTargets.length; i += chunkSize) {
-          const chunk = marketauxTargets.slice(i, i + chunkSize);
-          const res = await fetchMarketauxBatched(chunk);
-          // Pass undefined as target for batch chunk.
-          addArticles(res);
-          if (res.length > 0) {
-            chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'marketaux' }));
-          }
-          
-          if (process.env.NEWS_MOCK !== 'true' && i + chunkSize < marketauxTargets.length) {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-          }
-        }
-      }
-    }
-  } else if (skipHeavyApis) {
-    console.warn(`[getNews] Skipping Finnhub & Marketaux to preserve API limits (skipHeavyApis=true).`);
+    });
   }
+
+  // --- 3. Fetch Marketaux (Batched) ---
+  if (enabledProviders.includes('marketaux') && !skipHeavyApis) {
+    const marketauxTargets = await getMissingTickers(uniqueTargets, 'marketaux');
+    if (marketauxTargets.length > 0) {
+      const chunkSize = parseInt(process.env.MARKETAUX_SYMBOLS_PER_REQUEST || "3", 10);
+      for (let i = 0; i < marketauxTargets.length; i += chunkSize) {
+        const chunk = marketauxTargets.slice(i, i + chunkSize);
+        fetchTasks.push(newsLimiter(async () => {
+          const res = await fetchMarketauxBatched(chunk);
+          addArticles(res);
+          if (res.length > 0) chunk.forEach(c => cacheStamps.push({ symbol: c.symbol, provider: 'marketaux' }));
+        }));
+      }
+    }
+  }
+
+  await Promise.allSettled(fetchTasks);
 
   console.log(`[getNews] Fetched ${allArticles.length} unique new articles across ${uniqueTargets.length} tickers.`);
   

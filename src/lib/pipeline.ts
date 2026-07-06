@@ -10,6 +10,8 @@ import { evaluateFalsifiers } from "@/lib/providers/falsifiers";
 import { sourceTier } from "@/lib/providers/sourceQuality";
 import type { NormalizedArticle } from "@/lib/providers/news";
 import { fetchEarningsForHolding, judgeEarningsVsThesis } from "@/lib/providers/earnings";
+import { logger } from "@/lib/log";
+import { metricsStorage, MetricsCollector, withTiming } from "@/lib/metrics";
 
 export type HoldingRunResult = {
   holdingId: string
@@ -207,8 +209,8 @@ function relevanceFilter(
   return { kept: finalKept, dropped };
 }
 
-export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false) {
-  console.log(`[ingestNews] Starting pipeline... ${userId ? `(User: ${userId})` : '(Global)'}`);
+async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false): Promise<HoldingRunResult[]> {
+  logger.info({ userId, targetHoldingIds }, "[ingestNewsInternal] Starting pipeline...");
   
   // 1. Gather all unique targets
   const holdings = await prisma.holding.findMany({ 
@@ -236,8 +238,10 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
   const pushMinSeverity = parseInt(process.env.PUSH_MIN_SEVERITY || "3", 10);
   const maxArticles = parseInt(process.env.MAX_ARTICLES_PER_HOLDING || "10", 10);
 
-  for (let i = 0; i < holdings.length; i++) {
-    const h = holdings[i];
+  const { holdingLimiter, llmLimiter } = await import('@/lib/limiters');
+  
+  await Promise.allSettled(holdings.map(async (h, i) => holdingLimiter(async () => {
+    if (quotaExhausted) return;
     let holdingFindingsAdded = 0;
     try {
       console.log(`[ingestNews] Processing holding ${i + 1}/${holdings.length}: ${h.ticker} (${h.company})`);
@@ -257,7 +261,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       };
 
       // 1. Fetch News for this holding
-      const { articles: rawArticles, cacheStamps } = await getNews([targetTicker], skipHeavyApis);
+      const { articles: rawArticles, cacheStamps } = await withTiming('fetch', () => getNews([targetTicker], skipHeavyApis));
       
       // 2. Pre-filter: basic title check + keyword relevance gate
       const filteredArticles = rawArticles.filter(art => {
@@ -268,11 +272,11 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       console.log(`[ingestNews] ${h.ticker}: Fetched ${holdingArticles.length} raw articles BEFORE pre-filter.`);
 
       // Apply keyword relevance filter BEFORE LLM judging
-      const { kept: relevantArticles, dropped: droppedCount } = relevanceFilter(
+      const { kept: relevantArticles, dropped: droppedCount } = await withTiming('relevance', async () => relevanceFilter(
         holdingArticles,
         { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
         holdingCompetitors
-      );
+      ));
       
       console.log(`[ingestNews] ${h.ticker}: Kept ${relevantArticles.length} articles AFTER pre-filter (dropped ${droppedCount}).`);
 
@@ -348,11 +352,11 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       });
 
       // Pass unjudged db articles through the strict memory relevanceFilter
-      const { kept: relevantUnjudged } = relevanceFilter(
+      const { kept: relevantUnjudged } = await withTiming('relevance', async () => relevanceFilter(
         unjudgedDbArticles.map(a => ({ ...a, url: a.url, title: a.title, excerpt: a.excerpt || undefined })),
         { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
         holdingCompetitors
-      );
+      ));
       
       const relevantUnjudgedUrls = new Set(relevantUnjudged.map(a => a.url));
       const finalUnjudgedDbArticles = unjudgedDbArticles.filter(a => relevantUnjudgedUrls.has(a.url));
@@ -374,7 +378,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         continue;
       }
 
-      const judgments = await judgeHoldingArticles(h, dbArticles.map(a => {
+      const judgments = await withTiming('judge', () => llmLimiter(() => judgeHoldingArticles(h, dbArticles.map(a => {
         const originalArt = articles.find(orig => orig.url === a.url);
         return {
           id: a.id,
@@ -384,7 +388,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
           source: a.source,
           matchedQuestionId: originalArt?.matchedQuestionId
         };
-      }));
+      }))));
 
       const validArticleIds = new Set(dbArticles.map(a => a.id));
 
@@ -486,12 +490,12 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
         console.error(`[ingestNews] LLM daily quota exhausted. Aborting remaining holdings. Error: ${error.message}`);
         quotaExhausted = true;
         holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' });
-        break; // Stop processing further holdings gracefully
+        return; // Fast fail
       }
       console.error(`[ingestNews] Critical failure processing holding ${h.ticker}. Skipping to next. Error:`, error);
       holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'FETCH_ERROR' });
     }
-  }
+  })));
 
   // Deduplication: Per-Holding Event Collapse & Cross-Holding Weaker Attachment Drop
   const recentFindings = await prisma.finding.findMany({
@@ -520,12 +524,14 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
 
   // 2. Per-Holding Event Collapse (Connected Components via Jaccard 0.15 on Title + Excerpt)
   const validFindings = recentFindings.filter(f => !findingsToDelete.has(f.id));
-  const findingsByHolding = new Map<string, typeof validFindings>();
   
-  for (const f of validFindings) {
-    if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
-    findingsByHolding.get(f.holdingId)!.push(f);
-  }
+  await withTiming('dedup', async () => {
+    const findingsByHolding = new Map<string, typeof validFindings>();
+    
+    for (const f of validFindings) {
+      if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
+      findingsByHolding.get(f.holdingId)!.push(f);
+    }
 
   for (const [holdingId, group] of findingsByHolding.entries()) {
     if (group.length <= 1) continue;
@@ -606,6 +612,7 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       }
     }
   }
+  });
 
   if (findingsToDelete.size > 0) {
     await prisma.finding.deleteMany({
@@ -624,34 +631,37 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       orderBy: { severity: 'desc' }
     });
 
-    const findingsByHolding = new Map<string, typeof survivingFindings>();
-    survivingFindings.forEach(f => {
-      if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
-      findingsByHolding.get(f.holdingId)!.push(f);
-    });
-
-    for (const h of holdings) {
-      if (!holdingIds.includes(h.id)) continue;
-      const hFindings = findingsByHolding.get(h.id) || [];
-      const nonNeutral = hFindings.filter(f => (f.direction || '').toUpperCase() !== 'NEUTRAL');
-      
-      if (nonNeutral.length === 0) {
-        await prisma.holding.update({
-          where: { id: h.id },
-          data: { verdictCaption: null, verdictCaptionAt: new Date() }
-        });
-      } else {
-        const caption = await generateHoldingCaption(h, nonNeutral.map(f => ({
-          summary: f.summary,
-          severity: f.severity,
-          direction: f.direction,
-          title: f.article.title
-        })));
-        await prisma.holding.update({
-          where: { id: h.id },
-          data: { verdictCaption: caption, verdictCaptionAt: new Date() }
-        });
-      }
+    const holdingsToUpdate = Array.from(new Set(survivingFindings.map(f => f.holdingId)));
+    if (holdingsToUpdate.length > 0) {
+      await withTiming('caption', async () => {
+        for (const hid of holdingsToUpdate) {
+          const h = holdings.find(x => x.id === hid)!;
+          const hf = survivingFindings.filter(f => f.holdingId === hid);
+          const nonNeutral = hf.filter(f => (f.direction || '').toUpperCase() !== 'NEUTRAL');
+          
+          if (nonNeutral.length === 0) {
+            await prisma.holding.update({
+              where: { id: h.id },
+              data: { verdictCaption: null, verdictCaptionAt: new Date() }
+            });
+          } else {
+            try {
+              const caption = await llmLimiter(() => generateHoldingCaption(h, nonNeutral.map(f => ({
+                summary: f.summary,
+                severity: f.severity,
+                direction: f.direction,
+                title: f.article.title
+              }))));
+              await prisma.holding.update({
+                where: { id: h.id },
+                data: { verdictCaption: caption, verdictCaptionAt: new Date() }
+              });
+            } catch (e) {
+              console.error(`[ingestNews] Failed to generate caption for ${h.ticker}:`, e);
+            }
+          }
+        }
+      });
     }
   } catch (error: any) {
     if (error instanceof LlmQuotaExhaustedError || error.name === "LlmQuotaExhaustedError") {
@@ -668,7 +678,6 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       include: { falsifiers: true }
     });
     
-    // We can reuse the same nonNeutral logic. Let's fetch findings for these holdings:
     const recentFindingsForFalsifiers = await prisma.finding.findMany({
       where: {
         holdingId: { in: holdingIds },
@@ -678,48 +687,50 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
       orderBy: { severity: 'desc' }
     });
 
-    const findingsByHolding = new Map<string, typeof recentFindingsForFalsifiers>();
+    const findingsByHoldingF = new Map<string, typeof recentFindingsForFalsifiers>();
     recentFindingsForFalsifiers.forEach(f => {
-      if (!findingsByHolding.has(f.holdingId)) findingsByHolding.set(f.holdingId, []);
-      findingsByHolding.get(f.holdingId)!.push(f);
+      if (!findingsByHoldingF.has(f.holdingId)) findingsByHoldingF.set(f.holdingId, []);
+      findingsByHoldingF.get(f.holdingId)!.push(f);
     });
 
     for (const h of holdingsWithFalsifiers) {
       if (h.falsifiers.length === 0) continue;
-      const hFindings = findingsByHolding.get(h.id) || [];
+      const hFindings = findingsByHoldingF.get(h.id) || [];
       const nonNeutral = hFindings.filter(f => (f.direction || '').toUpperCase() !== 'NEUTRAL');
       
       if (nonNeutral.length > 0) {
-        const findingsForEval = nonNeutral.map(f => ({
-          id: f.id,
-          summary: f.summary,
-          direction: f.direction as any,
-          severity: f.severity,
-          sourceTitle: f.article.title
-        }));
-        
-        const evalResults = await evaluateFalsifiers(h, h.falsifiers, findingsForEval);
-        
-        for (const res of evalResults.results) {
-          const targetFalsifier = h.falsifiers[res.index];
-          if (!targetFalsifier) continue;
+        await withTiming('falsifier', async () => {
+          const findingsForEval = nonNeutral.map(f => ({
+            id: f.id,
+            summary: f.summary,
+            direction: f.direction as any,
+            severity: f.severity,
+            sourceTitle: f.article.title
+          }));
           
-          const matchedIds = res.matchedFindingIndices
-            .map(i => findingsForEval[i]?.id)
-            .filter(Boolean) as string[];
+          const evalResults = await llmLimiter(() => evaluateFalsifiers(h, h.falsifiers, findingsForEval));
+          
+          for (const res of evalResults.results) {
+            const targetFalsifier = h.falsifiers[res.index];
+            if (!targetFalsifier) continue;
             
-          const isTriggering = res.status === 'TRIGGERED' && targetFalsifier.status !== 'TRIGGERED';
-          
-          await prisma.falsifier.update({
-            where: { id: targetFalsifier.id },
-            data: {
-              status: res.status,
-              evidenceFindingIds: matchedIds,
-              lastEvaluatedAt: new Date(),
-              triggeredAt: isTriggering ? new Date() : (res.status === 'TRIGGERED' ? targetFalsifier.triggeredAt : null)
-            }
-          });
-        }
+            const matchedIds = res.matchedFindingIndices
+              .map((i: number) => findingsForEval[i]?.id)
+              .filter(Boolean) as string[];
+              
+            const isTriggering = res.status === 'TRIGGERED' && targetFalsifier.status !== 'TRIGGERED';
+            
+            await prisma.falsifier.update({
+              where: { id: targetFalsifier.id },
+              data: {
+                status: res.status,
+                evidenceFindingIds: matchedIds,
+                lastEvaluatedAt: new Date(),
+                triggeredAt: isTriggering ? new Date() : (res.status === 'TRIGGERED' ? targetFalsifier.triggeredAt : null)
+              }
+            });
+          }
+        });
       }
     }
   } catch (error: any) {
@@ -735,17 +746,8 @@ export async function ingestNews(userId?: string, runEvaluation: boolean = true,
     await refreshEarnings(undefined, holdingIds);
   }
 
-  const report = {
-    totalHoldingsProcessed: holdings.length,
-    newUpserted: upsertedCount,
-    clustersFormed,
-    findingsSaved: totalFindingsSaved,
-    quotaExhausted,
-    holdingResults
-  };
-
-  console.log("[ingestNews] Pipeline Fully Complete.", report);
-  return { report };
+  console.log("[ingestNews] Pipeline Fully Complete.");
+  return holdingResults;
 }
 
 export async function refreshEarnings(userId?: string, targetHoldingIds?: string[]) {
@@ -759,13 +761,28 @@ export async function refreshEarnings(userId?: string, targetHoldingIds?: string
   
   for (const h of holdings) {
     try {
-      const events = await fetchEarningsForHolding(h);
+      const events = await withTiming('earnings', async () => {
+        const evs = await fetchEarningsForHolding(h);
+        for (const e of evs) {
+          if (e.status === 'REPORTED' && e.guidance && h.thesis) {
+            const result = await judgeEarningsVsThesis(h as any, e);
+            if (result) {
+              return evs.map(ev => (ev.reportDate && e.reportDate && ev.reportDate.getTime() === e.reportDate.getTime()) ? {
+                ...ev,
+                thesisVerdict: result.verdict,
+                thesisSummary: result.summary
+              } : ev);
+            }
+          }
+        }
+        return evs;
+      });
       
       for (const e of events) {
         if (!e.reportDate) continue;
         
-        let verdict = undefined;
-        let summary = undefined;
+        let verdict = e.thesisVerdict;
+        let summary = e.thesisSummary;
         
         if (e.status === "REPORTED" && (e.epsActual != null || e.revenueActual != null)) {
           // Check if we already have this event with a verdict
@@ -825,10 +842,53 @@ export async function refreshEarnings(userId?: string, targetHoldingIds?: string
       }
     } catch (error: any) {
       if (error instanceof LlmQuotaExhaustedError || error.name === "LlmQuotaExhaustedError") {
-        console.warn(`[refreshEarnings] Quota exhausted for ${h.ticker}. Stopping earnings pass.`);
+        logger.warn({ ticker: h.ticker }, `[refreshEarnings] Quota exhausted. Stopping earnings pass.`);
         break; // Stop pass on quota exhaustion, but don't crash the pipeline
       }
-      console.error(`[refreshEarnings] Error processing ${h.ticker}:`, error);
+      logger.error({ err: error, ticker: h.ticker }, `[refreshEarnings] Error processing`);
     }
   }
+}
+
+export type PipelineReport = {
+  results: HoldingRunResult[];
+  metrics: Record<string, any>;
+};
+
+export async function ingestNews(userId?: string, runEvaluation: boolean = true, targetHoldingIds?: string[], skipHeavyApis: boolean = false): Promise<PipelineReport> {
+  const collector = new MetricsCollector();
+  const startTime = Date.now();
+  
+  return metricsStorage.run(collector, async () => {
+    try {
+      const results = await ingestNewsInternal(userId, runEvaluation, targetHoldingIds, skipHeavyApis);
+      const metricsJson = collector.toJSON();
+      const durationMs = Date.now() - startTime;
+      
+      logger.info({ pipeline_run_summary: metricsJson, userId, targetHoldingIds, durationMs }, "Pipeline Run Summary");
+      
+      try {
+        await prisma.pipelineRun.create({
+          data: {
+            userId: userId || null,
+            startedAt: new Date(startTime),
+            durationMs: durationMs,
+            holdingsProcessed: results.length,
+            findingsSaved: results.reduce((sum, r) => sum + r.findingsAdded, 0),
+            errorsJson: {},
+            stageTimingsJson: metricsJson.stageTimings,
+            p95Json: metricsJson.p95,
+            costJson: metricsJson.cost
+          }
+        });
+      } catch (dbErr) {
+        logger.error({ err: dbErr }, "Failed to persist PipelineRun to DB");
+      }
+      
+      return { results, metrics: metricsJson };
+    } catch (e) {
+      logger.error({ err: e }, "Pipeline run failed");
+      throw e;
+    }
+  });
 }
