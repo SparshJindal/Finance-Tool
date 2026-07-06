@@ -12,6 +12,7 @@ import type { NormalizedArticle } from "@/lib/providers/news";
 import { fetchEarningsForHolding, judgeEarningsVsThesis } from "@/lib/providers/earnings";
 import { logger } from "@/lib/log";
 import { metricsStorage, MetricsCollector, withTiming } from "@/lib/metrics";
+import { resolveEntity } from "@/lib/entity";
 
 export type HoldingRunResult = {
   holdingId: string
@@ -116,15 +117,42 @@ function relevanceFilter(
     .map(c => c.ticker?.toUpperCase())
     .filter(Boolean) as string[];
 
+  const entity = resolveEntity(holding.ticker, 'US', holding.company); // We default to US if exchange isn't in holding type here, but holding actually has exchange in callers.
+  // The holding type in relevanceFilter params doesn't have exchange, so let's default to US or add it later if needed.
+  
+  const allSafeAliases = Array.from(new Set([...safeAliases, ...entity.aliases.map(a => a.toLowerCase())]));
+
   function mentionsCompany(text: string): boolean {
     if (!text) return false;
-    if (tickerRe.test(text)) return true;
     const lower = text.toLowerCase();
-    if (lower.includes(companyLower)) return true;
-    for (const alias of safeAliases) {
-      if (lower.includes(alias)) return true;
+    
+    let hasStrongPositive = lower.includes(companyLower);
+    if (!hasStrongPositive) {
+      for (const alias of allSafeAliases) {
+        if (lower.includes(alias)) {
+          hasStrongPositive = true;
+          break;
+        }
+      }
     }
-    return false;
+    
+    let hasWeakPositive = false;
+    if (tickerRe.test(text)) hasWeakPositive = true;
+
+    let hasNegative = false;
+    for (const neg of entity.negativeAliases) {
+      if (lower.includes(neg.toLowerCase())) {
+        hasNegative = true;
+        break;
+      }
+    }
+
+    if (hasNegative && !hasStrongPositive) {
+      // It might match the ticker, but it discusses a confusable without naming the actual company. Reject.
+      return false; 
+    }
+
+    return hasStrongPositive || hasWeakPositive;
   }
 
   function leadsWithCompetitor(title: string): boolean {

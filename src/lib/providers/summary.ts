@@ -2,6 +2,7 @@ import { Type } from "@google/genai";
 import { askAI, LlmQuotaExhaustedError } from "./ai";
 import { prisma } from "@/lib/db";
 import { fetchQuote } from "./quote";
+import { resolveEntity } from "@/lib/entity";
 
 const judgeSchema = {
   type: Type.OBJECT,
@@ -65,7 +66,13 @@ export async function judgeHoldingArticles(
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
 
+    const entity = resolveEntity(holding.ticker, 'US', holding.company); // Use US as fallback for exchange
+
     let contextStr = `Holding: ${holding.ticker} (${holding.company})\n`;
+    contextStr += `Canonical Entity Name: ${entity.canonicalName}\n`;
+    if (entity.negativeAliases.length > 0) {
+      contextStr += `WARNING: Do NOT confuse with the following negative aliases/competitors: ${entity.negativeAliases.join(', ')}\n`;
+    }
     contextStr += `Thesis: ${holding.thesis}\n`;
     contextStr += `Direction Logic: ${holding.directionLogic || holding.direction || holding.kind}\n`;
     contextStr += `Watch Questions:\n${holding.questions.map(q => `- [ID: ${q.id}] ${q.text}`).join("\n")}\n\n`;
@@ -92,7 +99,7 @@ For each article:
 - JURISDICTION RULE: Regulatory, legal, or policy news affects a holding only if the holding demonstrably operates in that jurisdiction OR the article explicitly ties the law to the holding by name. Never assume a US/state law affects a non-US company (e.g. an Indian .BO/.NS listing) absent an explicit link.
 - Decide if the news is "material" (highly relevant and impactful). Set to true or false.
   * MATERIALITY DEFINITION: News is material if it could reasonably affect the company's revenue, margins, demand, costs, supply chain, competitive position, regulation/legal exposure, leadership, or forward guidance. This is INDEPENDENT of whether it answers a watch-question. Do not silently drop relevant fundamentals.
-  * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by ticker, company name, or known alias), return material=false and drop it.
+  * ENTITY GROUNDING RULE: If the article's PRIMARY entity is not the holding (by Canonical Entity Name, ticker, or known alias), or if it primarily discusses one of the WARNING negative aliases, return material=false and drop it.
 - Assign a severity score (1-5).
   * 5 = Thesis-breaking / confirmed, quantified, company-specific event already happening (e.g. earnings miss with numbers, signed M&A, regulatory ban, guidance cut). Must cite a hard number or a definitive verb.
   * 4 = Major, confirmed, company-specific but not thesis-ending.

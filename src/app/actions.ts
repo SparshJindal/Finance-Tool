@@ -12,14 +12,19 @@ import { askAI } from '@/lib/providers/ai'
 import { Type } from '@google/genai'
 import { generateHoldingProfile } from '@/lib/providers/profile'
 import { generateThesisFalsifiers } from '@/lib/providers/falsifiers'
+import { resolveEntity } from '@/lib/entity'
 
 async function populateHoldingProfile(holdingId: string, ticker: string, company: string, thesis: string, directionLogic: string) {
   try {
     const profile = await generateHoldingProfile({ ticker, company, thesis, directionLogic });
     
+    // Mix in hardcoded aliases if any
+    const entity = resolveEntity(ticker, 'US', company);
+    const combinedAliases = Array.from(new Set([...(profile.aliases || []), ...entity.aliases]));
+
     const updateData: any = { 
       themes: profile.themes,
-      aliases: profile.aliases,
+      aliases: combinedAliases,
     };
     
     // Backfill thesis if it was empty, but NEVER overwrite the user's directionLogic
@@ -534,17 +539,17 @@ export async function triggerNewsIngestionPhase1(formData?: FormData) {
       remainingCount = Math.max(0, originalLength - targetHoldingIds.length);
     }
 
-    const result = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
+    const pipelineReport = await ingestNews(userId, false, targetHoldingIds, skipHeavyApis) // Skip evaluation
     
-    const report = (result as any)?.report || null
+    const report = {
+      totalHoldingsProcessed: pipelineReport.results.length,
+      findingsSaved: pipelineReport.results.reduce((sum, r) => sum + r.findingsAdded, 0),
+      metrics: pipelineReport.metrics
+    };
     
-    console.log(`[ingestNews] Saved ${report?.findingsSaved || 0} findings across ${report?.totalHoldingsProcessed || 0} holdings.`);
+    console.log(`[ingestNews] Saved ${report.findingsSaved} findings across ${report.totalHoldingsProcessed} holdings.`);
 
     revalidatePath('/dashboard')
-    
-    if (report?.quotaExhausted) {
-      return { success: false, error: 'LLM_QUOTA_EXHAUSTED' }
-    }
     
     return { 
       success: true, 
