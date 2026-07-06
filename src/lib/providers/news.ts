@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
 import { fetchTavilyNews, fetchTavilyTopicNews, fetchTavilyQuestionNews, fetchTavilyCatalystNews } from "./tavily";
+import { metricsStorage } from "../metrics";
 
 export interface NormalizedArticle {
   url: string;
@@ -50,7 +51,18 @@ async function getMissingTickers(targets: TickerInput[], provider: string): Prom
   });
   
   const cachedTickers = new Set(logs.map(l => l.ticker));
-  return targets.filter(t => !cachedTickers.has(t.symbol));
+  
+  const collector = metricsStorage.getStore();
+  
+  return targets.filter(t => {
+    if (cachedTickers.has(t.symbol)) {
+      if (collector) collector.addCacheHit();
+      return false;
+    } else {
+      if (collector) collector.addCacheMiss();
+      return true;
+    }
+  });
 }
 
 export async function markFetched(stamps: { symbol: string, provider: string }[]) {
