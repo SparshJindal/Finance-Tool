@@ -262,12 +262,17 @@ export function PipelineControls({
           </button>
 
           {addHoldingPanel}
+          {managePortfolioPanel}
 
           {/* Tools Menu */}
           <div style={{ position: 'relative' }} ref={toolsRef}>
             <button className="btn btn-secondary" onClick={() => { setToolsOpen(!toolsOpen); setAccountOpen(false) }}>Tools ▾</button>
             {toolsOpen && (
               <div className="dropdown-menu">
+                <div style={{ padding: '4px' }}>
+                  {importHoldingsPanel}
+                </div>
+                <div className="dropdown-divider" />
                 <button className="dropdown-item" onClick={handleStudyAll} disabled={isAnyPending || holdings.length === 0}>Study All</button>
                 <form action={fd => startTransitionDigest(() => sendDigestAction(fd))}>
                   <button type="submit" className="dropdown-item" disabled={isAnyPending}>Send Digest</button>
@@ -294,8 +299,6 @@ export function PipelineControls({
                 </div>
                 
                 <div style={{ padding: '4px 8px' }}>{profilePanel}</div>
-                <div style={{ padding: '4px 8px' }}>{managePortfolioPanel}</div>
-                <div style={{ padding: '4px 8px' }}>{importHoldingsPanel}</div>
                 <div style={{ padding: '4px 12px' }}>{pushManager}</div>
                 
                 <div className="dropdown-divider" />
@@ -306,7 +309,7 @@ export function PipelineControls({
                 
                 <div className="dropdown-divider" />
                 
-                <button className="dropdown-item dropdown-danger" onClick={handleDeleteAll} disabled={isAnyPending || holdings.length === 0}>
+                <button className="dropdown-item dropdown-danger" onClick={handleDeleteAll} disabled={isAnyPending || holdings.length === 0} style={{ color: 'var(--bearish)' }}>
                   Delete Entire Portfolio
                 </button>
               </div>
