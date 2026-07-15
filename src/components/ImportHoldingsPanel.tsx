@@ -15,7 +15,7 @@ type ParsedRow = {
   selected: boolean
 }
 
-export function ImportHoldingsPanel() {
+export function ImportHoldingsPanel({ asButton = false }: { asButton?: boolean } = {}) {
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState<ParsedRow[]>([])
   const [isImporting, setIsImporting] = useState(false)

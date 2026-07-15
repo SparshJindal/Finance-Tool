@@ -240,8 +240,14 @@ export function DashboardShell({
                   Welcome to coranto.
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-md)', lineHeight: 1.6, marginBottom: 'var(--sp-6)' }}>
-                  Your portfolio is currently empty. To unleash the power of autonomous AI market monitoring, click the <b>&quot;Add New Position&quot;</b> button above.
+                  Your portfolio is currently empty. To unleash the power of autonomous AI market monitoring, add a new position or import your entire portfolio below.
                 </p>
+                <div style={{ display: 'flex', gap: 'var(--sp-4)', justifyContent: 'center', marginBottom: 'var(--sp-6)', alignItems: 'center' }}>
+                  <AddHoldingPanel action={addHoldingAction} />
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+                    <ImportHoldingsPanel />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-6)', textAlign: 'left', marginTop: 'var(--sp-6)', paddingTop: 'var(--sp-6)', borderTop: '1px solid var(--border)' }}>
                   <div>
                     <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
