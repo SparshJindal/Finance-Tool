@@ -170,29 +170,6 @@ export function DashboardShell({
       .sort((a, b) => (a.thesisHealth?.score || 100) - (b.thesisHealth?.score || 100))
   }, [holdingVerdicts, activeHolding])
 
-  const controlsWithCallback = useMemo(() => {
-    if (!controls) return null
-    try {
-      if (React.isValidElement(controls)) {
-        return React.cloneElement(controls as any, {
-          onRunComplete: handleRunComplete,
-          userProfile,
-          totalThreatened,
-          totalSupported,
-          totalQuietCount,
-          profilePanel: userProfile ? <ProfilePanel userProfile={userProfile} updateAction={updateProfileAction} /> : null,
-          managePortfolioPanel: <ManagePortfolioPanel holdings={holdings} updateAction={updateHoldingAction} deleteAction={deleteHoldingAction} />,
-          addHoldingPanel: <AddHoldingPanel action={addHoldingAction} />,
-          importHoldingsPanel: <ImportHoldingsPanel />
-        })
-      }
-      return controls
-    } catch (e) {
-      console.error("Failed to inject props", e)
-      return controls
-    }
-  }, [controls, handleRunComplete, userProfile, totalThreatened, totalSupported, totalQuietCount, holdings, updateProfileAction, updateHoldingAction, deleteHoldingAction, addHoldingAction])
-
   return (
     <div className="noise-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       {/* Background Mesh */}
@@ -220,7 +197,7 @@ export function DashboardShell({
           <div style={{ maxWidth: '1300px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
             
             {/* Top controls area for the dashboard (Now replaced by Command Bar) */}
-            {controlsWithCallback}
+            {controls}
 
             {/* Findings Feed / Empty State */}
             {holdings.length === 0 ? (

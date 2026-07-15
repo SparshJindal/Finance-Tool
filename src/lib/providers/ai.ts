@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import Groq from "groq-sdk";
+import { metricsStorage, type LlmUsage } from '../metrics';
 
 /**
  * Thrown when the LLM provider's daily token/request quota is exhausted.
@@ -44,6 +45,16 @@ export async function askAI({
       config,
     });
     if (!response.text) throw new Error("Gemini returned empty text");
+    
+    if (response.usageMetadata) {
+      const usage: LlmUsage = {
+        promptTokens: response.usageMetadata.promptTokenCount || 0,
+        completionTokens: response.usageMetadata.candidatesTokenCount || 0,
+        totalTokens: response.usageMetadata.totalTokenCount || 0
+      };
+      metricsStorage.getStore()?.addLlmCall(preferredModel, usage);
+    }
+    
     return response.text;
   };
 
@@ -71,6 +82,15 @@ export async function askAI({
       // Clean markdown block if present
       if (schema) {
         content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      }
+
+      if (chatCompletion.usage) {
+        const usage: LlmUsage = {
+          promptTokens: chatCompletion.usage.prompt_tokens || 0,
+          completionTokens: chatCompletion.usage.completion_tokens || 0,
+          totalTokens: chatCompletion.usage.total_tokens || 0
+        };
+        metricsStorage.getStore()?.addLlmCall(groqModel, usage);
       }
 
       return content;
@@ -119,6 +139,15 @@ export async function askAI({
 
     if (schema) {
       content = content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+    }
+
+    if (data.usage) {
+      const usage: LlmUsage = {
+        promptTokens: data.usage.prompt_tokens || 0,
+        completionTokens: data.usage.completion_tokens || 0,
+        totalTokens: data.usage.total_tokens || 0
+      };
+      metricsStorage.getStore()?.addLlmCall(preferredModel, usage);
     }
 
     return content;

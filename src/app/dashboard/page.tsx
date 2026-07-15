@@ -21,6 +21,10 @@ import {
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
 import { DashboardShell } from '@/components/DashboardShell'
+import { AddHoldingPanel } from '@/components/AddHoldingPanel'
+import { ManagePortfolioPanel } from '@/components/ManagePortfolioPanel'
+import { ImportHoldingsPanel } from '@/components/ImportHoldingsPanel'
+import { ProfilePanel } from '@/components/ProfilePanel'
 import { buildHoldingVerdicts } from '@/lib/verdict'
 
 export const dynamic = 'force-dynamic'
@@ -141,6 +145,10 @@ export default async function Page() {
     ? findingsRaw[0].article.publishedAt?.toISOString() || findingsRaw[0].createdAt.toISOString() 
     : null
 
+  const totalThreatened = holdingVerdicts.filter(v => v.verdict === 'Threatens' || v.verdict === 'Mixed').length
+  const totalSupported = holdingVerdicts.filter(v => v.verdict === 'Supports').length
+  const totalQuietCount = holdingVerdicts.filter(v => v.isQuiet).length
+
   // Build the pipeline controls
   const controls = (
     <PipelineControls 
@@ -155,6 +163,14 @@ export default async function Page() {
       refreshEarningsAction={refreshEarningsAction as unknown as (ids?: string[]) => Promise<void>}
       backfillFalsifiersAction={backfillFalsifiersAction as unknown as () => Promise<any>}
       pushManager={<PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />}
+      userProfile={userProfile}
+      totalThreatened={totalThreatened}
+      totalSupported={totalSupported}
+      totalQuietCount={totalQuietCount}
+      profilePanel={<ProfilePanel userProfile={userProfile} updateAction={updateProfile as unknown as (fd: FormData) => Promise<any>} />}
+      managePortfolioPanel={<ManagePortfolioPanel holdings={holdings} updateAction={updateHolding as unknown as (fd: FormData) => void} deleteAction={deleteHolding as unknown as (fd: FormData) => void} />}
+      addHoldingPanel={<AddHoldingPanel action={addHolding as unknown as (fd: FormData) => void} />}
+      importHoldingsPanel={<ImportHoldingsPanel />}
     />
   )
 
