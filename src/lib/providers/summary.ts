@@ -319,9 +319,26 @@ export async function generateDailyBrief(userId: string) {
     return null;
   }
 
+  // Cap findings per holding so we don't overwhelm the digest or LLM context
+  const groupedFindings = new Map<string, typeof findings>();
+  for (const f of findings) {
+    if (!groupedFindings.has(f.holdingId)) groupedFindings.set(f.holdingId, []);
+    groupedFindings.get(f.holdingId)!.push(f);
+  }
+
+  const cappedFindings: typeof findings = [];
+  for (const group of groupedFindings.values()) {
+    group.sort((a, b) => {
+      if (b.severity !== a.severity) return b.severity - a.severity;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+    // Take max 3 findings per holding
+    cappedFindings.push(...group.slice(0, 3));
+  }
+
   let contextStr = "Here are the highly relevant findings detected over the last 24 hours:\n\n";
   
-  findings.forEach(f => {
+  cappedFindings.forEach(f => {
     contextStr += `[Finding]\n`;
     contextStr += `Holding: ${f.holding.ticker} (${f.holding.company})\n`;
     contextStr += `Kind: ${f.holding.kind}\n`;
