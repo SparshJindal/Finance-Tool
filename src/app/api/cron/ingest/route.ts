@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getStartedBoss } from '@/lib/boss';
+import stringSimilarity from 'string-similarity';
 
 export const maxDuration = 300; // Vercel max duration
 export const dynamic = 'force-dynamic';
@@ -13,35 +14,69 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const batchSize = parseInt(process.env.BATCH_SIZE || "5", 10);
-
   try {
-    let holdings = await prisma.holding.findMany({
-      where: { lastIngestedAt: null },
-      take: batchSize,
-      select: { id: true, ticker: true }
+    // Fetch all active holdings across all users
+    const holdings = await prisma.holding.findMany({
+      select: { id: true, ticker: true, thesis: true, directionLogic: true, kind: true }
     });
-
-    if (holdings.length < batchSize) {
-      const moreHoldings = await prisma.holding.findMany({
-        where: { lastIngestedAt: { not: null } },
-        orderBy: { lastIngestedAt: 'asc' },
-        take: batchSize - holdings.length,
-        select: { id: true, ticker: true }
-      });
-      holdings = holdings.concat(moreHoldings);
-    }
 
     if (holdings.length === 0) {
       return NextResponse.json({ success: true, message: 'No holdings found to process' });
     }
 
-    console.log(`[Cron] Enqueueing ingest jobs for ${holdings.length} holdings.`);
+    // Group by Ticker
+    const groupedByTicker: Record<string, typeof holdings> = {};
+    for (const h of holdings) {
+      if (!groupedByTicker[h.ticker]) groupedByTicker[h.ticker] = [];
+      groupedByTicker[h.ticker].push(h);
+    }
+
+    const clusters: string[][] = [];
+
+    // Cluster by Thesis & Direction within each Ticker group
+    for (const group of Object.values(groupedByTicker)) {
+      let unclustered = [...group];
+      
+      while (unclustered.length > 0) {
+        const head = unclustered[0];
+        const clusterHoldingIds = [head.id];
+        const remaining = [];
+
+        // Normalize direction for the cluster head
+        const headDirection = [head.directionLogic, head.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
+
+        for (let i = 1; i < unclustered.length; i++) {
+          const candidate = unclustered[i];
+          const candDirection = [candidate.directionLogic, candidate.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
+          
+          // Must have same direction to be clustered
+          if (headDirection === candDirection) {
+            const sim = stringSimilarity.compareTwoStrings(
+              (head.thesis || '').toLowerCase(),
+              (candidate.thesis || '').toLowerCase()
+            );
+            
+            if (sim >= 0.70) {
+              clusterHoldingIds.push(candidate.id);
+            } else {
+              remaining.push(candidate);
+            }
+          } else {
+            remaining.push(candidate);
+          }
+        }
+        
+        clusters.push(clusterHoldingIds);
+        unclustered = remaining;
+      }
+    }
+
+    console.log(`[Cron] Clustered ${holdings.length} holdings into ${clusters.length} cross-account jobs.`);
     const boss = await getStartedBoss();
 
-    const jobs = holdings.map(h => ({
-      name: 'ingest-holding',
-      data: { holdingId: h.id, runEvaluation: true, skipHeavyApis: false },
+    const jobs = clusters.map(clusterIds => ({
+      name: 'ingest-cluster',
+      data: { targetHoldingIds: clusterIds, runEvaluation: true, skipHeavyApis: false },
       options: { 
         retryLimit: 3, 
         retryDelay: 60, // 1 minute backoff 
@@ -53,8 +88,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      enqueuedHoldings: holdings.length,
-      message: "Successfully pushed to pg-boss queue"
+      enqueuedClusters: clusters.length,
+      originalHoldingsCount: holdings.length,
+      message: "Successfully pushed clustered jobs to pg-boss queue"
     });
   } catch (error: any) {
     console.error('[Cron] Error during enqueueing:', error);

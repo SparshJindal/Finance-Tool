@@ -11,21 +11,24 @@ async function startWorker() {
   const pipelineConcurrency = parseInt(process.env.PIPELINE_CONCURRENCY || "4", 10);
   console.log(`[Worker] Pulling jobs with concurrency limit: ${pipelineConcurrency}`);
 
-  await boss.work('ingest-holding', { localConcurrency: pipelineConcurrency }, async (jobs) => {
+  // Support both legacy ingest-holding and new ingest-cluster jobs
+  const handleJob = async (jobs: any) => {
     const jobList = Array.isArray(jobs) ? jobs : [jobs];
     for (const job of jobList) {
-      const { holdingId, skipHeavyApis = false, runEvaluation = true } = job.data as any;
-      console.log(`[Worker] Received ingest job for holding: ${holdingId}`);
+      const { holdingId, targetHoldingIds, skipHeavyApis = false, runEvaluation = true } = job.data as any;
+      const idsToProcess = targetHoldingIds || (holdingId ? [holdingId] : []);
+      
+      console.log(`[Worker] Received ingest job for ${idsToProcess.length} holdings: ${idsToProcess.join(', ')}`);
 
       try {
-        const report = await ingestNews(undefined, runEvaluation, [holdingId], skipHeavyApis);
+        const report = await ingestNews(undefined, runEvaluation, idsToProcess, skipHeavyApis);
         const metrics = report.metrics;
         
         const holdingsProcessed = report.results.length;
         const findingsSaved = report.results.reduce((sum, r) => sum + r.findingsAdded, 0);
         const isQuotaExhausted = report.results.some(r => r.reason === 'LLM_QUOTA_EXHAUSTED');
         
-        console.log(`[Worker] Finished ingest job for holding ${holdingId}. Saved ${findingsSaved} findings. Cost saved: ${metrics.cost.saved?.totalTokens || 0} tokens.`);
+        console.log(`[Worker] Finished ingest job for cluster. Saved ${findingsSaved} findings. Cost saved: ${metrics.cost.saved?.totalTokens || 0} tokens.`);
         
         // Save PipelineRun metric
         await prisma.pipelineRun.create({
@@ -51,9 +54,12 @@ async function startWorker() {
         throw err;
       }
     }
-  });
+  };
+
+  await boss.work('ingest-holding', { localConcurrency: pipelineConcurrency }, handleJob);
+  await boss.work('ingest-cluster', { localConcurrency: pipelineConcurrency }, handleJob);
   
-  console.log('[Worker] Listening for jobs on "ingest-holding" queue...');
+  console.log('[Worker] Listening for jobs on "ingest-holding" and "ingest-cluster" queues...');
 }
 
 startWorker().catch(e => {

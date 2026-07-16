@@ -268,13 +268,55 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
 
   const { holdingLimiter, llmLimiter } = await import('@/lib/limiters');
   
-  await Promise.allSettled(holdings.map(async (h, i) => holdingLimiter(async () => {
+  // 0. Cluster the holdings (identical ticker, similar thesis)
+  const groupedByTicker: Record<string, typeof holdings> = {};
+  for (const h of holdings) {
+    if (!groupedByTicker[h.ticker]) groupedByTicker[h.ticker] = [];
+    groupedByTicker[h.ticker].push(h);
+  }
+
+  const clusters: (typeof holdings)[] = [];
+  for (const group of Object.values(groupedByTicker)) {
+    let unclustered = [...group];
+    while (unclustered.length > 0) {
+      const head = unclustered[0];
+      const cluster = [head];
+      const remaining = [];
+      const headDirection = [head.directionLogic, head.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
+
+      for (let i = 1; i < unclustered.length; i++) {
+        const candidate = unclustered[i];
+        const candDirection = [candidate.directionLogic, candidate.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
+        if (headDirection === candDirection) {
+           const sim = stringSimilarity.compareTwoStrings((head.thesis || '').toLowerCase(), (candidate.thesis || '').toLowerCase());
+           if (sim >= 0.70) cluster.push(candidate);
+           else remaining.push(candidate);
+        } else {
+           remaining.push(candidate);
+        }
+      }
+      clusters.push(cluster);
+      unclustered = remaining;
+    }
+  }
+
+  await Promise.allSettled(clusters.map(async (cluster, i) => holdingLimiter(async () => {
     if (quotaExhausted) return;
-    let holdingFindingsAdded = 0;
+    let clusterFindingsAdded = 0;
+    const h = cluster[0]; // Representative holding
+    
     try {
-      console.log(`[ingestNews] Processing holding ${i + 1}/${holdings.length}: ${h.ticker} (${h.company})`);
+      console.log(`[ingestNews] Processing cluster ${i + 1}/${clusters.length}: ${h.ticker} (Size: ${cluster.length})`);
       
-      const holdingCompetitors = competitors.filter(c => c.holdingId === h.id);
+      const clusterCompetitors = competitors.filter(c => cluster.some(ch => ch.id === c.holdingId));
+      const uniqueCompetitors = Array.from(new Map(clusterCompetitors.map(c => [c.ticker + c.name, c])).values());
+      
+      const allAliases = new Set(h.aliases || []);
+      cluster.forEach(ch => (ch.aliases || []).forEach(a => allAliases.add(a)));
+      
+      const allQuestionsMap = new Map();
+      cluster.forEach(ch => ch.questions.forEach(q => allQuestionsMap.set(q.id, q)));
+      const aggregatedQuestions = Array.from(allQuestionsMap.values());
 
       const targetTicker = {
         holdingId: h.id,
@@ -283,30 +325,29 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
         exchange: h.exchange,
         sector: h.sector || undefined,
         themes: h.themes,
-        aliases: h.aliases || [],
-        questions: h.questions.map(q => ({ id: q.id, text: q.text })),
-        competitors: holdingCompetitors.map(c => ({ ticker: c.ticker, name: c.name }))
+        aliases: Array.from(allAliases),
+        questions: aggregatedQuestions.map(q => ({ id: q.id, text: q.text })),
+        competitors: uniqueCompetitors.map(c => ({ ticker: c.ticker, name: c.name }))
       };
 
-      // 1. Fetch News for this holding
+      // 1. Fetch News for this cluster
       const { articles: rawArticles, cacheStamps } = await withTiming('fetch', () => getNews([targetTicker], skipHeavyApis));
       
-      // 2. Pre-filter: basic title check + keyword relevance gate
+      // 2. Pre-filter
       const filteredArticles = rawArticles.filter(art => {
         return art.title && art.title !== "No Title" && art.title.trim().length > 0;
       });
 
-      const holdingArticles = filteredArticles;
-      console.log(`[ingestNews] ${h.ticker}: Fetched ${holdingArticles.length} raw articles BEFORE pre-filter.`);
+      console.log(`[ingestNews] ${h.ticker} (Cluster): Fetched ${filteredArticles.length} raw articles BEFORE pre-filter.`);
 
       // Apply keyword relevance filter BEFORE LLM judging
       const { kept: relevantArticles, dropped: droppedCount } = await withTiming('relevance', async () => relevanceFilter(
-        holdingArticles,
-        { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
-        holdingCompetitors
+        filteredArticles,
+        { ticker: h.ticker, company: h.company, aliases: Array.from(allAliases) },
+        uniqueCompetitors
       ));
       
-      console.log(`[ingestNews] ${h.ticker}: Kept ${relevantArticles.length} articles AFTER pre-filter (dropped ${droppedCount}).`);
+      console.log(`[ingestNews] ${h.ticker} (Cluster): Kept ${relevantArticles.length} articles AFTER pre-filter (dropped ${droppedCount}).`);
 
       const articlesToProcess = relevantArticles.slice(0, maxArticles);
       const articles: import("@/lib/providers/news").NormalizedArticle[] = [];
@@ -356,7 +397,7 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
         }
       }
 
-      // 5. Gather all articles to judge (newly fetched + unjudged DB articles)
+      // 5. Gather all articles to judge
       const fetchedUrls = articles.map(a => a.url);
       let dbArticles = await prisma.article.findMany({
         where: { url: { in: fetchedUrls } }
@@ -364,26 +405,32 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
 
       const maxBacklog = parseInt(process.env.MAX_BACKLOG_PER_HOLDING || "5", 10);
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      const unjudgedDbArticles = await prisma.article.findMany({
-        where: {
-          publishedAt: { gte: threeDaysAgo },
-          findings: { none: { holdingId: h.id } },
-          OR: [
-            { title: { contains: h.ticker, mode: 'insensitive' } },
-            { title: { contains: h.company, mode: 'insensitive' } },
-            { excerpt: { contains: h.ticker, mode: 'insensitive' } },
-            { excerpt: { contains: h.company, mode: 'insensitive' } },
-          ]
-        },
-        orderBy: { publishedAt: 'desc' },
-        take: maxBacklog
-      });
+      
+      const unjudgedDbArticlesMap = new Map();
+      for (const ch of cluster) {
+        const unjudgedForCh = await prisma.article.findMany({
+          where: {
+            publishedAt: { gte: threeDaysAgo },
+            findings: { none: { holdingId: ch.id } },
+            OR: [
+              { title: { contains: ch.ticker, mode: 'insensitive' } },
+              { title: { contains: ch.company, mode: 'insensitive' } },
+              { excerpt: { contains: ch.ticker, mode: 'insensitive' } },
+              { excerpt: { contains: ch.company, mode: 'insensitive' } },
+            ]
+          },
+          orderBy: { publishedAt: 'desc' },
+          take: maxBacklog
+        });
+        unjudgedForCh.forEach(a => unjudgedDbArticlesMap.set(a.id, a));
+      }
+      
+      const unjudgedDbArticles = Array.from(unjudgedDbArticlesMap.values());
 
-      // Pass unjudged db articles through the strict memory relevanceFilter
       const { kept: relevantUnjudged } = await withTiming('relevance', async () => relevanceFilter(
         unjudgedDbArticles.map(a => ({ ...a, url: a.url, title: a.title, excerpt: a.excerpt || undefined })),
-        { ticker: h.ticker, company: h.company, aliases: h.aliases || [] },
-        holdingCompetitors
+        { ticker: h.ticker, company: h.company, aliases: Array.from(allAliases) },
+        uniqueCompetitors
       ));
       
       const relevantUnjudgedUrls = new Set(relevantUnjudged.map(a => a.url));
@@ -399,14 +446,27 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
       dbArticles = Array.from(allToJudgeMap.values());
 
       if (dbArticles.length === 0) {
-        console.log(`[ingestNews] No new or unjudged articles to evaluate for ${h.ticker}.`);
-        await prisma.holding.update({ where: { id: h.id }, data: { lastIngestedAt: new Date() }});
+        console.log(`[ingestNews] No new or unjudged articles to evaluate for cluster ${h.ticker}.`);
+        await prisma.holding.updateMany({ where: { id: { in: cluster.map(ch => ch.id) } }, data: { lastIngestedAt: new Date() }});
         if (cacheStamps.length > 0) await markFetched(cacheStamps);
-        holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'cached', findingsAdded: 0, reason: 'NO_NEW_ARTICLES' });
+        for (const ch of cluster) {
+          holdingResults.push({ holdingId: ch.id, ticker: ch.ticker, status: 'cached', findingsAdded: 0, reason: 'NO_NEW_ARTICLES' });
+        }
         return;
       }
 
-      const judgments = await withTiming('judge', () => llmLimiter(() => judgeHoldingArticles(h, dbArticles.map(a => {
+      // Representative holding for judgment
+      const repHoldingForJudge = {
+        id: h.id,
+        ticker: h.ticker,
+        company: h.company,
+        thesis: h.thesis,
+        directionLogic: h.directionLogic,
+        kind: h.kind,
+        questions: aggregatedQuestions
+      };
+
+      const judgments = await withTiming('judge', () => llmLimiter(() => judgeHoldingArticles(repHoldingForJudge, dbArticles.map(a => {
         const originalArt = articles.find(orig => orig.url === a.url);
         return {
           id: a.id,
@@ -421,10 +481,7 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
       const validArticleIds = new Set(dbArticles.map(a => a.id));
 
       const passedJudgments = judgments.filter(j => {
-        if (!j.articleId || !validArticleIds.has(j.articleId)) {
-          console.warn(`[ingestNews] Invalid or hallucinated articleId ${j.articleId} for holding ${h.ticker}. Skipping finding.`);
-          return false;
-        }
+        if (!j.articleId || !validArticleIds.has(j.articleId)) return false;
         const isNeutral = (j.direction || '').toUpperCase() === 'NEUTRAL';
         return isNeutral
           ? j.severity >= 4
@@ -439,52 +496,63 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
           console.error(`[ingestNews] fetchQuote failed for ${h.ticker}`, e);
         }
 
+        const clusterIds = cluster.map(ch => ch.id);
         const existingFindings = await prisma.finding.findMany({
           where: {
-            holdingId: h.id,
+            holdingId: { in: clusterIds },
             articleId: { in: passedJudgments.map(j => j.articleId) }
           }
         });
-        const existingMap = new Map(existingFindings.map(f => [f.articleId, f]));
+        
+        const existingMap = new Map();
+        existingFindings.forEach(f => {
+           if (!existingMap.has(f.holdingId)) existingMap.set(f.holdingId, new Map());
+           existingMap.get(f.holdingId).set(f.articleId, f);
+        });
 
         const updates: any[] = [];
         const creations: any[] = [];
         const pushAlerts: any[] = [];
+        let totalCreatedOrUpdatedInCluster = 0;
 
         for (const j of passedJudgments) {
-          const validQuestionId = j.answeredQuestionId && h.questions.some(q => q.id === j.answeredQuestionId) 
-            ? j.answeredQuestionId 
-            : null;
-          
-          const existing = existingMap.get(j.articleId);
-          let isNewOrUpgraded = false;
+          for (const ch of cluster) {
+            const validQuestionId = j.answeredQuestionId && ch.questions.some(q => q.id === j.answeredQuestionId) 
+              ? j.answeredQuestionId 
+              : null;
+            
+            const existingForCh = existingMap.get(ch.id)?.get(j.articleId);
+            let isNewOrUpgraded = false;
 
-          const data = {
-            severity: j.severity,
-            direction: j.direction || "NEUTRAL",
-            summary: j.summary,
-            questionId: validQuestionId,
-            priceChangePct: quote?.priceChangePct ?? null,
-            volumeRatio: quote?.volumeRatio ?? null,
-          };
+            const data = {
+              severity: j.severity,
+              direction: j.direction || "NEUTRAL",
+              summary: j.summary,
+              questionId: validQuestionId,
+              priceChangePct: quote?.priceChangePct ?? null,
+              volumeRatio: quote?.volumeRatio ?? null,
+            };
 
-          if (existing) {
-            updates.push({ where: { id: existing.id }, data });
-            if (j.severity > existing.severity) isNewOrUpgraded = true;
-          } else {
-            creations.push({
-              articleId: j.articleId,
-              holdingId: h.id,
-              ...data
-            });
-            isNewOrUpgraded = true;
-          }
+            if (existingForCh) {
+              updates.push({ where: { id: existingForCh.id }, data });
+              if (j.severity > existingForCh.severity) isNewOrUpgraded = true;
+            } else {
+              creations.push({
+                articleId: j.articleId,
+                holdingId: ch.id,
+                ...data
+              });
+              isNewOrUpgraded = true;
+            }
 
-          if (isNewOrUpgraded) {
-            pushAlerts.push({
-              title: `🔴 ${h.ticker} — Severity ${j.severity}/5`,
-              body: j.summary,
-            });
+            if (isNewOrUpgraded) {
+              pushAlerts.push({
+                userId: ch.userId,
+                title: `🔴 ${ch.ticker} — Severity ${j.severity}/5`,
+                body: j.summary,
+              });
+              totalCreatedOrUpdatedInCluster++;
+            }
           }
         }
 
@@ -494,25 +562,25 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
             ...(creations.length > 0 ? [prisma.finding.createMany({ data: creations })] : [])
           ]);
           
-          totalFindingsSaved += passedJudgments.length;
-          holdingFindingsAdded += passedJudgments.length;
+          totalFindingsSaved += passedJudgments.length; // Raw findings count
+          clusterFindingsAdded += passedJudgments.length;
 
           if (pushAlerts.length > 0) {
             try {
               const { sendPushAlert } = await import('@/lib/push');
-              await Promise.allSettled(pushAlerts.map(alert => sendPushAlert(h.userId, alert)));
+              await Promise.allSettled(pushAlerts.map(alert => sendPushAlert(alert.userId, alert)));
             } catch (pushErr) {
-              console.error(`[ingestNews] Push notification failed for ${h.ticker}:`, pushErr);
+              console.error(`[ingestNews] Push notification failed for cluster ${h.ticker}:`, pushErr);
             }
           }
         } catch (findingErr) {
-          console.error(`[ingestNews] Failed to process findings batch for holding ${h.ticker}. Error:`, findingErr);
+          console.error(`[ingestNews] Failed to process findings batch for cluster ${h.ticker}. Error:`, findingErr);
         }
       }
 
       // 6. Update lastIngestedAt and stamp the cache ONLY because judging succeeded
-      await prisma.holding.update({
-        where: { id: h.id },
+      await prisma.holding.updateMany({
+        where: { id: { in: cluster.map(ch => ch.id) } },
         data: { lastIngestedAt: new Date() }
       });
 
@@ -520,22 +588,28 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
         await markFetched(cacheStamps);
       }
 
-      holdingResults.push({
-        holdingId: h.id,
-        ticker: h.ticker,
-        status: holdingFindingsAdded > 0 ? 'updated' : 'quiet',
-        findingsAdded: holdingFindingsAdded
-      });
+      for (const ch of cluster) {
+         holdingResults.push({
+           holdingId: ch.id,
+           ticker: ch.ticker,
+           status: clusterFindingsAdded > 0 ? 'updated' : 'quiet',
+           findingsAdded: clusterFindingsAdded
+         });
+      }
 
     } catch (error) {
       if (error instanceof LlmQuotaExhaustedError) {
         console.error(`[ingestNews] LLM daily quota exhausted. Aborting remaining holdings. Error: ${error.message}`);
         quotaExhausted = true;
-        holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' });
+        for (const ch of cluster) {
+           holdingResults.push({ holdingId: ch.id, ticker: ch.ticker, status: 'failed', findingsAdded: 0, reason: 'LLM_QUOTA_EXHAUSTED' });
+        }
         return; // Fast fail
       }
-      console.error(`[ingestNews] Critical failure processing holding ${h.ticker}. Skipping to next. Error:`, error);
-      holdingResults.push({ holdingId: h.id, ticker: h.ticker, status: 'failed', findingsAdded: 0, reason: 'FETCH_ERROR' });
+      console.error(`[ingestNews] Critical failure processing cluster ${h.ticker}. Skipping to next. Error:`, error);
+      for (const ch of cluster) {
+         holdingResults.push({ holdingId: ch.id, ticker: ch.ticker, status: 'failed', findingsAdded: 0, reason: 'FETCH_ERROR' });
+      }
     }
   })));
 
