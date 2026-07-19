@@ -30,6 +30,7 @@ export async function getStartedBoss(): Promise<PgBoss> {
     }
     try {
       await boss.createQueue('ingest-holding');
+      await boss.createQueue('ingest-cluster');
     } catch (e: any) {
       if (e.message && e.message.includes('already exists')) {
         // Ignore
