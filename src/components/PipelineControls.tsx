@@ -4,6 +4,7 @@ import { useTransition, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { HoldingRunResult } from '@/lib/pipeline'
+import { NotificationCenter } from './NotificationCenter'
 
 type RunSummary = {
   updated: string[]
@@ -34,6 +35,8 @@ export function PipelineControls({
   addHoldingPanel,
   importHoldingsPanel,
   pushManager,
+  unreadFindings = [],
+  markReadAction,
 }: {
   holdings: { id: string, ticker: string }[]
   runIngestPhase1: (fd?: FormData) => Promise<{ success?: boolean, report?: any, error?: string }>
@@ -55,6 +58,8 @@ export function PipelineControls({
   addHoldingPanel?: React.ReactNode
   importHoldingsPanel?: React.ReactNode
   pushManager?: React.ReactNode
+  unreadFindings?: any[]
+  markReadAction?: (findingIds: string[]) => Promise<{ success?: boolean; error?: string }>
 }) {
   const [isPendingDigest, startTransitionDigest] = useTransition()
   const [isPendingEarnings, startTransitionEarnings] = useTransition()
@@ -257,6 +262,10 @@ export function PipelineControls({
 
         {/* Right: Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+          {markReadAction && (
+            <NotificationCenter unreadFindings={unreadFindings} markReadAction={markReadAction} />
+          )}
+
           <button onClick={handleIngest} className="btn btn-primary" disabled={isAnyPending}>
             {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Scan...' : 'Run Scan'}
           </button>

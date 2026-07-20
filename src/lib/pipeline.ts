@@ -466,12 +466,35 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
         questions: aggregatedQuestions
       };
 
+      // --- Semantic Caching Step ---
+      const articlesMissingSummary = dbArticles.filter(a => !a.genericSummary && a.excerpt);
+      if (articlesMissingSummary.length > 0) {
+        console.log(`[ingestNews] Generating generic summaries for ${articlesMissingSummary.length} articles.`);
+        const { generateGenericSummaries } = await import('./providers/summary');
+        
+        const summaries = await llmLimiter(() => generateGenericSummaries(articlesMissingSummary.map(a => ({
+          id: a.id,
+          title: a.title,
+          excerpt: a.excerpt || ''
+        }))));
+
+        for (const s of summaries) {
+           const dbArt = dbArticles.find(a => a.id === s.articleId);
+           if (dbArt) dbArt.genericSummary = s.summary;
+           
+           await prisma.article.update({
+             where: { id: s.articleId },
+             data: { genericSummary: s.summary }
+           }).catch(e => console.error('Failed to save genericSummary:', e));
+        }
+      }
+
       const judgments = await withTiming('judge', () => llmLimiter(() => judgeHoldingArticles(repHoldingForJudge, dbArticles.map(a => {
         const originalArt = articles.find(orig => orig.url === a.url);
         return {
           id: a.id,
           title: a.title,
-          excerpt: a.excerpt || "",
+          excerpt: a.genericSummary || a.excerpt || "",
           url: a.url,
           source: a.source,
           matchedQuestionId: originalArt?.matchedQuestionId

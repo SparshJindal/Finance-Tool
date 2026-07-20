@@ -3,6 +3,7 @@ config();
 import { getStartedBoss } from './src/lib/boss';
 import { ingestNews } from './src/lib/pipeline';
 import { prisma } from './src/lib/db';
+import { evaluateFalsifier } from './src/lib/falsifier-agent';
 
 async function startWorker() {
   console.log('[Worker] Starting pg-boss worker...');
@@ -56,10 +57,23 @@ async function startWorker() {
     }
   };
 
+  // Handler for eval-falsifier
+  const handleFalsifierJob = async (job: any) => {
+    const { falsifierId, holdingId, ticker, company, thesis, text, rationale } = job.data as any;
+    console.log(`[Worker] Received eval-falsifier job for ${ticker}: ${text}`);
+    try {
+      await evaluateFalsifier(falsifierId, holdingId, ticker, company, thesis, text, rationale);
+    } catch (err) {
+      console.error(`[Worker] Job ${job.id} failed:`, err);
+      throw err;
+    }
+  };
+
   await boss.work('ingest-holding', { localConcurrency: pipelineConcurrency }, handleJob);
   await boss.work('ingest-cluster', { localConcurrency: pipelineConcurrency }, handleJob);
+  await boss.work('eval-falsifier', { localConcurrency: pipelineConcurrency }, handleFalsifierJob);
   
-  console.log('[Worker] Listening for jobs on "ingest-holding" and "ingest-cluster" queues...');
+  console.log('[Worker] Listening for jobs on "ingest-holding", "ingest-cluster", and "eval-falsifier" queues...');
 }
 
 startWorker().catch(e => {

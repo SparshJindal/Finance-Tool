@@ -966,3 +966,24 @@ export async function getWeeklyFeed(userId?: string) {
 
   return days;
 }
+
+export async function markFindingsRead(findingIds: string[]) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
+  try {
+    await prisma.finding.updateMany({
+      where: {
+        id: { in: findingIds },
+        holding: { userId } // Ensure they belong to the user
+      },
+      data: { read: true }
+    })
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err) {
+    console.error('[markFindingsRead] Error:', err)
+    return { error: 'Failed to mark as read' }
+  }
+}

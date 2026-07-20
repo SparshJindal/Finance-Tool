@@ -6,11 +6,11 @@
    DESIGN TOKENS — Dark Financial Terminal
    ───────────────────────────────────────────────────────────── */
 :root {
-  /* Surface stack — light & clean */
-  --surface:          #FAFAFA;
-  --surface-elevated: #FFFFFF;
-  --surface-overlay:  rgba(255, 255, 255, 0.90);
-  --surface-subtle:   #F3F4F6;
+  /* Surface stack — deep blacks & sleek dark grays */
+  --surface:          #0A0A0A;
+  --surface-elevated: #141414;
+  --surface-overlay:  rgba(25, 25, 25, 0.90);
+  --surface-subtle:   #1F1F1F;
 
   /* Legacy aliases for pages that still use base-* */
   --base-0: var(--surface);
@@ -18,32 +18,32 @@
   --base-2: var(--surface-overlay);
   --base-3: var(--surface-subtle);
 
-  /* Border — ultra-subtle light fringe */
-  --border:    rgba(0, 0, 0, 0.06);
-  --border-hi: rgba(0, 0, 0, 0.12);
+  /* Border — ultra-subtle dark fringe */
+  --border:    rgba(255, 255, 255, 0.08);
+  --border-hi: rgba(255, 255, 255, 0.16);
 
   /* Text */
-  --text-primary:   #111827;
-  --text-secondary: #4B5563;
-  --text-muted:     #9CA3AF;
+  --text-primary:   #F3F4F6;
+  --text-secondary: #9CA3AF;
+  --text-muted:     #6B7280;
 
-  /* Accent — rich amber */
-  --accent:         #A0845C;
-  --accent-dim:     rgba(160, 132, 92, 0.08);
-  --accent-border:  rgba(160, 132, 92, 0.25);
+  /* Accent — vibrant electric blue / neon */
+  --accent:         #3B82F6;
+  --accent-dim:     rgba(59, 130, 246, 0.15);
+  --accent-border:  rgba(59, 130, 246, 0.35);
 
   /* Semantic — direction */
-  --bullish:        #059669;
-  --bullish-dim:    rgba(5, 150, 105, 0.08);
-  --bullish-border: rgba(5, 150, 105, 0.20);
+  --bullish:        #10B981;
+  --bullish-dim:    rgba(16, 185, 129, 0.15);
+  --bullish-border: rgba(16, 185, 129, 0.35);
 
-  --bearish:        #DC2626;
-  --bearish-dim:    rgba(220, 38, 38, 0.08);
-  --bearish-border: rgba(220, 38, 38, 0.20);
+  --bearish:        #EF4444;
+  --bearish-dim:    rgba(239, 68, 68, 0.15);
+  --bearish-border: rgba(239, 68, 68, 0.35);
 
-  --neutral-dir:        #6B7280;
-  --neutral-dir-dim:    rgba(107, 114, 128, 0.08);
-  --neutral-dir-border: rgba(107, 114, 128, 0.20);
+  --neutral-dir:        #9CA3AF;
+  --neutral-dir-dim:    rgba(156, 163, 175, 0.15);
+  --neutral-dir-border: rgba(156, 163, 175, 0.35);
 
   /* Legacy aliases */
   --tailwind-green: var(--bullish);
@@ -51,12 +51,12 @@
   --threat:         var(--bearish);
   --threat-dim:     var(--bearish-dim);
 
-  /* Severity scale (1→5) */
-  --sev-1: #9CA3AF;
-  --sev-2: #6B7280;
+  /* Severity scale (1→5) - adjusted for dark mode */
+  --sev-1: #6B7280;
+  --sev-2: #9CA3AF;
   --sev-3: var(--accent);
-  --sev-4: #D97706;
-  --sev-5: #DC2626;
+  --sev-4: #F59E0B;
+  --sev-5: #EF4444;
 
   /* Typography */
   --font-ui:   'Inter', system-ui, sans-serif;
@@ -88,14 +88,14 @@
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  /* Shadow — soft deep shadow for light mode */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  /* Shadow — deep dark shadows for depth */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
-  /* Glass panel */
-  --glass-bg: rgba(255, 255, 255, 0.92);
+  /* Glass panel - dark */
+  --glass-bg: rgba(20, 20, 20, 0.65);
   --glass-blur: 24px;
 }
 
@@ -292,8 +292,8 @@ select.input option {
 }
 
 .card:hover {
-  border-color: var(--border-hi);
-  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 20px var(--accent-dim), var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -489,8 +489,8 @@ select.input option {
 }
 .card-lift:hover {
   transform: translateY(-2px);
-  border-color: var(--border-hi);
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 20px var(--accent-dim), var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 /* ─────────────────────────────────────────────────────────────

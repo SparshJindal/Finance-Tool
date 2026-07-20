@@ -171,9 +171,9 @@ export function PolygonMesh({
         // Alternate fill color: every 5th triangle gets a warm amber tint
         const isAmber = ti % 5 === 0
 
-        const fillR = isAmber ? 160 : 255
-        const fillG = isAmber ? 132 : 255
-        const fillB = isAmber ? 92 : 255
+        const fillR = isAmber ? 59 : 255
+        const fillG = isAmber ? 130 : 255
+        const fillB = isAmber ? 246 : 255
 
         // Fill triangle
         ctx.beginPath()
@@ -185,7 +185,7 @@ export function PolygonMesh({
         ctx.fill()
 
         // Stroke edges (the "strings")
-        ctx.strokeStyle = `rgba(160, 132, 92, ${opacity * 0.15 * intensity})`
+        ctx.strokeStyle = `rgba(59, 130, 246, ${opacity * 0.15 * intensity})`
         ctx.lineWidth = 0.5
         ctx.stroke()
       }
@@ -208,7 +208,7 @@ export function PolygonMesh({
 
         ctx.beginPath()
         ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(160, 132, 92, ${opacity * 0.4 * intensity})`
+        ctx.fillStyle = `rgba(59, 130, 246, ${opacity * 0.4 * intensity})`
         ctx.fill()
       }
 

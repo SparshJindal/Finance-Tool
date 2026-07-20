@@ -17,6 +17,7 @@ import {
   refreshEarningsAction,
   backfillFalsifiersAction,
   getWeeklyFeed,
+  markFindingsRead,
 } from '@/app/actions'
 import { PushManager } from '@/components/PushManager'
 import { PipelineControls } from '@/components/PipelineControls'
@@ -115,6 +116,28 @@ export default async function Page() {
     additionalSources: f.additionalSources,
   }))
 
+  const unreadFindingsRaw = await prisma.finding.findMany({
+    where: { 
+      holding: { userId },
+      read: false,
+      severity: { gte: 3 }
+    },
+    include: {
+      article: true,
+      holding: true
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const unreadFindings = unreadFindingsRaw.map(f => ({
+    id: f.id,
+    ticker: f.holding.ticker,
+    summary: f.summary,
+    sourceLink: f.article.url,
+    direction: f.direction,
+    severity: f.severity,
+  }))
+
   const holdingVerdicts = buildHoldingVerdicts(
     holdings.map(h => ({
       id: h.id,
@@ -171,6 +194,8 @@ export default async function Page() {
       managePortfolioPanel={<ManagePortfolioPanel holdings={holdings} updateAction={updateHolding as unknown as (fd: FormData) => void} deleteAction={deleteHolding as unknown as (fd: FormData) => void} />}
       addHoldingPanel={<AddHoldingPanel action={addHolding as unknown as (fd: FormData) => void} />}
       importHoldingsPanel={<ImportHoldingsPanel />}
+      unreadFindings={unreadFindings}
+      markReadAction={markFindingsRead as unknown as (findingIds: string[]) => Promise<{success?: boolean; error?: string}>}
     />
   )
 

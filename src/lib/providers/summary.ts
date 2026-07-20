@@ -449,3 +449,50 @@ export async function generateHoldingCaption(
     return null;
   }
 }
+
+export async function generateGenericSummaries(articles: { id: string, title: string, excerpt: string }[]) {
+  if (articles.length === 0) return [];
+  
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      summaries: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            articleId: { type: Type.STRING },
+            summary: { type: Type.STRING }
+          }
+        }
+      }
+    },
+    required: ["summaries"]
+  };
+
+  let contextStr = `Articles:\n`;
+  articles.forEach((art, i) => {
+    contextStr += `\n[ID: ${art.id}]\nTitle: ${art.title}\nExcerpt: ${art.excerpt.slice(0, 800)}\n`;
+  });
+
+  const prompt = `
+    You are an expert financial analyst. Read the following articles and provide a dense, factual, 1-2 sentence summary for each.
+    Focus on hard numbers, specific entities, and the core event. Do not mention any specific portfolio holding, just summarize the news itself.
+
+    ${contextStr}
+  `;
+
+  try {
+    const aiRes = await askAI({
+      prompt,
+      schema,
+      preferredModel: 'gemini-2.5-flash'
+    });
+
+    const parsed = JSON.parse(aiRes);
+    return parsed.summaries || [];
+  } catch (error) {
+    console.error(`[generateGenericSummaries] Error:`, error);
+    return [];
+  }
+}

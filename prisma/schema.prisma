@@ -30,10 +30,10 @@ model User {
 }
 
 model Account {
-  userId            String  @map("user_id")
+  userId            String   @map("user_id")
   type              String
   provider          String
-  providerAccountId String  @map("provider_account_id")
+  providerAccountId String   @map("provider_account_id")
   refresh_token     String?
   access_token      String?
   expires_at        Int?
@@ -72,92 +72,94 @@ model VerificationToken {
 }
 
 model Holding {
-  id              String        @id @default(uuid())
-  userId          String        @map("user_id")
-  ticker          String
-  company         String
-  exchange        String        @default("US")
-  sector          String?
-  themes          String[]
-  aliases         String[]  @default([])
-  thesis          String
-  directionLogic  String        @map("direction_logic")
-  kind            String        @default("PORTFOLIO")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  lastIngestedAt  DateTime?     @map("last_ingested_at")
-  verdictCaption  String?       @map("verdict_caption")
-  verdictCaptionAt DateTime?    @map("verdict_caption_at")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  ticker           String
+  company          String
+  exchange         String    @default("US")
+  sector           String?
+  themes           String[]
+  aliases          String[]  @default([])
+  thesis           String
+  directionLogic   String    @map("direction_logic")
+  kind             String    @default("PORTFOLIO")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastIngestedAt   DateTime? @map("last_ingested_at")
+  verdictCaption   String?   @map("verdict_caption")
+  verdictCaptionAt DateTime? @map("verdict_caption_at")
 
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  questions       Question[]
-  competitors     Competitor[]
-  findings        Finding[]
-  earningsEvents  EarningsEvent[]
-  falsifiers      Falsifier[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions      Question[]
+  competitors    Competitor[]
+  findings       Finding[]
+  earningsEvents EarningsEvent[]
+  falsifiers     Falsifier[]
 
   @@index([userId])
   @@map("holdings")
 }
 
 model Question {
-  id        String   @id @default(uuid())
-  holdingId String   @map("holding_id")
+  id        String @id @default(uuid())
+  holdingId String @map("holding_id")
   category  String
   text      String
 
-  holding   Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
-  findings  Finding[]
+  holding  Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  findings Finding[]
 
   @@map("questions")
 }
 
 model Competitor {
-  id        String   @id @default(uuid())
-  holdingId String   @map("holding_id")
+  id        String @id @default(uuid())
+  holdingId String @map("holding_id")
   name      String
   ticker    String
 
-  holding   Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  holding Holding @relation(fields: [holdingId], references: [id], onDelete: Cascade)
 
   @@map("competitors")
 }
 
 model Article {
-  id          String    @id @default(uuid())
-  url         String    @unique
+  id          String   @id @default(uuid())
+  url         String   @unique
   title       String
   source      String
-  publishedAt DateTime  @map("published_at")
-  contentHash String    @map("content_hash")
-  excerpt     String?   @db.Text
-  clusterId   String?   @map("cluster_id")
-  firstSeen   DateTime  @default(now()) @map("first_seen")
+  publishedAt DateTime @map("published_at")
+  contentHash String   @map("content_hash")
+  excerpt     String?  @db.Text
+  genericSummary String? @db.Text
+  clusterId   String?  @map("cluster_id")
+  firstSeen   DateTime @default(now()) @map("first_seen")
 
-  findings    Finding[]
+  findings Finding[]
 
   @@index([url])
   @@map("articles")
 }
 
 model Finding {
-  id          String   @id @default(uuid())
-  articleId   String   @map("article_id")
-  holdingId   String   @map("holding_id")
-  questionId  String?  @map("question_id")
-  severity    Int
-  direction   String?  // "BULLISH" | "BEARISH" | "NEUTRAL"
-  confidence  Int?     // 0-100
-  summary     String
-  priceChangePct Float?
-  volumeRatio    Float?
+  id                String   @id @default(uuid())
+  articleId         String   @map("article_id")
+  holdingId         String   @map("holding_id")
+  questionId        String?  @map("question_id")
+  severity          Int
+  direction         String? // "BULLISH" | "BEARISH" | "NEUTRAL"
+  confidence        Int? // 0-100
+  summary           String
+  priceChangePct    Float?
+  volumeRatio       Float?
   additionalSources String[] @default([])
-  delivered   Boolean  @default(false)
-  feedback    String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  delivered         Boolean  @default(false)
+  read              Boolean  @default(false)
+  feedback          String?
+  createdAt         DateTime @default(now()) @map("created_at")
 
-  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  holding     Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
-  question    Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  article  Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  holding  Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  question Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
 
   @@index([holdingId])
   @@index([articleId])
@@ -173,7 +175,7 @@ model DailyBrief {
   content   String
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("daily_briefs")
@@ -187,7 +189,7 @@ model PushSubscription {
   auth      String
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("push_subscriptions")
@@ -205,19 +207,20 @@ model MarketTicker {
 }
 
 model PipelineRun {
-  id               String   @id @default(uuid())
-  userId           String?  @map("user_id") // Nullable if triggered by cron without specific user
-  startedAt        DateTime @map("started_at")
-  durationMs       Int      @map("duration_ms")
-  holdingsProcessed Int     @map("holdings_processed")
-  findingsSaved    Int      @map("findings_saved")
-  errorsJson       Json     @map("errors_json")
-  stageTimingsJson Json     @map("stage_timings_json")
-  p95Json          Json     @map("p95_json")
-  costJson         Json     @map("cost_json")
-  
+  id                String   @id @default(uuid())
+  userId            String?  @map("user_id") // Nullable if triggered by cron without specific user
+  startedAt         DateTime @map("started_at")
+  durationMs        Int      @map("duration_ms")
+  holdingsProcessed Int      @map("holdings_processed")
+  findingsSaved     Int      @map("findings_saved")
+  errorsJson        Json     @map("errors_json")
+  stageTimingsJson  Json     @map("stage_timings_json")
+  p95Json           Json     @map("p95_json")
+  costJson          Json     @map("cost_json")
+
   @@map("pipeline_runs")
 }
+
 model NewsFetchLog {
   id        String   @id @default(uuid())
   ticker    String
@@ -229,35 +232,35 @@ model NewsFetchLog {
 }
 
 model DailyRequestCount {
-  id        String   @id @default(uuid())
-  provider  String
-  date      String   // format: YYYY-MM-DD
-  count     Int      @default(0)
+  id       String @id @default(uuid())
+  provider String
+  date     String // format: YYYY-MM-DD
+  count    Int    @default(0)
 
   @@unique([provider, date])
   @@map("daily_request_counts")
 }
 
 model EarningsEvent {
-  id                 String    @id @default(uuid())
-  holdingId          String    @map("holding_id")
-  reportDate         DateTime  @map("report_date")
-  reportWhen         String?   @map("report_when")      // "BMO" | "AMC" | "DMH"
-  fiscalPeriod       String?   @map("fiscal_period")    // e.g. "Q2 2026"
-  status             String    @default("UPCOMING")     // "UPCOMING" | "REPORTED"
-  epsEstimate        Float?    @map("eps_estimate")
-  epsActual          Float?    @map("eps_actual")
-  epsSurprisePct     Float?    @map("eps_surprise_pct")
-  revenueEstimate    Float?    @map("revenue_estimate")
-  revenueActual      Float?    @map("revenue_actual")
-  revenueSurprisePct Float?    @map("revenue_surprise_pct")
+  id                 String   @id @default(uuid())
+  holdingId          String   @map("holding_id")
+  reportDate         DateTime @map("report_date")
+  reportWhen         String?  @map("report_when") // "BMO" | "AMC" | "DMH"
+  fiscalPeriod       String?  @map("fiscal_period") // e.g. "Q2 2026"
+  status             String   @default("UPCOMING") // "UPCOMING" | "REPORTED"
+  epsEstimate        Float?   @map("eps_estimate")
+  epsActual          Float?   @map("eps_actual")
+  epsSurprisePct     Float?   @map("eps_surprise_pct")
+  revenueEstimate    Float?   @map("revenue_estimate")
+  revenueActual      Float?   @map("revenue_actual")
+  revenueSurprisePct Float?   @map("revenue_surprise_pct")
   guidance           String?
-  thesisVerdict      String?   @map("thesis_verdict")   // "SUPPORTS"|"THREATENS"|"MIXED"|"NEUTRAL"
-  thesisSummary      String?   @map("thesis_summary")   // <=25-word thesis-relative one-liner
-  source             String    @default("finnhub")      // "finnhub" | "news"
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  holding            Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  thesisVerdict      String?  @map("thesis_verdict") // "SUPPORTS"|"THREATENS"|"MIXED"|"NEUTRAL"
+  thesisSummary      String?  @map("thesis_summary") // <=25-word thesis-relative one-liner
+  source             String   @default("finnhub") // "finnhub" | "news"
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  holding            Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
 
   @@unique([holdingId, reportDate])
   @@index([holdingId])
@@ -265,16 +268,16 @@ model EarningsEvent {
 }
 
 model Falsifier {
-  id                String    @id @default(uuid())
-  holdingId         String    @map("holding_id")
-  text              String                              // the disconfirming, observable condition
-  rationale         String?                             // why this would break the thesis
-  status            String    @default("UNTRIGGERED")    // "UNTRIGGERED" | "WATCH" | "TRIGGERED"
-  evidenceFindingIds String[] @default([]) @map("evidence_finding_ids")
-  lastEvaluatedAt   DateTime? @map("last_evaluated_at")
-  triggeredAt       DateTime? @map("triggered_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  holding           Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid())
+  holdingId          String    @map("holding_id")
+  text               String // the disconfirming, observable condition
+  rationale          String? // why this would break the thesis
+  status             String    @default("UNTRIGGERED") // "UNTRIGGERED" | "WATCH" | "TRIGGERED"
+  evidenceFindingIds String[]  @default([]) @map("evidence_finding_ids")
+  lastEvaluatedAt    DateTime? @map("last_evaluated_at")
+  triggeredAt        DateTime? @map("triggered_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  holding            Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)
 
   @@index([holdingId])
   @@map("falsifiers")
