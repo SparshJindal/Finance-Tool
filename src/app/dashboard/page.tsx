@@ -1,86 +1,30 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import {
-  addHolding,
-  updateHolding,
-  deleteHolding,
-  deleteAllHoldings,
-  studyAllHoldings,
-  studyHolding,
-  studyBatchHoldings,
-  triggerNewsIngestionPhase1,
-  triggerNewsIngestionPhase2,
-  triggerSendDigest,
-  logOut,
-  updateProfile,
-  refreshEarningsAction,
-  backfillFalsifiersAction,
-  getWeeklyFeed,
-  markFindingsRead,
-} from '@/app/actions'
-import { PushManager } from '@/components/PushManager'
-import { PipelineControls } from '@/components/PipelineControls'
-import { DashboardShell } from '@/components/DashboardShell'
-import { AddHoldingPanel } from '@/components/AddHoldingPanel'
-import { ManagePortfolioPanel } from '@/components/ManagePortfolioPanel'
-import { ImportHoldingsPanel } from '@/components/ImportHoldingsPanel'
-import { ProfilePanel } from '@/components/ProfilePanel'
+import { ThesisHealthPanel } from '@/components/ThesisHealthPanel'
+import { WeeklyFeed } from '@/components/WeeklyFeed'
+import { EarningsCard } from '@/components/EarningsCard'
+import { getWeeklyFeed } from '@/app/actions'
 import { buildHoldingVerdicts } from '@/lib/verdict'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Page() {
+export default async function PulsePage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
   const userId = session.user.id
 
-  let userProfile = {
-    name: session.user.name || 'Investor',
-    email: session.user.email || 'investor@coranto.ai',
-    firstName: null as string | null,
-    lastName: null as string | null,
-    phone: null as string | null,
-    nationality: null as string | null,
-    image: session.user.image || null,
-  }
-
-  try {
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true, name: true, email: true, phone: true, nationality: true, image: true }
-    })
-    
-    if (dbUser) {
-      userProfile = {
-        name: dbUser.name || userProfile.name,
-        email: dbUser.email || userProfile.email,
-        firstName: dbUser.firstName,
-        lastName: dbUser.lastName,
-        phone: dbUser.phone,
-        nationality: dbUser.nationality,
-        image: dbUser.image || userProfile.image,
-      }
-    }
-
-    const holdings = await prisma.holding.findMany({
-      where: { userId },
-      include: {
-        questions: {
-          select: { id: true }
-        },
-        earningsEvents: {
-          orderBy: { reportDate: 'desc' },
-          take: 5
-        },
-        falsifiers: {
-          orderBy: { createdAt: 'desc' }
-        }
+  const holdings = await prisma.holding.findMany({
+    where: { userId },
+    include: {
+      earningsEvents: {
+        orderBy: { reportDate: 'desc' },
+        take: 5
       },
-      orderBy: { createdAt: 'desc' },
-    })
-
-  const weeklyFeedData = await getWeeklyFeed(userId);
+      falsifiers: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
   const twoWeeksAgo = new Date()
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
@@ -90,16 +34,10 @@ export default async function Page() {
       holding: { userId },
       createdAt: { gte: twoWeeksAgo }
     },
-    include: {
-      article: true,
-      holding: true,
-      question: true,
-    },
+    include: { article: true, holding: true, question: true },
     orderBy: { createdAt: 'desc' },
-    take: 100,
   })
 
-  // Format findings for the client
   const findings = findingsRaw.map(f => ({
     id: f.id,
     holdingId: f.holdingId,
@@ -113,29 +51,6 @@ export default async function Page() {
     feedback: f.feedback as 'up' | 'down' | null,
     direction: f.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'Supports' | 'Threatens' | 'Neutral' | null,
     confidence: f.confidence,
-    additionalSources: f.additionalSources,
-  }))
-
-  const unreadFindingsRaw = await prisma.finding.findMany({
-    where: { 
-      holding: { userId },
-      read: false,
-      severity: { gte: 3 }
-    },
-    include: {
-      article: true,
-      holding: true
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  const unreadFindings = unreadFindingsRaw.map(f => ({
-    id: f.id,
-    ticker: f.holding.ticker,
-    summary: f.summary,
-    sourceLink: f.article.url,
-    direction: f.direction,
-    severity: f.severity,
   }))
 
   const holdingVerdicts = buildHoldingVerdicts(
@@ -147,84 +62,85 @@ export default async function Page() {
       thesis: h.thesis || '',
       verdictCaption: h.verdictCaption,
       earningsEvents: h.earningsEvents,
+      falsifiers: h.falsifiers,
     })),
     findings
   )
 
-  const tickerItems = findings
-    .filter(f => f.severity >= 3)
-    .slice(0, 10)
-    .map(f => ({
-      id: f.id,
-      ticker: f.ticker,
-      title: f.sourceTitle || f.summary.substring(0, 50) + '...',
-      severity: f.severity,
-    }))
+  const weeklyFeedData = await getWeeklyFeed(userId)
 
-  const totalThreats = findings.filter(f => f.direction !== 'NEUTRAL' && f.direction !== 'Neutral').length
-  const maxPortfolioSeverity = findings.length > 0 ? Math.max(...findings.map(f => f.severity)) : 1
+  // Earnings Cards logic
+  const earningsCardsData = []
+  for (const h of holdings) {
+    if (h.earningsEvents && h.earningsEvents.length > 0) {
+      const e = h.earningsEvents[0]
+      const rDate = new Date(e.reportDate)
+      const isPast = rDate < new Date()
+      const diffDays = Math.abs(Math.ceil((rDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24)))
+      const consensusEps = e.epsEstimate ? `$${e.epsEstimate.toFixed(2)}` : '--'
+      const consensusRev = e.revenueEstimate ? `$${(e.revenueEstimate / 1e9).toFixed(2)}B` : '--'
+      
+      let relativeTime = ''
+      if (diffDays === 0) relativeTime = 'Today'
+      else if (isPast) relativeTime = `${diffDays} days ago`
+      else relativeTime = `in ${diffDays} days`
 
-  const lastScanAt = findingsRaw.length > 0 
-    ? findingsRaw[0].article.publishedAt?.toISOString() || findingsRaw[0].createdAt.toISOString() 
-    : null
+      const dateStr = rDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const subtitle = `Reports ${relativeTime} · ${dateStr}`
 
-  const totalThreatened = holdingVerdicts.filter(v => v.verdict === 'Threatens' || v.verdict === 'Mixed').length
-  const totalSupported = holdingVerdicts.filter(v => v.verdict === 'Supports').length
-  const totalQuietCount = holdingVerdicts.filter(v => v.isQuiet).length
+      earningsCardsData.push({ ticker: h.ticker, event: e, subtitle, consensusEps, consensusRev })
+    }
+  }
 
-  // Build the pipeline controls
-  const controls = (
-    <PipelineControls 
-      holdings={holdings}
-      runIngestPhase1={triggerNewsIngestionPhase1 as unknown as () => Promise<any>}
-      runIngestPhase2={triggerNewsIngestionPhase2 as unknown as (fd: FormData) => Promise<any>}
-      studyHoldingAction={studyHolding as unknown as (fd: FormData) => Promise<any>}
-      studyBatchHoldingsAction={studyBatchHoldings as unknown as (fd: FormData) => Promise<any>}
-      sendDigestAction={triggerSendDigest as unknown as (fd: FormData) => void}
-      deleteAllHoldingsAction={deleteAllHoldings as unknown as (fd?: FormData) => Promise<{success?: boolean, error?: string}>}
-      logOutAction={logOut as unknown as (fd: FormData) => void}
-      refreshEarningsAction={refreshEarningsAction as unknown as (ids?: string[]) => Promise<void>}
-      backfillFalsifiersAction={backfillFalsifiersAction as unknown as () => Promise<any>}
-      pushManager={<PushManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY || ''} />}
-      userProfile={userProfile}
-      totalThreatened={totalThreatened}
-      totalSupported={totalSupported}
-      totalQuietCount={totalQuietCount}
-      profilePanel={<ProfilePanel userProfile={userProfile} updateAction={updateProfile as unknown as (fd: FormData) => Promise<any>} />}
-      managePortfolioPanel={<ManagePortfolioPanel holdings={holdings} updateAction={updateHolding as unknown as (fd: FormData) => void} deleteAction={deleteHolding as unknown as (fd: FormData) => void} />}
-      addHoldingPanel={<AddHoldingPanel action={addHolding as unknown as (fd: FormData) => void} />}
-      importHoldingsPanel={<ImportHoldingsPanel />}
-      unreadFindings={unreadFindings}
-      markReadAction={markFindingsRead as unknown as (findingIds: string[]) => Promise<{success?: boolean; error?: string}>}
-    />
-  )
+  const movers = holdingVerdicts.filter(v => !v.isQuiet)
 
   return (
-    <DashboardShell
-      userProfile={userProfile}
-      holdings={holdings}
-      holdingVerdicts={holdingVerdicts}
-      holdingsRaw={holdings}
-      findings={findings}
-      tickerItems={tickerItems}
-      lastScanAt={lastScanAt}
-      totalThreats={totalThreats}
-      maxPortfolioSeverity={maxPortfolioSeverity}
-      addHoldingAction={addHolding as unknown as (fd: FormData) => void}
-      updateHoldingAction={updateHolding as unknown as (fd: FormData) => void}
-      deleteHoldingAction={deleteHolding as unknown as (fd: FormData) => void}
-      updateProfileAction={updateProfile as unknown as (fd: FormData) => Promise<any>}
-      controls={controls}
-      weeklyFeedData={weeklyFeedData}
-    />
-  )
-  } catch (error: any) {
-    return (
-      <div style={{ padding: '2rem', color: 'red', fontFamily: 'monospace' }}>
-        <h2>Dashboard Crashed</h2>
-        <p><strong>Error Message:</strong> {error?.message || String(error)}</p>
-        <p><strong>Stack Trace:</strong> {error?.stack}</p>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+        <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-4)', fontFamily: 'var(--font-ui)' }}>
+          Portfolio Health Pulse
+        </h2>
+        
+        {/* Render Thesis Health for active movers */}
+        {movers.length > 0 ? (
+          movers.map(v => (
+            <ThesisHealthPanel 
+              key={v.holdingId} 
+              ticker={v.ticker} 
+              health={v.thesisHealth!} 
+              falsifiers={v.falsifiers!} 
+              allFindings={v.findings} 
+            />
+          ))
+        ) : (
+          <div style={{ padding: 'var(--sp-6)', color: 'var(--text-muted)', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)' }}>
+            No active threats or thesis breakers in the last 14 days. Your portfolio is quiet.
+          </div>
+        )}
       </div>
-    )
-  }
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+        {weeklyFeedData && weeklyFeedData.length > 0 && (
+          <WeeklyFeed days={weeklyFeedData} />
+        )}
+        
+        {earningsCardsData.length > 0 && (
+          <div style={{ background: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)', padding: 'var(--sp-4)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 'var(--sp-4)' }}>
+              Earnings Radar
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+              {earningsCardsData.slice(0, 5).map((data) => (
+                <EarningsCard
+                  key={`${data.ticker}-${data.event.id}`}
+                  ticker={data.ticker}
+                  event={data.event}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
