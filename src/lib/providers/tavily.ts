@@ -70,8 +70,8 @@ function buildQuery(target: TickerInput): string {
  * Map the Tavily `time_range` parameter from TAVILY_NEWS_DAYS env.
  * Tavily accepts: "d" (day), "w" (week), "m" (month), "y" (year).
  */
-function getTimeRange(): string {
-  const days = parseInt(process.env.TAVILY_NEWS_DAYS || "3", 10);
+function getTimeRange(backfillDays?: number): string {
+  const days = backfillDays !== undefined ? backfillDays : parseInt(process.env.TAVILY_NEWS_DAYS || "3", 10);
   if (days <= 1) return "d";
   if (days <= 7) return "w";
   if (days <= 30) return "m";
@@ -82,14 +82,14 @@ function getTimeRange(): string {
  * Shared Tavily search helper — makes a single POST and returns NormalizedArticle[].
  * Never throws — logs errors and returns [].
  */
-async function tavilySearch(query: string, maxResults: number, label: string): Promise<NormalizedArticle[]> {
+async function tavilySearch(query: string, maxResults: number, label: string, backfillDays?: number): Promise<NormalizedArticle[]> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     console.warn("[Tavily] TAVILY_API_KEY is not set. Skipping Tavily provider. Get a free key at https://tavily.com");
     return [];
   }
 
-  const timeRange = getTimeRange();
+  const timeRange = getTimeRange(backfillDays);
 
   try {
     const res = await fetch(TAVILY_ENDPOINT, {
@@ -163,16 +163,16 @@ async function tavilySearch(query: string, maxResults: number, label: string): P
  * Returns NormalizedArticle[] with excerpt populated.
  * Never throws — logs errors and returns [].
  */
-export async function fetchTavilyNews(target: TickerInput): Promise<NormalizedArticle[]> {
+export async function fetchTavilyNews(target: TickerInput, backfillDays?: number): Promise<NormalizedArticle[]> {
   const query = buildQuery(target);
   const maxResults = parseInt(process.env.TAVILY_MAX_RESULTS || "10", 10);
-  return tavilySearch(query, maxResults, target.name);
+  return tavilySearch(query, maxResults, target.name, backfillDays);
 }
 
 /**
  * Fetch top catalyst news (deals, earnings, regulatory) to ensure major events are not missed.
  */
-export async function fetchTavilyCatalystNews(target: TickerInput): Promise<NormalizedArticle[]> {
+export async function fetchTavilyCatalystNews(target: TickerInput, backfillDays?: number): Promise<NormalizedArticle[]> {
   const cleanName = cleanCompanyName(target.name);
   const tickerStr = target.symbol.split('.')[0];
   const exchange = target.exchange?.toUpperCase();
@@ -183,7 +183,7 @@ export async function fetchTavilyCatalystNews(target: TickerInput): Promise<Norm
   const query = `"${cleanName}" (${tickerStr}) ${geoContext}(deal OR acquisition OR merger OR partnership OR contract OR earnings OR guidance OR IPO OR regulatory OR approval OR lawsuit OR launch)`;
   
   // High-signal query, pull top 5
-  return tavilySearch(query, 5, `catalyst:${target.name}`);
+  return tavilySearch(query, 5, `catalyst:${target.name}`, backfillDays);
 }
 
 /**
@@ -192,9 +192,9 @@ export async function fetchTavilyCatalystNews(target: TickerInput): Promise<Norm
  * generic industry noise.
  * Never throws — logs errors and returns [].
  */
-export async function fetchTavilyTopicNews(companyName: string, topic: string): Promise<NormalizedArticle[]> {
+export async function fetchTavilyTopicNews(companyName: string, topic: string, backfillDays?: number): Promise<NormalizedArticle[]> {
   const query = `"${companyName}" ${topic}`;
-  return tavilySearch(query, 5, `topic:${companyName}/${topic}`);
+  return tavilySearch(query, 5, `topic:${companyName}/${topic}`, backfillDays);
 }
 
 /**
@@ -202,7 +202,7 @@ export async function fetchTavilyTopicNews(companyName: string, topic: string): 
  * Lightly grounds the query with the company name if the question doesn't contain it.
  * Never throws — logs errors and returns [].
  */
-export async function fetchTavilyQuestionNews(target: TickerInput, question: { id: string, text: string }): Promise<NormalizedArticle[]> {
+export async function fetchTavilyQuestionNews(target: TickerInput, question: { id: string, text: string }, backfillDays?: number): Promise<NormalizedArticle[]> {
   const parts: string[] = [];
 
   // Ground with company name if the question doesn't mention it
@@ -220,5 +220,5 @@ export async function fetchTavilyQuestionNews(target: TickerInput, question: { i
 
   const query = parts.join(" ");
   // Use a smaller cap for question-specific queries
-  return tavilySearch(query, 3, `q:${question.id}`);
+  return tavilySearch(query, 3, `q:${question.id}`, backfillDays);
 }

@@ -30,8 +30,10 @@ export async function POST(req: Request) {
     const findingsContext = findings.map(f => `- [${f.holding.ticker} - Sev ${f.severity} - ${f.direction}]: ${f.summary}`).join('\n')
 
     const prompt = `
-You are Coranto Copilot, an elite AI financial analyst assistant.
-The user is asking you a question about their portfolio.
+You are Cora AI, an elite AI financial analyst assistant.
+You provide deep, concise, and highly professional insights regarding the user's investment portfolio.
+You have access to the user's holdings and their recent findings, which are provided below.
+When responding, speak directly to the user as an advisor. Maintain a sophisticated, sharp, and objective tone. Do not use emojis unless absolutely necessary for clarity.
 
 ### User Portfolio Context
 Holdings and Theses:

@@ -28,6 +28,7 @@
     "marked": "^18.0.5",
     "next": "16.2.9",
     "next-auth": "^5.0.0-beta.31",
+    "next-themes": "^0.4.6",
     "p-limit": "^7.3.0",
     "papaparse": "^5.5.4",
     "pg": "^8.21.0",

@@ -293,7 +293,11 @@ async function fetchMarketauxBatched(targets: TickerInput[]): Promise<Normalized
   }
 }
 
-export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = false): Promise<{ articles: NormalizedArticle[], cacheStamps: { symbol: string, provider: string }[] }> {
+export async function getNews(
+  targets: TickerInput[],
+  skipHeavyApis: boolean = false,
+  options?: { backfillDays?: number }
+): Promise<{ articles: NormalizedArticle[], cacheStamps: { symbol: string, provider: string }[] }> {
   // Deduplicate targets by symbol
   const uniqueTargetsMap = new Map<string, TickerInput>();
   targets.forEach(t => uniqueTargetsMap.set(t.symbol, t));
@@ -338,7 +342,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       fetchTasks.push(newsLimiter(async () => {
         const withinCap = await checkTavilyCap(1);
         if (!withinCap) return;
-        const res = await fetchTavilyCatalystNews(target);
+        const res = await fetchTavilyCatalystNews(target, options?.backfillDays);
         res.forEach(art => art.retrievalSource = 'primary');
         addArticles(res, target);
         if (res.length > 0) cacheStamps.push({ symbol: cacheKey, provider: 'tavily-catalyst' });
@@ -353,7 +357,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
       fetchTasks.push(newsLimiter(async () => {
         const withinCap = await checkTavilyCap(1);
         if (!withinCap) return;
-        const res = await fetchTavilyNews(target);
+        const res = await fetchTavilyNews(target, options?.backfillDays);
         res.forEach(art => art.retrievalSource = 'primary');
         addArticles(res, target);
         if (res.length > 0) cacheStamps.push({ symbol: target.symbol, provider: 'tavily' });
@@ -377,7 +381,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
           const withinCap = await checkTavilyCap(1);
           if (!withinCap) return;
 
-          const res = await fetchTavilyQuestionNews(target, q);
+          const res = await fetchTavilyQuestionNews(target, q, options?.backfillDays);
           res.forEach(art => {
             art.matchedQuestionId = q.id;
             art.retrievalSource = 'question';
@@ -415,7 +419,7 @@ export async function getNews(targets: TickerInput[], skipHeavyApis: boolean = f
         fetchTasks.push(newsLimiter(async () => {
           const withinCap = await checkTavilyCap(1);
           if (!withinCap) return;
-          const res = await fetchTavilyTopicNews(tq.companyName, tq.topic);
+          const res = await fetchTavilyTopicNews(tq.companyName, tq.topic, options?.backfillDays);
           res.forEach(art => art.retrievalSource = 'topic');
           for (const art of res) {
             let existing = allArticles.find(a => a.url === art.url);

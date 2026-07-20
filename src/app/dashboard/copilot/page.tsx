@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown'
 
 export default function CopilotPage() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string }[]>([
-    { role: 'assistant', text: 'Hello. I am Coranto Copilot. I have full context of your portfolio holdings, recent news, and thesis health. What would you like to know?' }
+    { role: 'assistant', text: 'Hello. I am Cora AI. I have full context of your portfolio holdings, recent news, and thesis health. What would you like to know?' }
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -41,7 +41,7 @@ export default function CopilotPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-ui)' }}>
-            Coranto Copilot
+            Cora AI
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
             Query your portfolio intelligence using natural language.

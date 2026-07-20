@@ -331,7 +331,8 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
       };
 
       // 1. Fetch News for this cluster
-      const { articles: rawArticles, cacheStamps } = await withTiming('fetch', () => getNews([targetTicker], skipHeavyApis));
+      const isBackfill = h.lastIngestedAt === null;
+      const { articles: rawArticles, cacheStamps } = await withTiming('fetch', () => getNews([targetTicker], skipHeavyApis, { backfillDays: isBackfill ? 30 : undefined }));
       
       // 2. Pre-filter
       const filteredArticles = rawArticles.filter(art => {

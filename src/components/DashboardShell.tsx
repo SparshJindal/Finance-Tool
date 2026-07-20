@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IntelRail } from './IntelRail'
 import { TickerTape } from './TickerTape'
@@ -71,6 +72,15 @@ export function DashboardShell({
   const [quietExpanded, setQuietExpanded] = useState(false)
   const [holdingRunStatuses, setHoldingRunStatuses] = useState<Record<string, HoldingRunResult>>({})
   const reduced = useReducedMotion()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const handleHoldingClick = useCallback((id: string | null) => {
+    setActiveHolding(id)
+    if (id !== null && pathname !== '/dashboard/intel') {
+      router.push('/dashboard/intel')
+    }
+  }, [pathname, router])
 
   const handleRunComplete = useCallback((results: HoldingRunResult[]) => {
     setHoldingRunStatuses(prev => {
@@ -192,7 +202,7 @@ export function DashboardShell({
           totalThreats={totalThreats}
           maxPortfolioSeverity={maxPortfolioSeverity}
           activeHolding={activeHolding}
-          onHoldingClick={setActiveHolding}
+          onHoldingClick={handleHoldingClick}
         />
         
         <main style={{ flex: 1, padding: 'var(--sp-8) var(--sp-4)', paddingBottom: 'var(--sp-16)' }} className="md:ml-[220px]">
