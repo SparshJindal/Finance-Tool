@@ -29,22 +29,22 @@ const steps = [
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" style={{ padding: '120px 20px', width: '100%', maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
+    <section id="how-it-works" style={{ padding: '120px 20px', width: '100%', maxWidth: '1400px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-15% 0px' }}
-        style={{ paddingLeft: 'clamp(20px, 8vw, 140px)', marginBottom: '80px' }}
+        style={{ paddingLeft: 'clamp(20px, 5vw, 60px)', marginBottom: '120px', maxWidth: '800px' }}
       >
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.875rem' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.15em', fontSize: '0.875rem', fontWeight: 600 }}>
           HOW IT WORKS
         </span>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '2.25rem', color: 'var(--text-primary)', margin: 'var(--sp-2) 0 0 0', fontWeight: 700 }}>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 'clamp(2.5rem, 5vw, 4rem)', color: 'var(--text-primary)', margin: 'var(--sp-4) 0 0 0', fontWeight: 700, lineHeight: 1.1 }}>
           From market noise to a verdict on your thesis.
         </h2>
       </motion.div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '120px', paddingLeft: 'clamp(20px, 8vw, 140px)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '160px', padding: '0 clamp(20px, 5vw, 60px)' }}>
         {steps.map((step, i) => {
           // Highlight special words in step 3
           let bodyNode: React.ReactNode = step.body
@@ -61,43 +61,64 @@ export function HowItWorksSection() {
             })
           }
 
+          const isEven = i % 2 !== 0
+
           return (
-            <ElementIlluminator key={step.num} id={`step-${i}`} order={i + 1} waypointType="step" style={{ padding: 'var(--sp-4)', borderRadius: 'var(--radius-lg)' }}>
+            <ElementIlluminator 
+              key={step.num} 
+              id={`step-${i}`} 
+              order={i + 1} 
+              waypointType="step" 
+              style={{ 
+                padding: 'var(--sp-4)', 
+                borderRadius: 'var(--radius-lg)',
+                maxWidth: '700px',
+                width: '100%',
+                marginLeft: isEven ? 'auto' : '0',
+                marginRight: isEven ? '0' : 'auto'
+              }}
+            >
               <motion.div 
                 className="card"
-                initial={{ opacity: 0, x: i % 2 !== 0 ? 32 : -32 }}
+                initial={{ opacity: 0, x: isEven ? 48 : -48 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: '-20% 0px' }}
-                transition={{ type: "spring", stiffness: 120, damping: 20 }}
+                transition={{ type: "spring", stiffness: 100, damping: 20 }}
                 style={{ 
                   display: 'flex', 
-                  flexDirection: i % 2 !== 0 ? 'row-reverse' : 'row',
+                  flexDirection: isEven ? 'row-reverse' : 'row',
                   gap: 'var(--sp-6)', 
                   alignItems: 'flex-start', 
-                  padding: 'var(--sp-6)',
-                  textAlign: i % 2 !== 0 ? 'right' : 'left'
+                  padding: 'var(--sp-8)',
+                  textAlign: isEven ? 'right' : 'left',
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(var(--glass-blur))',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: 'var(--shadow-card)'
                 }}
               >
                 <div style={{ 
                   fontFamily: "'Cormorant Garamond', Georgia, serif", 
-                  fontSize: '3rem', 
+                  fontSize: '4rem', 
                   color: 'var(--accent)', 
-                  opacity: 0.5,
+                  opacity: 0.3,
                   lineHeight: 1,
                   fontWeight: 700,
-                  marginTop: '-0.2em'
+                  marginTop: '-0.1em'
                 }}>
                   {step.num}
                 </div>
                 <div>
-                  <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.4rem', color: 'var(--text-primary)', margin: '0 0 var(--sp-2) 0', fontWeight: 700 }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.8rem', color: 'var(--text-primary)', margin: '0 0 var(--sp-3) 0', fontWeight: 700 }}>
                     {step.title}
                   </h3>
-                  <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', maxWidth: '520px', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-secondary)', fontSize: '1.1rem', lineHeight: 1.6, margin: 0 }}>
                     {bodyNode}
                   </p>
                 </div>
               </motion.div>
+
             </ElementIlluminator>
           )
         })}
