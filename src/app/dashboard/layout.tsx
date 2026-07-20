@@ -191,8 +191,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       totalSupported={totalSupported}
       totalQuietCount={totalQuietCount}
       profilePanel={<ProfilePanel userProfile={userProfile} updateAction={updateProfile as unknown as (fd: FormData) => Promise<any>} />}
-      managePortfolioPanel={<ManagePortfolioPanel holdings={holdings} updateAction={updateHolding as unknown as (fd: FormData) => void} deleteAction={deleteHolding as unknown as (fd: FormData) => void} />}
-      addHoldingPanel={<AddHoldingPanel action={addHolding as unknown as (fd: FormData) => void} />}
       importHoldingsPanel={<ImportHoldingsPanel />}
       unreadFindings={unreadFindings}
       markReadAction={markFindingsRead as unknown as (findingIds: string[]) => Promise<{success?: boolean; error?: string}>}

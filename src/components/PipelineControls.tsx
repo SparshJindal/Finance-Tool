@@ -32,8 +32,6 @@ export function PipelineControls({
   totalSupported,
   totalQuietCount,
   profilePanel,
-  managePortfolioPanel,
-  addHoldingPanel,
   importHoldingsPanel,
   pushManager,
   unreadFindings = [],
@@ -55,8 +53,6 @@ export function PipelineControls({
   totalSupported?: number
   totalQuietCount?: number
   profilePanel?: React.ReactNode
-  managePortfolioPanel?: React.ReactNode
-  addHoldingPanel?: React.ReactNode
   importHoldingsPanel?: React.ReactNode
   pushManager?: React.ReactNode
   unreadFindings?: any[]
@@ -286,9 +282,6 @@ export function PipelineControls({
           <button onClick={handleIngest} className="btn btn-primary" disabled={isAnyPending}>
             {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Scan...' : 'Run Scan'}
           </button>
-
-          {addHoldingPanel}
-          {managePortfolioPanel}
 
           {/* Theme Toggle */}
           <button 
