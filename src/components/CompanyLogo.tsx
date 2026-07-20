@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export function CompanyLogo({ ticker, size = 32 }: { ticker: string, size?: number }) {
   const [error, setError] = useState(false)
-  const baseTicker = ticker.split('.')[0]
+  const fallbackLetter = ticker.split('.')[0].charAt(0)
 
   if (error) {
     return (
@@ -23,14 +23,14 @@ export function CompanyLogo({ ticker, size = 32 }: { ticker: string, size?: numb
           color: 'var(--text-muted)'
         }}
       >
-        {baseTicker.charAt(0)}
+        {fallbackLetter}
       </div>
     )
   }
 
   return (
     <img 
-      src={`https://financialmodelingprep.com/image-stock/${baseTicker}.png`}
+      src={`https://financialmodelingprep.com/image-stock/${ticker}.png`}
       alt={`${ticker} logo`}
       width={size}
       height={size}
@@ -40,7 +40,7 @@ export function CompanyLogo({ ticker, size = 32 }: { ticker: string, size?: numb
         height: size, 
         borderRadius: '50%', 
         objectFit: 'cover',
-        background: '#fff', // Many logos have transparent backgrounds and expect white
+        background: '#fff',
         border: '1px solid var(--border)'
       }}
     />
