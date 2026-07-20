@@ -6,6 +6,7 @@ import type { HoldingVerdict } from '@/lib/verdict'
 import { FindingCard } from './FindingCard'
 import { EarningsCard } from './EarningsCard'
 import { ThesisHealthPanel } from './ThesisHealthPanel'
+import { CompanyLogo } from './CompanyLogo'
 
 type HoldingVerdictCardProps = {
   verdict: HoldingVerdict
@@ -122,6 +123,7 @@ export function HoldingVerdictCard({ verdict, reducedMotion = false }: HoldingVe
         
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap', marginBottom: 'var(--sp-4)' }}>
+          <CompanyLogo ticker={verdict.ticker} size={24} />
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             {verdict.ticker}
           </span>

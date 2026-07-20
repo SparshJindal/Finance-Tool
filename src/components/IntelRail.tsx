@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Severity } from '@/components/Severity'
 import { CorantoLogo } from '@/components/CorantoLogo'
+import { CompanyLogo } from '@/components/CompanyLogo'
 import { motion } from 'framer-motion'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 
@@ -306,6 +307,7 @@ function RailContent({
           >
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, gap: '2px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
+                <CompanyLogo ticker={h.ticker} size={16} />
                 <span style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 'var(--text-xs)',

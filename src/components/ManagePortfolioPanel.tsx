@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { CompanyLogo } from './CompanyLogo'
 
 type Holding = {
   id: string
@@ -114,9 +115,12 @@ export function ManagePortfolioPanel({
                   gap: 'var(--sp-2)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{h.ticker}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{h.company}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+                      <CompanyLogo ticker={h.ticker} size={32} />
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{h.ticker}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{h.company}</div>
+                      </div>
                     </div>
                     <button onClick={() => setEditingId(h.id)} className="btn">
                       Edit
