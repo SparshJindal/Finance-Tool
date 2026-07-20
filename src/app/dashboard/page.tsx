@@ -2,8 +2,9 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { ThesisHealthPanel } from '@/components/ThesisHealthPanel'
+import { PulseFeedList } from '@/components/PulseFeedList'
 import { WeeklyFeed } from '@/components/WeeklyFeed'
-import { EarningsCard } from '@/components/EarningsCard'
+import { EarningsRadarList } from '@/components/EarningsRadarList'
 import { getWeeklyFeed } from '@/app/actions'
 import { buildHoldingVerdicts } from '@/lib/verdict'
 
@@ -88,7 +89,7 @@ export default async function PulsePage() {
       const dateStr = rDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const subtitle = `Reports ${relativeTime} · ${dateStr}`
 
-      earningsCardsData.push({ ticker: h.ticker, event: e, subtitle, consensusEps, consensusRev })
+      earningsCardsData.push({ holdingId: h.id, ticker: h.ticker, event: e, subtitle, consensusEps, consensusRev })
     }
   }
 
@@ -106,21 +107,7 @@ export default async function PulsePage() {
         </h2>
         
         {/* Render Thesis Health for all holdings */}
-        {sortedHoldings.length > 0 ? (
-          sortedHoldings.map(v => (
-            <ThesisHealthPanel 
-              key={v.holdingId} 
-              ticker={v.ticker} 
-              health={v.thesisHealth!} 
-              falsifiers={v.falsifiers!} 
-              allFindings={v.findings} 
-            />
-          ))
-        ) : (
-          <div style={{ padding: 'var(--sp-6)', color: 'var(--text-muted)', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)' }}>
-            No holdings found. Add a holding to see its health.
-          </div>
-        )}
+        <PulseFeedList holdings={sortedHoldings} />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
@@ -133,20 +120,7 @@ export default async function PulsePage() {
         )}
         
         {earningsCardsData.length > 0 && (
-          <div style={{ background: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)', padding: 'var(--sp-4)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 'var(--sp-4)' }}>
-              Earnings Radar
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
-              {earningsCardsData.slice(0, 5).map((data) => (
-                <EarningsCard
-                  key={`${data.ticker}-${data.event.id}`}
-                  ticker={data.ticker}
-                  event={data.event}
-                />
-              ))}
-            </div>
-          </div>
+          <EarningsRadarList earningsCardsData={earningsCardsData} />
         )}
       </div>
     </div>
