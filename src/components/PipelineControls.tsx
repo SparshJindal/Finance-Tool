@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import { NotificationCenter } from './NotificationCenter'
+import { Sun, Moon } from 'lucide-react'
 
 type RunSummary = {
   updated: string[]
@@ -64,6 +65,22 @@ export function PipelineControls({
   const [isPendingDigest, startTransitionDigest] = useTransition()
   const [isPendingEarnings, startTransitionEarnings] = useTransition()
   const [isPendingFalsifiers, startTransitionFalsifiers] = useTransition()
+  const [isLightMode, setIsLightMode] = useState(false)
+
+  // Initialize theme from document on mount
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setIsLightMode(document.documentElement.classList.contains('light'))
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    if (typeof document !== 'undefined') {
+      const isLight = document.documentElement.classList.toggle('light')
+      setIsLightMode(isLight)
+    }
+  }
+
   const router = useRouter()
   
   const [pipelineState, setPipelineState] = useState<{ active: boolean, text: string, percent: number }>({ active: false, text: '', percent: 0 })
@@ -240,9 +257,9 @@ export function PipelineControls({
         position: 'sticky', 
         top: 0, 
         zIndex: 40, 
-        background: 'rgba(255, 255, 255, 0.8)', 
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        background: 'var(--glass-bg)', 
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
         borderBottom: '1px solid var(--border)', 
         padding: 'var(--sp-4) var(--sp-6)', 
         display: 'flex', 
@@ -272,6 +289,16 @@ export function PipelineControls({
 
           {addHoldingPanel}
           {managePortfolioPanel}
+
+          {/* Theme Toggle */}
+          <button 
+            onClick={toggleTheme} 
+            className="btn btn-secondary" 
+            style={{ padding: 'var(--sp-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Toggle Theme"
+          >
+            {isLightMode ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
 
           {/* Tools Menu */}
           <div style={{ position: 'relative' }} ref={toolsRef}>
