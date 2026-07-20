@@ -92,7 +92,11 @@ export default async function PulsePage() {
     }
   }
 
-  const movers = holdingVerdicts.filter(v => !v.isQuiet)
+  const sortedHoldings = [...holdingVerdicts].sort((a, b) => {
+    const scoreA = a.thesisHealth?.score ?? 100
+    const scoreB = b.thesisHealth?.score ?? 100
+    return scoreA - scoreB
+  })
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
@@ -101,9 +105,9 @@ export default async function PulsePage() {
           Portfolio Health Pulse
         </h2>
         
-        {/* Render Thesis Health for active movers */}
-        {movers.length > 0 ? (
-          movers.map(v => (
+        {/* Render Thesis Health for all holdings */}
+        {sortedHoldings.length > 0 ? (
+          sortedHoldings.map(v => (
             <ThesisHealthPanel 
               key={v.holdingId} 
               ticker={v.ticker} 
@@ -114,14 +118,18 @@ export default async function PulsePage() {
           ))
         ) : (
           <div style={{ padding: 'var(--sp-6)', color: 'var(--text-muted)', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)' }}>
-            No active threats or thesis breakers in the last 14 days. Your portfolio is quiet.
+            No holdings found. Add a holding to see its health.
           </div>
         )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-        {weeklyFeedData && weeklyFeedData.length > 0 && (
+        {weeklyFeedData && weeklyFeedData.length > 0 ? (
           <WeeklyFeed days={weeklyFeedData} />
+        ) : (
+          <div style={{ padding: 'var(--sp-6)', color: 'var(--text-muted)', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)' }}>
+            No weekly feed data generated yet. The AI digests news every weekend.
+          </div>
         )}
         
         {earningsCardsData.length > 0 && (

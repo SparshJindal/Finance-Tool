@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Send, Bot } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
 export default function CopilotPage() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string }[]>([
@@ -82,9 +83,25 @@ export default function CopilotPage() {
                 color: 'var(--text-primary)',
                 fontSize: 'var(--text-md)',
                 lineHeight: 1.6,
-                maxWidth: '80%'
+                maxWidth: '80%',
+                overflowX: 'auto',
+                whiteSpace: 'pre-wrap'
               }}>
-                {m.text}
+                {m.role === 'assistant' ? (
+                  <div style={{ padding: '0 var(--sp-2)' }}>
+                    <ReactMarkdown
+                      components={{
+                        p: ({ node, ...props }) => <p style={{ marginBottom: 'var(--sp-2)' }} {...props} />,
+                        ul: ({ node, ...props }) => <ul style={{ paddingLeft: 'var(--sp-4)', marginBottom: 'var(--sp-2)', listStyle: 'disc' }} {...props} />,
+                        li: ({ node, ...props }) => <li style={{ marginBottom: 'var(--sp-1)' }} {...props} />
+                      }}
+                    >
+                      {m.text}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  m.text
+                )}
               </div>
             </div>
           ))}
