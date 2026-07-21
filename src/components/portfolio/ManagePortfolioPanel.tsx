@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CompanyLogo } from './CompanyLogo'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 
 type Holding = {
   id: string

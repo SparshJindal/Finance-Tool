@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { ThesisHealthPanel } from './ThesisHealthPanel'
-import { useDashboard } from './DashboardTopNav'
+import { ThesisHealthPanel } from '@/components/portfolio/ThesisHealthPanel'
+import { useDashboard } from '@/components/layout/DashboardTopNav'
 
 export function PulseFeedList({ holdings }: { holdings: any[] }) {
   const { activeHolding } = useDashboard()

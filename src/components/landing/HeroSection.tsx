@@ -2,8 +2,8 @@
 
 import { motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
-import { PolygonMesh } from '@/components/PolygonMesh'
-import { CorantoWordmark } from '@/components/CorantoWordmark'
+import { PolygonMesh } from '@/components/ui/PolygonMesh'
+import { CorantoWordmark } from '@/components/ui/CorantoWordmark'
 import { useState } from 'react'
 
 import { ElementIlluminator } from './ElementIlluminator'

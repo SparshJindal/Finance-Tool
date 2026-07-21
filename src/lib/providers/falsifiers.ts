@@ -1,7 +1,7 @@
 import { askAI, LlmQuotaExhaustedError } from "./ai"
 import { Type } from "@google/genai"
 import type { Holding, Falsifier } from "@prisma/client"
-import type { FindingData } from "@/components/FindingCard"
+import type { FindingData } from "@/components/feed/FindingCard"
 
 export async function generateThesisFalsifiers(holding: Pick<Holding, 'company' | 'ticker' | 'directionLogic' | 'thesis'>) {
   const systemPrompt = `You are an expert investment analyst utilizing a Popperian approach to thesis validation.

@@ -60,3 +60,46 @@ export async function fetchQuote(ticker: string, exchange: string): Promise<{ pr
     return null;
   }
 }
+
+export async function fetchHistoricalTrend(ticker: string, exchange: string): Promise<string | null> {
+  try {
+    let symbol = ticker;
+    if (exchange === "NSE" || symbol.endsWith('.NS')) {
+      if (!symbol.endsWith('.NS')) symbol = `${symbol}.NS`;
+    } else if (exchange === "BSE" || symbol.endsWith('.BO')) {
+      if (!symbol.endsWith('.BO')) symbol = `${symbol}.BO`;
+    }
+
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=1mo`;
+    
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.chart || !data.chart.result || data.chart.result.length === 0) return null;
+
+    const result = data.chart.result[0];
+    const meta = result.meta;
+    const closes = result.indicators?.quote?.[0]?.close;
+
+    if (!meta || !closes || closes.length === 0) return null;
+
+    const validCloses = closes.filter((c: number | null) => c !== null).map((c: number) => c.toFixed(2));
+    
+    if (validCloses.length === 0) return null;
+
+    const start = parseFloat(validCloses[0]);
+    const end = parseFloat(validCloses[validCloses.length - 1]);
+    const pctChange = (((end - start) / start) * 100).toFixed(2);
+    
+    return `1-Month Trend: $${validCloses.join(' -> $')} (${pctChange}% over the month)`;
+  } catch (error) {
+    console.error(`[fetchHistoricalTrend] Error fetching trend for ${ticker}:`, error);
+    return null;
+  }
+}

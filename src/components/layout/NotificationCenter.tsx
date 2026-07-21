@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bell, Check, ExternalLink } from 'lucide-react'
-import type { FindingData } from './FindingCard'
+import type { FindingData } from '@/components/feed/FindingCard'
 
 type NotificationCenterProps = {
   unreadFindings: FindingData[]

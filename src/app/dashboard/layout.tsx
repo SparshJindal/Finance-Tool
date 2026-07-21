@@ -19,13 +19,13 @@ import {
   getWeeklyFeed,
   markFindingsRead,
 } from '@/app/actions'
-import { PushManager } from '@/components/PushManager'
-import { PipelineControls } from '@/components/PipelineControls'
-import { DashboardShell } from '@/components/DashboardShell'
-import { AddHoldingPanel } from '@/components/AddHoldingPanel'
-import { ManagePortfolioPanel } from '@/components/ManagePortfolioPanel'
-import { ImportHoldingsPanel } from '@/components/ImportHoldingsPanel'
-import { ProfilePanel } from '@/components/ProfilePanel'
+import { PushManager } from '@/components/layout/PushManager'
+import { PipelineControls } from '@/components/feed/PipelineControls'
+import { DashboardShell } from '@/components/layout/DashboardShell'
+import { AddHoldingPanel } from '@/components/portfolio/AddHoldingPanel'
+import { ManagePortfolioPanel } from '@/components/portfolio/ManagePortfolioPanel'
+import { ImportHoldingsPanel } from '@/components/portfolio/ImportHoldingsPanel'
+import { ProfilePanel } from '@/components/layout/ProfilePanel'
 import { buildHoldingVerdicts } from '@/lib/verdict'
 
 export const dynamic = 'force-dynamic'

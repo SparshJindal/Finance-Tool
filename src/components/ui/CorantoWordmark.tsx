@@ -1,5 +1,5 @@
 import React from 'react'
-import { CorantoLogo } from './CorantoLogo'
+import { CorantoLogo } from '@/components/ui/CorantoLogo'
 
 export function CorantoWordmark({ 
   height = 32, 

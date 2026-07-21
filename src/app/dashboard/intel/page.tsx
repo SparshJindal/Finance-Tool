@@ -1,15 +1,18 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import { HoldingVerdictCard } from '@/components/HoldingVerdictCard'
+import { HoldingVerdictCard } from '@/components/portfolio/HoldingVerdictCard'
 import { buildHoldingVerdicts } from '@/lib/verdict'
 
 export const dynamic = 'force-dynamic'
 
-export default async function IntelFeedPage() {
+export default async function IntelFeedPage({ searchParams }: { searchParams: Promise<{ holding?: string }> }) {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
   const userId = session.user.id
+  
+  const resolvedParams = await searchParams;
+  const activeHolding = resolvedParams?.holding || null
 
   const holdings = await prisma.holding.findMany({
     where: { userId },
@@ -73,7 +76,7 @@ export default async function IntelFeedPage() {
       
       {movers.length > 0 ? (
         movers.map(v => (
-          <HoldingVerdictCard key={v.holdingId} verdict={v} />
+          <HoldingVerdictCard key={v.holdingId} verdict={v} defaultExpanded={v.holdingId === activeHolding} />
         ))
       ) : (
         <div style={{ padding: 'var(--sp-6)', color: 'var(--text-muted)', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)' }}>
@@ -88,7 +91,7 @@ export default async function IntelFeedPage() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
             {quiet.map(v => (
-              <HoldingVerdictCard key={v.holdingId} verdict={v} />
+              <HoldingVerdictCard key={v.holdingId} verdict={v} defaultExpanded={v.holdingId === activeHolding} />
             ))}
           </div>
         </div>

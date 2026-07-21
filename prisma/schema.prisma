@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 model User {
@@ -156,6 +158,7 @@ model Finding {
   read              Boolean  @default(false)
   feedback          String?
   createdAt         DateTime @default(now()) @map("created_at")
+  embedding         Unsupported("vector(768)")?
 
   article  Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
   holding  Holding   @relation(fields: [holdingId], references: [id], onDelete: Cascade)

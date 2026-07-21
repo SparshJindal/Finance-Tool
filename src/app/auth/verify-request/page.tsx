@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { PolygonMesh } from "@/components/PolygonMesh"
+import { PolygonMesh } from "@/components/ui/PolygonMesh"
 
 export default function VerifyRequestPage() {
   return (

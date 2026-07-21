@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import { ManagePortfolioPanel } from '@/components/ManagePortfolioPanel'
-import { AddHoldingPanel } from '@/components/AddHoldingPanel'
-import { ImportHoldingsPanel } from '@/components/ImportHoldingsPanel'
+import { ManagePortfolioPanel } from '@/components/portfolio/ManagePortfolioPanel'
+import { AddHoldingPanel } from '@/components/portfolio/AddHoldingPanel'
+import { ImportHoldingsPanel } from '@/components/portfolio/ImportHoldingsPanel'
 import { updateHolding, deleteHolding, addHolding } from '@/app/actions'
 
 export const dynamic = 'force-dynamic'

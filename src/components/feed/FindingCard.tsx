@@ -2,8 +2,8 @@
 
 import { useState, useTransition, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Severity } from './Severity'
-import { RelevanceBadge } from './RelevanceBadge'
+import { Severity } from '@/components/feed/Severity'
+import { RelevanceBadge } from '@/components/feed/RelevanceBadge'
 import { submitFindingFeedback } from '@/app/actions'
 
 export type FindingData = {

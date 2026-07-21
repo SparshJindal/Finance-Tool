@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Severity } from '@/components/Severity'
-import { CorantoLogo } from '@/components/CorantoLogo'
-import { CompanyLogo } from '@/components/CompanyLogo'
+import { Severity } from '@/components/feed/Severity'
+import { CorantoLogo } from '@/components/ui/CorantoLogo'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import { motion } from 'framer-motion'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 

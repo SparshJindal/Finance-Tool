@@ -4,7 +4,7 @@ import { useTransition, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { HoldingRunResult } from '@/lib/pipeline'
-import { NotificationCenter } from './NotificationCenter'
+import { NotificationCenter } from '@/components/layout/NotificationCenter'
 import { Sun, Moon } from 'lucide-react'
 
 type RunSummary = {

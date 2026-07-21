@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { EarningsCard } from './EarningsCard'
-import { useDashboard } from './DashboardTopNav'
+import { EarningsCard } from '@/components/ui/EarningsCard'
+import { useDashboard } from '@/components/layout/DashboardTopNav'
 
 export function EarningsRadarList({ earningsCardsData }: { earningsCardsData: any[] }) {
   const { activeHolding } = useDashboard()

@@ -1,6 +1,6 @@
 'use client'
 
-import { RelevanceBadge } from './RelevanceBadge'
+import { RelevanceBadge } from '@/components/feed/RelevanceBadge'
 
 type TickerItem = {
   id: string

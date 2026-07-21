@@ -14,6 +14,23 @@ export class LlmQuotaExhaustedError extends Error {
   }
 }
 
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) throw new Error("GEMINI_API_KEY is not set");
+  const ai = new GoogleGenAI({ apiKey: geminiKey });
+  
+  const response = await ai.models.embedContent({
+    model: 'text-embedding-004',
+    contents: text,
+  });
+
+  if (!response.embeddings || response.embeddings.length === 0 || !response.embeddings[0].values) {
+    throw new Error("Failed to generate embedding");
+  }
+
+  return response.embeddings[0].values;
+}
+
 export async function askAI({
   prompt,
   schema,

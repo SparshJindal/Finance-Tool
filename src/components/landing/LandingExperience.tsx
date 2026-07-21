@@ -9,7 +9,7 @@ import { HowItWorksSection } from './HowItWorksSection'
 import { FeaturesSection } from './FeaturesSection'
 import { LiveVerdictDemo } from './LiveVerdictDemo'
 import { FinalCtaSection } from './FinalCtaSection'
-import { PolygonMesh } from '@/components/PolygonMesh'
+import { PolygonMesh } from '@/components/ui/PolygonMesh'
 import { LandingScrollProvider } from './LandingScrollContext'
 
 export function LandingExperience() {

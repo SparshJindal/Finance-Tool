@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PolygonMesh } from '@/components/PolygonMesh'
+import { PolygonMesh } from '@/components/ui/PolygonMesh'
 
 function ConfirmSignInContent() {
   const searchParams = useSearchParams()

@@ -13,6 +13,7 @@ import { Type } from '@google/genai'
 import { generateHoldingProfile } from '@/lib/providers/profile'
 import { generateThesisFalsifiers } from '@/lib/providers/falsifiers'
 import { resolveEntity } from '@/lib/entity'
+import stringSimilarity from 'string-similarity'
 
 async function populateHoldingProfile(holdingId: string, ticker: string, company: string, thesis: string, directionLogic: string) {
   try {
@@ -871,6 +872,22 @@ export async function getWeeklyFeed(userId?: string) {
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
+  // Deduplicate highly similar findings (same event from multiple sources)
+  const dedupedScored = [];
+  for (const item of scored) {
+    let isDuplicate = false;
+    for (const existing of dedupedScored) {
+      if (item.holdingId === existing.holdingId) {
+        const sim = stringSimilarity.compareTwoStrings(item.summary.toLowerCase(), existing.summary.toLowerCase());
+        if (sim > 0.70) {
+          isDuplicate = true;
+          break;
+        }
+      }
+    }
+    if (!isDuplicate) dedupedScored.push(item);
+  }
+
   const getISTDateStr = (date: Date) => {
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Calcutta',
@@ -887,7 +904,7 @@ export async function getWeeklyFeed(userId?: string) {
 
   const selected = [];
   const dayCounts = new Map<string, number>();
-  for (const item of scored) {
+  for (const item of dedupedScored) {
     if (selected.length >= 12) break;
     const dateStr = getISTDateStr(item.createdAt);
     const count = dayCounts.get(dateStr) || 0;

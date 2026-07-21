@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { signIn } from "next-auth/react"
-import { PolygonMesh } from "@/components/PolygonMesh"
-import { CorantoLogo } from "@/components/CorantoLogo"
+import { PolygonMesh } from "@/components/ui/PolygonMesh"
+import { CorantoLogo } from "@/components/ui/CorantoLogo"
 import { signUp } from '@/app/actions'
 import { useRouter } from 'next/navigation'
 

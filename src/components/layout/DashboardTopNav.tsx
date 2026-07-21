@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bot, LineChart, Target, Rss, Layers } from 'lucide-react'
-import { ThemeToggle } from './ThemeToggle'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 
 // Dashboard Context to share activeHolding across tabs
 export const DashboardContext = createContext<{

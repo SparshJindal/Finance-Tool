@@ -1,4 +1,4 @@
-import type { FindingData } from '@/components/FindingCard'
+import type { FindingData } from '@/components/feed/FindingCard'
 
 export type HoldingVerdict = {
   holdingId: string

@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { HoldingVerdict } from '@/lib/verdict'
-import { FindingCard } from './FindingCard'
-import { EarningsCard } from './EarningsCard'
-import { ThesisHealthPanel } from './ThesisHealthPanel'
-import { CompanyLogo } from './CompanyLogo'
+import { FindingCard } from '@/components/feed/FindingCard'
+import { EarningsCard } from '@/components/ui/EarningsCard'
+import { ThesisHealthPanel } from '@/components/portfolio/ThesisHealthPanel'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 
 type HoldingVerdictCardProps = {
   verdict: HoldingVerdict
   reducedMotion?: boolean
+  defaultExpanded?: boolean
 }
 
 // Simple deterministic pseudo-random generator
@@ -59,8 +60,12 @@ function generateSparkline(ticker: string, verdict: string, isReduced: boolean) 
   return { path, lastY };
 }
 
-export function HoldingVerdictCard({ verdict, reducedMotion = false }: HoldingVerdictCardProps) {
-  const [expanded, setExpanded] = useState(false)
+export function HoldingVerdictCard({ verdict, reducedMotion = false, defaultExpanded = false }: HoldingVerdictCardProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+
+  useEffect(() => {
+    setExpanded(defaultExpanded)
+  }, [defaultExpanded])
 
   const toggle = () => setExpanded(e => !e)
 

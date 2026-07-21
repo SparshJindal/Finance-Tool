@@ -5,7 +5,7 @@ import stringSimilarity from "string-similarity";
 import { judgeHoldingArticles, generateHoldingCaption } from "@/lib/providers/summary";
 import { fetchArticleExcerpt } from "@/lib/providers/extract";
 import { fetchQuote } from "@/lib/providers/quote";
-import { LlmQuotaExhaustedError } from "@/lib/providers/ai";
+import { askAI, LlmQuotaExhaustedError, generateEmbedding } from "@/lib/providers/ai";
 import { evaluateFalsifiers } from "@/lib/providers/falsifiers";
 import { sourceTier } from "@/lib/providers/sourceQuality";
 import type { NormalizedArticle } from "@/lib/providers/news";
@@ -562,6 +562,7 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
               if (j.severity > existingForCh.severity) isNewOrUpgraded = true;
             } else {
               creations.push({
+                id: crypto.randomUUID(),
                 articleId: j.articleId,
                 holdingId: ch.id,
                 ...data
@@ -585,6 +586,31 @@ async function ingestNewsInternal(userId?: string, runEvaluation: boolean = true
             ...updates.map(u => prisma.finding.update(u)),
             ...(creations.length > 0 ? [prisma.finding.createMany({ data: creations })] : [])
           ]);
+          
+          // Generate embeddings async to not block main transaction
+          const rawUpdates: any[] = [];
+          for (const c of creations) {
+            try {
+              const textToEmbed = `${h.ticker} (${h.company}) - Severity ${c.severity}: ${c.summary}`;
+              const emb = await generateEmbedding(textToEmbed);
+              rawUpdates.push(prisma.$executeRaw`UPDATE findings SET embedding = ${emb}::vector WHERE id = ${c.id}`);
+            } catch (e) {
+              console.error('[ingestNews] Failed to generate embedding for creation', e);
+            }
+          }
+          for (const u of updates) {
+            try {
+              const textToEmbed = `${h.ticker} (${h.company}) - Severity ${u.data.severity}: ${u.data.summary}`;
+              const emb = await generateEmbedding(textToEmbed);
+              rawUpdates.push(prisma.$executeRaw`UPDATE findings SET embedding = ${emb}::vector WHERE id = ${u.where.id}`);
+            } catch (e) {
+              console.error('[ingestNews] Failed to generate embedding for update', e);
+            }
+          }
+
+          if (rawUpdates.length > 0) {
+            await Promise.allSettled(rawUpdates);
+          }
           
           totalFindingsSaved += passedJudgments.length; // Raw findings count
           clusterFindingsAdded += passedJudgments.length;

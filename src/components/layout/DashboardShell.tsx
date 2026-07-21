@@ -3,21 +3,21 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IntelRail } from './IntelRail'
-import { TickerTape } from './TickerTape'
-import { PipelineControls } from './PipelineControls'
-import type { FindingData } from './FindingCard'
-import { AddHoldingPanel } from './AddHoldingPanel'
-import { ManagePortfolioPanel } from './ManagePortfolioPanel'
-import { ImportHoldingsPanel } from './ImportHoldingsPanel'
-import { ProfilePanel } from './ProfilePanel'
-import { DashboardTopNav, DashboardContext } from './DashboardTopNav'
+import { IntelRail } from '@/components/feed/IntelRail'
+import { TickerTape } from '@/components/ui/TickerTape'
+import { PipelineControls } from '@/components/feed/PipelineControls'
+import type { FindingData } from '@/components/feed/FindingCard'
+import { AddHoldingPanel } from '@/components/portfolio/AddHoldingPanel'
+import { ManagePortfolioPanel } from '@/components/portfolio/ManagePortfolioPanel'
+import { ImportHoldingsPanel } from '@/components/portfolio/ImportHoldingsPanel'
+import { ProfilePanel } from '@/components/layout/ProfilePanel'
+import { DashboardTopNav, DashboardContext } from '@/components/layout/DashboardTopNav'
 
-import { PolygonMesh } from './PolygonMesh'
-import { HoldingVerdictCard } from './HoldingVerdictCard'
-import { EarningsCard } from './EarningsCard'
-import { ThesisHealthPanel } from './ThesisHealthPanel'
-import { WeeklyFeed } from './WeeklyFeed'
+import { PolygonMesh } from '@/components/ui/PolygonMesh'
+import { HoldingVerdictCard } from '@/components/portfolio/HoldingVerdictCard'
+import { EarningsCard } from '@/components/ui/EarningsCard'
+import { ThesisHealthPanel } from '@/components/portfolio/ThesisHealthPanel'
+import { WeeklyFeed } from '@/components/feed/WeeklyFeed'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import type { HoldingVerdict } from '@/lib/verdict'
@@ -77,8 +77,12 @@ export function DashboardShell({
 
   const handleHoldingClick = useCallback((id: string | null) => {
     setActiveHolding(id)
-    if (id !== null && pathname !== '/dashboard/intel') {
-      router.push('/dashboard/intel')
+    if (id !== null) {
+      router.push(`/dashboard/intel?holding=${id}`)
+    } else {
+      if (pathname !== '/dashboard/intel') {
+        router.push('/dashboard/intel')
+      }
     }
   }, [pathname, router])
 
