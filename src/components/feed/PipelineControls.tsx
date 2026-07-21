@@ -3,6 +3,7 @@
 import { useTransition, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import type { HoldingRunResult } from '@/lib/pipeline'
 import { NotificationCenter } from '@/components/layout/NotificationCenter'
 import { Sun, Moon } from 'lucide-react'
@@ -61,20 +62,15 @@ export function PipelineControls({
   const [isPendingDigest, startTransitionDigest] = useTransition()
   const [isPendingEarnings, startTransitionEarnings] = useTransition()
   const [isPendingFalsifiers, startTransitionFalsifiers] = useTransition()
-  const [isLightMode, setIsLightMode] = useState(false)
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
-  // Initialize theme from document on mount
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      setIsLightMode(document.documentElement.classList.contains('light'))
-    }
+    setMounted(true)
   }, [])
 
   const toggleTheme = () => {
-    if (typeof document !== 'undefined') {
-      const isLight = document.documentElement.classList.toggle('light')
-      setIsLightMode(isLight)
-    }
+    setTheme(theme === 'dark' ? 'light' : 'dark')
   }
 
   const router = useRouter()
@@ -217,7 +213,9 @@ export function PipelineControls({
             exit={{ opacity: 0, y: -20 }}
             style={{
               position: 'fixed',
-              top: 0, left: 0, right: 0,
+              top: 'var(--sp-4)',
+              left: '50%',
+              transform: 'translateX(-50%)',
               zIndex: 9999,
               display: 'flex',
               flexDirection: 'column'
@@ -283,15 +281,21 @@ export function PipelineControls({
             {pipelineState.active && pipelineState.text.includes('Ingesting') ? 'Running Scan...' : 'Run Scan'}
           </button>
 
-          {/* Theme Toggle */}
-          <button 
-            onClick={toggleTheme} 
-            className="btn btn-secondary" 
-            style={{ padding: 'var(--sp-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Toggle Theme"
-          >
-            {isLightMode ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
+          <button
+          onClick={toggleTheme}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: 'var(--sp-2)',
+            borderRadius: 'var(--radius-sm)',
+          }}
+          title="Toggle Theme"
+        >
+          {mounted && (theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />)}
+          {!mounted && <div style={{ width: 16, height: 16 }} />}
+        </button>
 
           {/* Tools Menu */}
           <div style={{ position: 'relative' }} ref={toolsRef}>
