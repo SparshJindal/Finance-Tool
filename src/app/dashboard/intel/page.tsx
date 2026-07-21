@@ -63,8 +63,13 @@ export default async function IntelFeedPage({ searchParams }: { searchParams: Pr
     findings
   )
 
-  const movers = holdingVerdicts.filter(v => !v.isQuiet)
-  const quiet = holdingVerdicts.filter(v => v.isQuiet)
+  let filteredVerdicts = holdingVerdicts
+  if (activeHolding) {
+    filteredVerdicts = holdingVerdicts.filter(v => v.holdingId === activeHolding)
+  }
+
+  const movers = filteredVerdicts.filter(v => !v.isQuiet)
+  const quiet = filteredVerdicts.filter(v => v.isQuiet)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
