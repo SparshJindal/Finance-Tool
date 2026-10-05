@@ -1,99 +1,60 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getStartedBoss } from '@/lib/boss';
-import stringSimilarity from 'string-similarity';
+import { NextRequest, NextResponse } from 'next/server';
+import { ingestNews } from '@/lib/pipeline';
 
-export const maxDuration = 300; // Vercel max duration
+export const maxDuration = 300; // Allow Vercel up to 5 minutes
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+function checkAuth(request: Request): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const url = new URL(request.url);
+  const secretParam = url.searchParams.get('secret');
 
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  // If CRON_SECRET is set, require either Bearer token or ?secret= query param
+  if (cronSecret) {
+    return authHeader === `Bearer ${cronSecret}` || secretParam === cronSecret;
+  }
+  // In development without CRON_SECRET, allow testing
+  return process.env.NODE_ENV !== 'production';
+}
+
+async function handleIngest(request: Request) {
+  if (!checkAuth(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  console.log('[Cron/Ingest] Starting automated 8:00 AM IST news ingestion...');
+  const startTime = Date.now();
+
   try {
-    // Fetch all active holdings across all users
-    const holdings = await prisma.holding.findMany({
-      select: { id: true, ticker: true, thesis: true, directionLogic: true, kind: true }
-    });
+    const report = await ingestNews();
+    const findingsSaved = report.results.reduce((sum, r) => sum + r.findingsAdded, 0);
+    const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    if (holdings.length === 0) {
-      return NextResponse.json({ success: true, message: 'No holdings found to process' });
-    }
+    console.log(`[Cron/Ingest] Completed in ${durationSeconds}s. Processed ${report.results.length} holdings, saved ${findingsSaved} findings.`);
 
-    // Group by Ticker
-    const groupedByTicker: Record<string, typeof holdings> = {};
-    for (const h of holdings) {
-      if (!groupedByTicker[h.ticker]) groupedByTicker[h.ticker] = [];
-      groupedByTicker[h.ticker].push(h);
-    }
-
-    const clusters: string[][] = [];
-
-    // Cluster by Thesis & Direction within each Ticker group
-    for (const group of Object.values(groupedByTicker)) {
-      let unclustered = [...group];
-      
-      while (unclustered.length > 0) {
-        const head = unclustered[0];
-        const clusterHoldingIds = [head.id];
-        const remaining = [];
-
-        // Normalize direction for the cluster head
-        const headDirection = [head.directionLogic, head.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
-
-        for (let i = 1; i < unclustered.length; i++) {
-          const candidate = unclustered[i];
-          const candDirection = [candidate.directionLogic, candidate.kind].map(v => (v || '').toString().toUpperCase().trim()).find(v => v === 'LONG' || v === 'SHORT') || 'LONG';
-          
-          // Must have same direction to be clustered
-          if (headDirection === candDirection) {
-            const sim = stringSimilarity.compareTwoStrings(
-              (head.thesis || '').toLowerCase(),
-              (candidate.thesis || '').toLowerCase()
-            );
-            
-            if (sim >= 0.70) {
-              clusterHoldingIds.push(candidate.id);
-            } else {
-              remaining.push(candidate);
-            }
-          } else {
-            remaining.push(candidate);
-          }
-        }
-        
-        clusters.push(clusterHoldingIds);
-        unclustered = remaining;
-      }
-    }
-
-    console.log(`[Cron] Clustered ${holdings.length} holdings into ${clusters.length} cross-account jobs.`);
-    const boss = await getStartedBoss();
-
-    const jobs = clusters.map(clusterIds => ({
-      name: 'ingest-cluster',
-      data: { targetHoldingIds: clusterIds, runEvaluation: true, skipHeavyApis: false },
-      options: { 
-        retryLimit: 3, 
-        retryDelay: 60, // 1 minute backoff 
-        expireInSeconds: 300 // Max 5 mins execution 
-      }
-    }));
-
-    await Promise.all(jobs.map(j => boss.send(j.name, j.data, j.options)));
-
-    return NextResponse.json({ 
-      success: true, 
-      enqueuedClusters: clusters.length,
-      originalHoldingsCount: holdings.length,
-      message: "Successfully pushed clustered jobs to pg-boss queue"
+    return NextResponse.json({
+      success: true,
+      durationSeconds,
+      holdingsProcessed: report.results.length,
+      findingsSaved,
+      results: report.results.map(r => ({
+        ticker: r.ticker,
+        status: r.status,
+        findingsAdded: r.findingsAdded,
+        reason: r.reason
+      }))
     });
   } catch (error: any) {
-    console.error('[Cron] Error during enqueueing:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Cron/Ingest] Pipeline failed:', error);
+    return NextResponse.json({ error: error.message || 'Pipeline execution failed' }, { status: 500 });
   }
+}
+
+export async function GET(request: Request) {
+  return handleIngest(request);
+}
+
+export async function POST(request: Request) {
+  return handleIngest(request);
 }
